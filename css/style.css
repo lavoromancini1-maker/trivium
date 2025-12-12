@@ -209,3 +209,54 @@ body {
   font-size: 0.8rem;
   opacity: 0.9;
 }
+
+.question-card {
+  max-width: 900px;
+  width: 90%;
+  background: #111827;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+}
+
+.question-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.question-category {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.question-text {
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+}
+
+.answers-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.answer-item {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.answer-label {
+  font-weight: 700;
+}
+
+.question-footer {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
