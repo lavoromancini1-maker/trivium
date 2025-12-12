@@ -1,4 +1,8 @@
 import { BOARD, START_TILE_ID } from "./board.js";
+import {
+  getRandomCategoryQuestion,
+  getRandomKeyQuestion,
+} from "./questions.js";
 
 import {
   db,
@@ -196,6 +200,7 @@ export async function startGame(gameCode) {
     currentTurnIndex: 0,
     currentPlayerId: turnOrder[0],
     players: updatedPlayers,
+    usedCategoryQuestionIds: {}, // per non ripetere domande
   };
 
   await update(gameRef, updateData);
