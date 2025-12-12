@@ -267,6 +267,3 @@ function handleGameUpdate(
   // altri stati futuri
 }
 
-
-  // altri stati (es. GAME_OVER)
-}
