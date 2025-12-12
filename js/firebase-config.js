@@ -1,3 +1,15 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getDatabase,
+  ref,
+  set,
+  get,
+  update,
+  push,
+  onValue,
+  serverTimestamp,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
   const firebaseConfig = {
     apiKey: "AIzaSyD4TXORcOqylbMKnn0ZF1nF6rjw6uo8dX4",
     authDomain: "trivium-26048.firebaseapp.com",
@@ -7,3 +19,23 @@
     messagingSenderId: "882582165118",
     appId: "1:882582165118:web:1dba969eda431772feea2f"
   };
+
+
+if (!firebaseConfig || !firebaseConfig.apiKey) {
+  console.warn("⚠️ Attenzione: firebaseConfig non è impostato correttamente.");
+}
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// Esportiamo ciò che ci serve
+export {
+  db,
+  ref,
+  set,
+  get,
+  update,
+  push,
+  onValue,
+  serverTimestamp,
+};
