@@ -7,7 +7,6 @@ import {
   chooseDirection,
   answerCategoryQuestion,
 } from "./firebase-game.js";
-;
 
 let currentGameCode = null;
 let currentPlayerId = null;
@@ -28,36 +27,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const diceResultEl = document.getElementById("dice-result");
   const directionPanel = document.getElementById("direction-panel");
   const directionButtons = document.getElementById("direction-buttons");
-  answerButtons.addEventListener("click", async (e) => {
-  const btn = e.target.closest("button[data-answer-index]");
-  if (!btn) return;
-
-  const answerIndex = parseInt(btn.getAttribute("data-answer-index"), 10);
-  if (Number.isNaN(answerIndex)) return;
-
-  if (!currentGameCode || !currentPlayerId) return;
-
-  try {
-    // disattivo i pulsanti per evitare doppi tap
-    Array.from(answerButtons.querySelectorAll("button")).forEach(
-      (b) => (b.disabled = true)
-    );
-    // inviamo la risposta
-    await answerCategoryQuestion(currentGameCode, currentPlayerId, answerIndex);
-    // il listener di stato si occuperà di aggiornare pannelli, overlay, ecc.
-  } catch (err) {
-    console.error(err);
-    alert(err.message || "Errore nell'invio della risposta.");
-    Array.from(answerButtons.querySelectorAll("button")).forEach(
-      (b) => (b.disabled = false)
-    );
-  }
-});
-
 
   const answerPanel = document.getElementById("answer-panel");
-const answerButtons = document.getElementById("answer-buttons");
-
+  const answerButtons = document.getElementById("answer-buttons");
 
   // precompila codice se c'è ?game=XXXX
   const params = new URLSearchParams(window.location.search);
@@ -66,6 +38,7 @@ const answerButtons = document.getElementById("answer-buttons");
     gameCodeInput.value = gameFromUrl;
   }
 
+  // JOIN PARTITA
   joinForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     joinErrorEl.textContent = "";
@@ -89,7 +62,6 @@ const answerButtons = document.getElementById("answer-buttons");
 
       currentGameCode = gameCode;
       currentPlayerId = playerId;
-
       window.currentPlayerId = playerId;
 
       playerNameDisplay.textContent = `Giocatore: ${playerName}`;
@@ -108,6 +80,8 @@ const answerButtons = document.getElementById("answer-buttons");
           diceResultEl,
           directionPanel,
           directionButtons,
+          answerPanel,
+          answerButtons,
         });
       });
     } catch (err) {
@@ -143,13 +117,45 @@ const answerButtons = document.getElementById("answer-buttons");
 
     try {
       // disattiva i pulsanti per evitare doppi click
-      Array.from(directionButtons.querySelectorAll("button")).forEach((b) => (b.disabled = true));
+      Array.from(directionButtons.querySelectorAll("button")).forEach(
+        (b) => (b.disabled = true)
+      );
       turnStatusText.textContent = "Spostamento in corso...";
       await chooseDirection(currentGameCode, currentPlayerId, dirIndex);
       // il listener aggiornerà lo stato e nasconderà il pannello
     } catch (err) {
       console.error(err);
       alert(err.message || "Errore nella scelta della direzione.");
+    }
+  });
+
+  // Risposta A/B/C/D
+  answerButtons.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-answer-index]");
+    if (!btn) return;
+
+    const answerIndex = parseInt(btn.getAttribute("data-answer-index"), 10);
+    if (Number.isNaN(answerIndex)) return;
+
+    if (!currentGameCode || !currentPlayerId) return;
+
+    try {
+      // disattivo i pulsanti per evitare doppi tap
+      Array.from(answerButtons.querySelectorAll("button")).forEach(
+        (b) => (b.disabled = true)
+      );
+      await answerCategoryQuestion(
+        currentGameCode,
+        currentPlayerId,
+        answerIndex
+      );
+      // Il listener di stato si occuperà di aggiornare pannelli, overlay, ecc.
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Errore nell'invio della risposta.");
+      Array.from(answerButtons.querySelectorAll("button")).forEach(
+        (b) => (b.disabled = false)
+      );
     }
   });
 });
@@ -167,6 +173,8 @@ function handleGameUpdate(
     diceResultEl,
     directionPanel,
     directionButtons,
+    answerPanel,
+    answerButtons,
   }
 ) {
   if (!gameState) {
@@ -224,7 +232,8 @@ function handleGameUpdate(
         rollDiceBtn.disabled = true;
         directionPanel.classList.add("hidden");
         if (currentQuestion && currentQuestion.forPlayerId === myId) {
-          turnStatusText.textContent = "È la tua domanda. Scegli A, B, C o D.";
+          turnStatusText.textContent =
+            "È la tua domanda. Scegli A, B, C o D.";
           answerPanel.classList.remove("hidden");
           Array.from(answerButtons.querySelectorAll("button")).forEach(
             (b) => (b.disabled = false)
@@ -266,4 +275,3 @@ function handleGameUpdate(
 
   // altri stati futuri
 }
-
