@@ -183,3 +183,29 @@ body {
   margin-top: 0.5rem;
   font-size: 0.85rem;
 }
+
+.players-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.players-list-item {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid #2d3748;
+  font-size: 0.9rem;
+}
+
+.players-list-item--active {
+  background: rgba(246, 173, 85, 0.15);
+  border-left: 3px solid var(--accent);
+}
+
+.player-name {
+  font-weight: 600;
+}
+
+.player-info {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
