@@ -1,6 +1,8 @@
 // ui-host.js
 import { BOARD } from "./board.js";
 
+let overlayTimerInterval = null;
+
 /**
  * Inizializza il tabellone nell'elemento container.
  * Per ora lo disegniamo come una semplice griglia rettangolare,
@@ -49,8 +51,6 @@ export function renderBoard(container) {
 
   container.appendChild(boardEl);
 }
-
-let overlayTimerInterval = null;
 
 /**
  * Mostra la domanda corrente in overlay sull'host.
