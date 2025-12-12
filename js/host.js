@@ -141,7 +141,8 @@ function renderGameMessage(gameState, messageEl) {
   const state = gameState.state || "LOBBY";
 
   if (state === "LOBBY") {
-    messageEl.textContent = "In attesa dei giocatori. Premi 'Avvia partita' quando sei pronto.";
+    messageEl.textContent =
+      "In attesa dei giocatori. Premi 'Avvia partita' quando sei pronto.";
     return;
   }
 
@@ -157,6 +158,12 @@ function renderGameMessage(gameState, messageEl) {
     }
     return;
   }
+
+  // Altri stati possibili (es. FINISHED, PAUSED, ecc.)
+  messageEl.textContent = "Stato: " + state;
+}
+
+// ⬇⬇⬇ DA QUI IN GIÙ siamo fuori da renderGameMessage
 
 function setupTimeoutInterval() {
   // Evita più intervalli sovrapposti
@@ -184,6 +191,8 @@ window.addEventListener("beforeunload", () => {
   if (timeoutIntervalId) {
     clearInterval(timeoutIntervalId);
   }
+});
+
 });
 
   messageEl.textContent = "Stato: " + state;
