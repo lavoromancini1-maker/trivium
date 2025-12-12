@@ -38,15 +38,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Ascolta lo stato della partita
       if (unsubscribeGame) unsubscribeGame();
-unsubscribeGame = listenGame(gameCode, (gameState) => {
-  if (!gameState) {
-    messageTextEl.textContent = "Partita non trovata.";
-    return;
-  }
-  renderPlayers(gameState, playersListEl);
-  renderGameMessage(gameState, messageTextEl);
-  renderQuestionOverlay(gameState);
-});
+      unsubscribeGame = listenGame(gameCode, (gameState) => {
+        if (!gameState) {
+          messageTextEl.textContent = "Partita non trovata.";
+          return;
+        }
+
+        currentGameState = gameState;
+
+        renderPlayers(gameState, playersListEl);
+        renderGameMessage(gameState, messageTextEl);
+        renderQuestionOverlay(gameState);
+      });
+
+      // avvia il controllo periodico dei timeout
+      setupTimeoutInterval();
+
 
 
       createGameBtn.textContent = "Partita creata";
@@ -151,6 +158,33 @@ function renderGameMessage(gameState, messageEl) {
     return;
   }
 
-  // Altri stati futuri (es. GAME_OVER)
+function setupTimeoutInterval() {
+  // Evita più intervalli sovrapposti
+  if (timeoutIntervalId) {
+    clearInterval(timeoutIntervalId);
+    timeoutIntervalId = null;
+  }
+
+  if (!currentGameCode) return;
+
+  timeoutIntervalId = setInterval(async () => {
+    try {
+      const res = await checkAndHandleQuestionTimeout(currentGameCode);
+      if (res && res.handled) {
+        console.log("⏰ Timeout domanda gestito automaticamente:", res.reason);
+        // Il listener listenGame aggiornerà UI, turni, ecc.
+      }
+    } catch (err) {
+      console.error("Errore nel controllo timeout domanda:", err);
+    }
+  }, 500);
+}
+
+window.addEventListener("beforeunload", () => {
+  if (timeoutIntervalId) {
+    clearInterval(timeoutIntervalId);
+  }
+});
+
   messageEl.textContent = "Stato: " + state;
 }
