@@ -47,5 +47,56 @@ export function renderBoard(container) {
     boardEl.appendChild(tileEl);
   });
 
+  export function renderQuestionOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+
+  if (!overlay || !overlayContent) return;
+
+  if (!gameState || gameState.phase !== "QUESTION" || !gameState.currentQuestion) {
+    overlay.classList.add("hidden");
+    overlayContent.innerHTML = "";
+    return;
+  }
+
+  const q = gameState.currentQuestion;
+  const players = gameState.players || {};
+  const player = players[q.forPlayerId];
+
+  const playerName = player ? player.name : "Giocatore";
+
+  const answersHtml = q.answers
+    .map(
+      (ans, idx) => `
+      <li class="answer-item">
+        <span class="answer-label">${String.fromCharCode(65 + idx)}.</span>
+        <span class="answer-text">${ans}</span>
+      </li>
+    `
+    )
+    .join("");
+
+  overlayContent.innerHTML = `
+    <div class="question-card">
+      <div class="question-header">
+        <div class="question-category">${q.category.toUpperCase()} ${
+    q.isKeyQuestion ? "– DOMANDA CHIAVE" : ""
+  }</div>
+        <div class="question-player">Sta rispondendo: <strong>${playerName}</strong></div>
+      </div>
+      <div class="question-text">${q.text}</div>
+      <ul class="answers-list">
+        ${answersHtml}
+      </ul>
+      <div class="question-footer">
+        <span>In attesa della risposta sul dispositivo del giocatore...</span>
+      </div>
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
+}
+
+
   container.appendChild(boardEl);
 }
