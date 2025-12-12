@@ -147,6 +147,29 @@ const CATEGORIES = [
   "scienza",
 ];
 
+function getCategoryQuestionDurationSeconds(questionLevel, isKeyQuestion, advancesLevel) {
+  // Domanda chiave
+  if (isKeyQuestion) {
+    return 30;
+  }
+
+  // Domande di livello numerico
+  if (typeof questionLevel === "number") {
+    // "Solo punti" (categoria già a livello 3) → abbiamo deciso di usare livello 2 ma senza avanzare
+    // quindi trattala come livello 2: 15 secondi
+    if (!advancesLevel && questionLevel === 2) {
+      return 15;
+    }
+
+    if (questionLevel === 1) return 15;
+    if (questionLevel === 2) return 15;
+    if (questionLevel === 3) return 20;
+  }
+
+  // Fallback di sicurezza
+  return 15;
+}
+
 /**
  * Avvia la partita: genera ordine casuale dei giocatori, inizializza
  * livelli, chiavi, carte, punteggio. Aggiorna lo stato in "IN_PROGRESS".
@@ -401,14 +424,14 @@ function prepareCategoryQuestionForTile(game, playerId, tile, tileId) {
   const usedCategoryQuestionIds = game.usedCategoryQuestionIds || {};
 
   // Decidiamo il "tipo" di domanda da fare
-  let questionLevel;    // 1,2,3 oppure "key" o "normalPoints"
+  let questionLevel; // 1,2,3 oppure "key"
   let advancesLevel = false;
   let isKeyQuestion = false;
 
   if (tile.type === "category") {
     if (currentLevel < 3) {
       // Livello successivo
-      questionLevel = currentLevel + 1; // 1→2→3
+      questionLevel = currentLevel + 1; // 0→1, 1→2, 2→3
       advancesLevel = true;
     } else {
       // Categoria già a livello 3 → solo punti, usiamo domanda di "livello 2"
@@ -426,7 +449,7 @@ function prepareCategoryQuestionForTile(game, playerId, tile, tileId) {
       isKeyQuestion = true;
       advancesLevel = false;
     } else {
-      // Hai già la chiave → solo punti
+      // Hai già la chiave → solo punti (domanda di livello 2)
       questionLevel = 2;
       advancesLevel = false;
     }
@@ -446,7 +469,9 @@ function prepareCategoryQuestionForTile(game, playerId, tile, tileId) {
   }
 
   if (!rawQuestion) {
-    throw new Error("Non ci sono più domande disponibili per questa categoria/livello.");
+    throw new Error(
+      "Non ci sono più domande disponibili per questa categoria/livello."
+    );
   }
 
   // Mischiamo le risposte per non avere sempre lo stesso ordine
@@ -459,10 +484,20 @@ function prepareCategoryQuestionForTile(game, playerId, tile, tileId) {
   const shuffledAnswers = indices.map((i) => rawQuestion.answers[i]);
   const newCorrectIndex = indices.indexOf(rawQuestion.correctIndex);
 
+  // Calcoliamo la durata in secondi in base al tipo di domanda
+  const durationSec = getCategoryQuestionDurationSeconds(
+    questionLevel,
+    isKeyQuestion,
+    advancesLevel
+  );
+
+  const startedAt = Date.now();
+  const expiresAt = startedAt + durationSec * 1000;
+
   const questionData = {
     id: rawQuestion.id,
     category,
-    level: questionLevel,           // 1,2,3 oppure "key"
+    level: questionLevel, // 1,2,3 oppure "key"
     text: rawQuestion.text,
     answers: shuffledAnswers,
     correctIndex: newCorrectIndex,
@@ -471,6 +506,10 @@ function prepareCategoryQuestionForTile(game, playerId, tile, tileId) {
     tileType: tile.type,
     advancesLevel,
     isKeyQuestion,
+    // TIMER
+    durationSec,
+    startedAt,
+    expiresAt,
   };
 
   const extraUpdates = {
@@ -479,6 +518,7 @@ function prepareCategoryQuestionForTile(game, playerId, tile, tileId) {
 
   return { questionData, extraUpdates };
 }
+
 
 /**
  * Il giocatore di turno risponde alla domanda di categoria.
