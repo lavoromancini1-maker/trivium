@@ -1,5 +1,5 @@
+// ui-host.js
 import { BOARD } from "./board.js";
-import { CATEGORIES } from "./board.js";
 
 /**
  * Inizializza il tabellone nell'elemento container.
@@ -47,13 +47,23 @@ export function renderBoard(container) {
     boardEl.appendChild(tileEl);
   });
 
-  export function renderQuestionOverlay(gameState) {
+  container.appendChild(boardEl);
+}
+
+/**
+ * Mostra la domanda corrente in overlay sull'host.
+ */
+export function renderQuestionOverlay(gameState) {
   const overlay = document.getElementById("overlay");
   const overlayContent = document.getElementById("overlay-content");
 
   if (!overlay || !overlayContent) return;
 
-  if (!gameState || gameState.phase !== "QUESTION" || !gameState.currentQuestion) {
+  if (
+    !gameState ||
+    gameState.phase !== "QUESTION" ||
+    !gameState.currentQuestion
+  ) {
     overlay.classList.add("hidden");
     overlayContent.innerHTML = "";
     return;
@@ -95,8 +105,4 @@ export function renderBoard(container) {
   `;
 
   overlay.classList.remove("hidden");
-}
-
-
-  container.appendChild(boardEl);
 }
