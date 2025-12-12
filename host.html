@@ -8,30 +8,33 @@
 </head>
 <body class="page--host">
   <div id="host-root">
-    <!-- Wrapper principale -->
     <header class="host-header">
       <h1>Trvium – Host</h1>
-      <div id="game-code"></div>
+      <div id="game-setup">
+        <button id="create-game-btn" class="btn btn-primary">
+          Crea nuova partita
+        </button>
+        <div id="game-code-display"></div>
+      </div>
     </header>
 
     <main class="host-main">
       <section id="board-container">
-        <!-- Qui verrà renderizzato il tabellone -->
+        <!-- Tabellone -->
       </section>
 
       <aside id="players-panel">
-        <!-- Qui elenco giocatori, punteggi, chiavi -->
+        <h2>Giocatori</h2>
+        <div id="players-list"></div>
       </aside>
     </main>
 
-    <!-- Overlay per domande, minigiochi, suggerimenti -->
     <div id="overlay" class="overlay hidden">
       <div id="overlay-content"></div>
     </div>
 
-    <!-- Barra messaggi / suggerimenti -->
     <footer id="message-bar" class="message-bar">
-      <!-- Messaggi come: "Ora votate la categoria..." -->
+      <span id="message-text">Crea una partita per iniziare.</span>
     </footer>
   </div>
 
