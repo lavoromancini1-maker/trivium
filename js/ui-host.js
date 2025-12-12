@@ -64,6 +64,11 @@ export function renderQuestionOverlay(gameState) {
 
   if (!overlay || !overlayContent) return;
 
+    if (gameState && gameState.phase === "RAPID_FIRE_QUESTION") {
+    renderRapidFireOverlay(gameState);
+    return;
+  }
+
   // Se non siamo in fase QUESTION o non c'è una domanda, nascondi overlay
   if (
     !gameState ||
@@ -158,3 +163,87 @@ export function renderQuestionOverlay(gameState) {
   }
 }
 
+export function renderRapidFireOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+
+  if (!overlay || !overlayContent) return;
+
+  const rapidFire = gameState.rapidFire;
+  if (
+    !rapidFire ||
+    gameState.phase !== "RAPID_FIRE_QUESTION" ||
+    !rapidFire.questions ||
+    rapidFire.questions.length === 0
+  ) {
+    overlay.classList.add("hidden");
+    overlayContent.innerHTML = "";
+    return;
+  }
+
+  const currentIndex = rapidFire.currentIndex ?? 0;
+  const question = rapidFire.questions[currentIndex];
+
+  const answersHtml = question.answers
+    .map(
+      (ans, idx) => `
+      <li class="answer-item">
+        <span class="answer-label">${String.fromCharCode(65 + idx)}.</span>
+        <span class="answer-text">${ans}</span>
+      </li>
+    `
+    )
+    .join("");
+
+  const now = Date.now();
+  const expiresAt = rapidFire.expiresAt;
+  let remainingSec = null;
+  if (expiresAt) {
+    remainingSec = Math.max(0, Math.ceil((expiresAt - now) / 1000));
+  }
+  const timerText = remainingSec !== null ? `${remainingSec}s` : "--";
+
+  overlayContent.innerHTML = `
+    <div class="question-card">
+      <div class="question-header">
+        <div class="question-category">MINIGIOCO – RAPID FIRE</div>
+        <div class="question-player">
+          Domanda ${currentIndex + 1}/${rapidFire.questions.length}
+        </div>
+      </div>
+      <div class="question-text">${question.text}</div>
+      <ul class="answers-list">
+        ${answersHtml}
+      </ul>
+      <div class="question-footer">
+        <div class="question-timer">
+          Tempo rimasto: <span id="rapidfire-timer-value">${timerText}</span>
+        </div>
+        <span>Tutti i giocatori rispondono dai loro dispositivi.</span>
+      </div>
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
+
+  // gestiamo il countdown visuale
+  if (overlayTimerInterval) {
+    clearInterval(overlayTimerInterval);
+    overlayTimerInterval = null;
+  }
+
+  if (expiresAt) {
+    const timerValueEl = document.getElementById("rapidfire-timer-value");
+    overlayTimerInterval = setInterval(() => {
+      const now2 = Date.now();
+      const rem = Math.max(0, Math.ceil((expiresAt - now2) / 1000));
+      if (timerValueEl) {
+        timerValueEl.textContent = `${rem}s`;
+      }
+      if (rem <= 0) {
+        clearInterval(overlayTimerInterval);
+        overlayTimerInterval = null;
+      }
+    }, 250);
+  }
+}
