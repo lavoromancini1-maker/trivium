@@ -31,9 +31,9 @@ const SCRIGNO_ID = RING_TILES + BRANCH_TILES; // 42 + 30 = 72
 
 export const BOARD = buildBoard();
 
-/**
- * Costruisce il tabellone completo.
- */
+export const START_TILE_ID = 0; // per ora tutti partono dalla casella key del primo settore
+
+
 function buildBoard() {
   const tiles = [];
 
