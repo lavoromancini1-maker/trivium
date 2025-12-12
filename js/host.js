@@ -1,6 +1,4 @@
-// host.js
-import { renderBoard } from "./ui-host.js";
-import { renderQuestionOverlay } from "./ui-host.js";
+import { renderBoard, renderQuestionOverlay } from "./ui-host.js";
 import { createGame, listenGame, startGame } from "./firebase-game.js";
 
 let currentGameCode = null;
