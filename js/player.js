@@ -1,4 +1,3 @@
-// player.js
 import {
   joinGame,
   gameExists,
@@ -6,11 +5,15 @@ import {
   rollDice,
   chooseDirection,
   answerCategoryQuestion,
+  answerRapidFireQuestion,
 } from "./firebase-game.js";
+
 
 let currentGameCode = null;
 let currentPlayerId = null;
 let unsubscribeGame = null;
+let latestGameState = null;
+
 
 document.addEventListener("DOMContentLoaded", () => {
   const gameCodeInput = document.getElementById("game-code-input");
@@ -72,6 +75,8 @@ document.addEventListener("DOMContentLoaded", () => {
       // Iniziamo ad ascoltare lo stato della partita
       if (unsubscribeGame) unsubscribeGame();
       unsubscribeGame = listenGame(gameCode, (gameState) => {
+        latestGameState = gameState;
+        
         handleGameUpdate(gameState, {
           waitingPanel,
           turnPanel,
