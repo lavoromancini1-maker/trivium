@@ -103,10 +103,13 @@ function renderPlayers(gameState, container) {
         li.classList.add("players-list-item--active");
       }
 
+      const pos = player.position ?? 0;
+      
       li.innerHTML = `
         <div class="player-name">${player.name || "Senza nome"}</div>
         <div class="player-info">
-          <span>Punti: ${player.points ?? 0}</span>
+          <span>Punti: ${player.points ?? 0}</span><br>
+          <span>Casella: ${pos}</span>
         </div>
       `;
       ul.appendChild(li);
