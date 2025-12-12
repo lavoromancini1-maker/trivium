@@ -1,5 +1,13 @@
 // player.js
-import { joinGame, gameExists, listenGame, rollDice, chooseDirection } from "./firebase-game.js";
+import {
+  joinGame,
+  gameExists,
+  listenGame,
+  rollDice,
+  chooseDirection,
+  answerCategoryQuestion,
+} from "./firebase-game.js";
+;
 
 let currentGameCode = null;
 let currentPlayerId = null;
@@ -20,6 +28,36 @@ document.addEventListener("DOMContentLoaded", () => {
   const diceResultEl = document.getElementById("dice-result");
   const directionPanel = document.getElementById("direction-panel");
   const directionButtons = document.getElementById("direction-buttons");
+  answerButtons.addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-answer-index]");
+  if (!btn) return;
+
+  const answerIndex = parseInt(btn.getAttribute("data-answer-index"), 10);
+  if (Number.isNaN(answerIndex)) return;
+
+  if (!currentGameCode || !currentPlayerId) return;
+
+  try {
+    // disattivo i pulsanti per evitare doppi tap
+    Array.from(answerButtons.querySelectorAll("button")).forEach(
+      (b) => (b.disabled = true)
+    );
+    // inviamo la risposta
+    await answerCategoryQuestion(currentGameCode, currentPlayerId, answerIndex);
+    // il listener di stato si occuperà di aggiornare pannelli, overlay, ecc.
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Errore nell'invio della risposta.");
+    Array.from(answerButtons.querySelectorAll("button")).forEach(
+      (b) => (b.disabled = false)
+    );
+  }
+});
+
+
+  const answerPanel = document.getElementById("answer-panel");
+const answerButtons = document.getElementById("answer-buttons");
+
 
   // precompila codice se c'è ?game=XXXX
   const params = new URLSearchParams(window.location.search);
@@ -141,52 +179,34 @@ function handleGameUpdate(
   if (state === "LOBBY") {
     waitingPanel.classList.remove("hidden");
     turnPanel.classList.add("hidden");
+    answerPanel.classList.add("hidden");
     return;
   }
 
   if (state === "IN_PROGRESS") {
-    const currentPlayerId = gameState.currentPlayerId;
+    const activePlayerId = gameState.currentPlayerId;
     const players = gameState.players || {};
-    const me = players[currentPlayerId];
+    const currentQuestion = gameState.currentQuestion || null;
+    const phase = gameState.phase;
 
-    // Siamo in partita: nasconde pannello attesa
+    const myId = currentPlayerId;
+    const isMyTurn = myId && activePlayerId === myId;
+
     waitingPanel.classList.add("hidden");
     turnPanel.classList.remove("hidden");
 
-    if (!players[currentPlayerId]) {
-      // Non sappiamo chi è il current, ma la partita è in corso
-      turnStatusText.textContent = "Partita in corso.";
-      rollDiceBtn.disabled = true;
-      directionPanel.classList.add("hidden");
-      return;
-    }
-
-    // È il mio turno?
-    const isMyTurn = currentPlayerId === window.currentPlayerId || currentPlayerId === window.currentPlayerId;
-
-    // ⚠️ meglio usare la variabile globale definita sopra:
-    // ma qui abbiamo currentPlayerId come parametro di funzione, la mia id è quella globale
-    const myId = window.currentPlayerId || null;
-
-    let reallyMyTurn = false;
-    if (myId && currentPlayerId === myId) {
-      reallyMyTurn = true;
-    }
-
-    const phase = gameState.phase;
-
-    if (reallyMyTurn) {
+    if (isMyTurn) {
       if (phase === "WAIT_ROLL") {
         turnStatusText.textContent = "È il tuo turno. Tira il dado.";
         rollDiceBtn.disabled = false;
         directionPanel.classList.add("hidden");
         diceResultEl.textContent = "";
+        answerPanel.classList.add("hidden");
       } else if (phase === "CHOOSE_DIRECTION") {
         const dice = gameState.currentDice;
         turnStatusText.textContent = `Hai tirato ${dice}. Scegli la direzione.`;
         rollDiceBtn.disabled = true;
 
-        // mostra le direzioni disponibili
         const dirs = gameState.availableDirections || [];
         directionPanel.classList.remove("hidden");
         directionButtons.innerHTML = "";
@@ -198,39 +218,43 @@ function handleGameUpdate(
           btn.textContent = `${d.label}${catLabel}`;
           directionButtons.appendChild(btn);
         });
-      } else if (phase === "RESOLVE_TILE") {
+
+        answerPanel.classList.add("hidden");
+      } else if (phase === "QUESTION") {
         rollDiceBtn.disabled = true;
         directionPanel.classList.add("hidden");
-        const ct = gameState.currentTile;
-        if (ct) {
-          turnStatusText.textContent = `Sei arrivato su una casella: ${ct.type}${
-            ct.category ? " (" + ct.category + ")" : ""
-          }.`;
+        if (currentQuestion && currentQuestion.forPlayerId === myId) {
+          turnStatusText.textContent = "È la tua domanda. Scegli A, B, C o D.";
+          answerPanel.classList.remove("hidden");
+          Array.from(answerButtons.querySelectorAll("button")).forEach(
+            (b) => (b.disabled = false)
+          );
         } else {
-          turnStatusText.textContent = "Movimento completato.";
+          turnStatusText.textContent = "Attendi la domanda...";
+          answerPanel.classList.add("hidden");
         }
       } else {
-        // altre fasi future
         turnStatusText.textContent = "Attendi le prossime azioni...";
         rollDiceBtn.disabled = true;
         directionPanel.classList.add("hidden");
+        answerPanel.classList.add("hidden");
       }
     } else {
       // Non è il mio turno
-      directionPanel.classList.add("hidden");
       rollDiceBtn.disabled = true;
+      directionPanel.classList.add("hidden");
+      answerPanel.classList.add("hidden");
 
-      const currentPlayer = players[currentPlayerId];
-      if (currentPlayer) {
-        const phase = gameState.phase;
+      const activePlayer = players[activePlayerId];
+      if (activePlayer) {
         if (phase === "WAIT_ROLL") {
-          turnStatusText.textContent = `È il turno di ${currentPlayer.name}. Sta per tirare il dado.`;
+          turnStatusText.textContent = `È il turno di ${activePlayer.name}. Sta per tirare il dado.`;
         } else if (phase === "CHOOSE_DIRECTION") {
-          turnStatusText.textContent = `È il turno di ${currentPlayer.name}. Sta scegliendo la direzione.`;
-        } else if (phase === "RESOLVE_TILE") {
-          turnStatusText.textContent = `È il turno di ${currentPlayer.name}. Si risolve la casella.`;
+          turnStatusText.textContent = `È il turno di ${activePlayer.name}. Sta scegliendo la direzione.`;
+        } else if (phase === "QUESTION") {
+          turnStatusText.textContent = `È il turno di ${activePlayer.name}. Sta rispondendo alla domanda.`;
         } else {
-          turnStatusText.textContent = `È il turno di ${currentPlayer.name}.`;
+          turnStatusText.textContent = `È il turno di ${activePlayer.name}.`;
         }
       } else {
         turnStatusText.textContent = "Partita in corso.";
@@ -239,6 +263,10 @@ function handleGameUpdate(
 
     return;
   }
+
+  // altri stati futuri
+}
+
 
   // altri stati (es. GAME_OVER)
 }
