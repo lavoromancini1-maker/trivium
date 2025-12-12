@@ -50,6 +50,11 @@ export function renderBoard(container) {
   container.appendChild(boardEl);
 }
 
+let overlayTimerInterval = null;
+
+/**
+ * Mostra la domanda corrente in overlay sull'host.
+ */
 /**
  * Mostra la domanda corrente in overlay sull'host.
  */
@@ -59,6 +64,7 @@ export function renderQuestionOverlay(gameState) {
 
   if (!overlay || !overlayContent) return;
 
+  // Se non siamo in fase QUESTION o non c'è una domanda, nascondi overlay
   if (
     !gameState ||
     gameState.phase !== "QUESTION" ||
@@ -66,6 +72,12 @@ export function renderQuestionOverlay(gameState) {
   ) {
     overlay.classList.add("hidden");
     overlayContent.innerHTML = "";
+
+    // stop timer se attivo
+    if (overlayTimerInterval) {
+      clearInterval(overlayTimerInterval);
+      overlayTimerInterval = null;
+    }
     return;
   }
 
@@ -86,23 +98,63 @@ export function renderQuestionOverlay(gameState) {
     )
     .join("");
 
+  // Calcolo tempo rimanente
+  const now = Date.now();
+  const expiresAt = q.expiresAt || (q.startedAt && q.durationSec
+    ? q.startedAt + q.durationSec * 1000
+    : null);
+
+  let remainingSec = null;
+  if (expiresAt) {
+    remainingSec = Math.max(0, Math.ceil((expiresAt - now) / 1000));
+  }
+
+  const timerText = remainingSec !== null ? `${remainingSec}s` : "--";
+
   overlayContent.innerHTML = `
     <div class="question-card">
       <div class="question-header">
-        <div class="question-category">${q.category.toUpperCase()} ${
-    q.isKeyQuestion ? "– DOMANDA CHIAVE" : ""
-  }</div>
-        <div class="question-player">Sta rispondendo: <strong>${playerName}</strong></div>
+        <div class="question-category">
+          ${q.category.toUpperCase()} ${q.isKeyQuestion ? "– DOMANDA CHIAVE" : ""}
+        </div>
+        <div class="question-player">
+          Sta rispondendo: <strong>${playerName}</strong>
+        </div>
       </div>
       <div class="question-text">${q.text}</div>
       <ul class="answers-list">
         ${answersHtml}
       </ul>
       <div class="question-footer">
+        <div class="question-timer">
+          Tempo rimasto: <span id="question-timer-value">${timerText}</span>
+        </div>
         <span>In attesa della risposta sul dispositivo del giocatore...</span>
       </div>
     </div>
   `;
 
   overlay.classList.remove("hidden");
+
+  // Gestione countdown visuale
+  if (overlayTimerInterval) {
+    clearInterval(overlayTimerInterval);
+    overlayTimerInterval = null;
+  }
+
+  if (expiresAt) {
+    const timerValueEl = document.getElementById("question-timer-value");
+    overlayTimerInterval = setInterval(() => {
+      const now2 = Date.now();
+      const rem = Math.max(0, Math.ceil((expiresAt - now2) / 1000));
+      if (timerValueEl) {
+        timerValueEl.textContent = `${rem}s`;
+      }
+      if (rem <= 0) {
+        clearInterval(overlayTimerInterval);
+        overlayTimerInterval = null;
+      }
+    }, 250);
+  }
 }
+
