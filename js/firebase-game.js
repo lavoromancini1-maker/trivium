@@ -17,6 +17,28 @@ import {
 
 const GAMES_PATH = "games";
 
+function getCategoryQuestionDurationSeconds(questionLevel, isKeyQuestion, advancesLevel) {
+  // Domanda chiave
+  if (isKeyQuestion) {
+    return 30;
+  }
+
+  if (typeof questionLevel === "number") {
+    // "Solo punti" (categoria già a livello 3) → trattata come livello 2
+    if (!advancesLevel && questionLevel === 2) {
+      return 15;
+    }
+
+    if (questionLevel === 1) return 15;
+    if (questionLevel === 2) return 15;
+    if (questionLevel === 3) return 20;
+  }
+
+  // Fallback di sicurezza
+  return 15;
+}
+
+
 function generateGameCode() {
   const code = Math.floor(100000 + Math.random() * 900000);
   return String(code);
@@ -146,29 +168,6 @@ const CATEGORIES = [
   "spettacolo",
   "scienza",
 ];
-
-function getCategoryQuestionDurationSeconds(questionLevel, isKeyQuestion, advancesLevel) {
-  // Domanda chiave
-  if (isKeyQuestion) {
-    return 30;
-  }
-
-  // Domande di livello numerico
-  if (typeof questionLevel === "number") {
-    // "Solo punti" (categoria già a livello 3) → abbiamo deciso di usare livello 2 ma senza avanzare
-    // quindi trattala come livello 2: 15 secondi
-    if (!advancesLevel && questionLevel === 2) {
-      return 15;
-    }
-
-    if (questionLevel === 1) return 15;
-    if (questionLevel === 2) return 15;
-    if (questionLevel === 3) return 20;
-  }
-
-  // Fallback di sicurezza
-  return 15;
-}
 
 /**
  * Avvia la partita: genera ordine casuale dei giocatori, inizializza
