@@ -97,3 +97,82 @@ export function listenGame(gameCode, callback) {
 
   return () => unsubscribe();
 }
+
+// ... (resto del file sopra resta uguale)
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+const CATEGORIES = [
+  "geografia",
+  "storia",
+  "arte",
+  "sport",
+  "spettacolo",
+  "scienza",
+];
+
+/**
+ * Avvia la partita: genera ordine casuale dei giocatori, inizializza
+ * livelli, chiavi, carte, punteggio. Aggiorna lo stato in "IN_PROGRESS".
+ */
+export async function startGame(gameCode) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+
+  if (!snap.exists()) {
+    throw new Error("Partita non trovata");
+  }
+
+  const game = snap.val();
+  const players = game.players || {};
+  const playerIds = Object.keys(players);
+
+  if (playerIds.length < 2) {
+    throw new Error("Servono almeno 2 giocatori per iniziare la partita.");
+  }
+
+  // Ordine casuale
+  const turnOrder = shuffleArray(playerIds);
+
+  // Inizializziamo la struttura dei giocatori in modo coerente
+  const updatedPlayers = {};
+  for (const id of playerIds) {
+    const p = players[id];
+
+    const levels = {};
+    const keys = {};
+    CATEGORIES.forEach((cat) => {
+      levels[cat] = 0; // livello 0 = nessun livello ancora
+      keys[cat] = false; // nessuna chiave ancora
+    });
+
+    updatedPlayers[id] = {
+      ...p,
+      points: 0,
+      levels,
+      keys,
+      cards: [], // nessuna carta bonus all'inizio
+      isConnected: true, // futuro: per gestione reconnection
+    };
+  }
+
+  const updateData = {
+    state: "IN_PROGRESS",
+    phase: "WAIT_ROLL", // in futuro: primo step del turno
+    turnOrder,
+    currentTurnIndex: 0,
+    currentPlayerId: turnOrder[0],
+    players: updatedPlayers,
+  };
+
+  await update(gameRef, updateData);
+
+  return { turnOrder };
+}
