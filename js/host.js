@@ -150,6 +150,15 @@ function renderGameMessage(gameState, messageEl) {
     const currentPlayerId = gameState.currentPlayerId;
     const players = gameState.players || {};
     const currentPlayer = players[currentPlayerId];
+    const phase = gameState.phase;
+    const currentTile = gameState.currentTile || null;
+
+    if (phase === "MINIGAME_PENDING" && currentTile?.type === "minigame") {
+      // messaggio speciale per la mini-sfida
+      const name = currentPlayer ? currentPlayer.name : "un giocatore";
+      messageEl.textContent = `Mini-sfida! ${name} è finito su una casella MINI GAME. (placeholder, logica in arrivo 👾)`;
+      return;
+    }
 
     if (currentPlayer) {
       messageEl.textContent = `Tocca a ${currentPlayer.name}.`;
@@ -158,6 +167,7 @@ function renderGameMessage(gameState, messageEl) {
     }
     return;
   }
+
 
   // Altri stati possibili (es. FINISHED, PAUSED, ecc.)
   messageEl.textContent = "Stato: " + state;
