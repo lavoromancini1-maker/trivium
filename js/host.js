@@ -1,8 +1,10 @@
 import { renderBoard, renderQuestionOverlay } from "./ui-host.js";
-import { createGame, listenGame, startGame } from "./firebase-game.js";
+import { createGame, listenGame, startGame, checkAndHandleQuestionTimeout } from "./firebase-game.js";
 
 let currentGameCode = null;
 let unsubscribeGame = null;
+let timeoutIntervalId = null;
+let currentGameState = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   const boardContainer = document.getElementById("board-container");
