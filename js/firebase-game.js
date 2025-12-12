@@ -328,17 +328,46 @@ export async function chooseDirection(gameCode, playerId, directionIndex) {
   const finalTileId = moveAlongPath(fromTileId, dice, directionIndex);
   const finalTile = BOARD[finalTileId];
 
-  // Aggiornamento del giocatore e dello stato
-  const playerUpdate = {
-    [`players/${playerId}/position`]: finalTileId,
-  };
-
-  const globalUpdate = {
-    ...playerUpdate,
-    phase: "RESOLVE_TILE",
+  // Aggiorniamo la posizione del giocatore
+  const playerUpdatePath = `players/${playerId}/position`;
+  const baseUpdate = {
+    [playerUpdatePath]: finalTileId,
     currentDice: null,
     currentMove: null,
     availableDirections: null,
+  };
+
+  // Se casella di categoria o chiave → prepariamo domanda
+  if (finalTile.type === "category" || finalTile.type === "key") {
+    const { questionData, extraUpdates } = prepareCategoryQuestionForTile(
+      game,
+      playerId,
+      finalTile,
+      finalTileId
+    );
+
+    const globalUpdate = {
+      ...baseUpdate,
+      phase: "QUESTION",
+      currentTile: {
+        tileId: finalTileId,
+        type: finalTile.type,
+        category: finalTile.category || null,
+        zone: finalTile.zone,
+      },
+      currentQuestion: questionData,
+      ...extraUpdates, // include usedCategoryQuestionIds
+    };
+
+    await update(gameRef, globalUpdate);
+
+    return { finalTileId, finalTile, question: questionData };
+  }
+
+  // Per ora: le altre caselle (event, minigame, scrigno) vanno in RESOLVE_TILE "placeholder"
+  const globalUpdate = {
+    ...baseUpdate,
+    phase: "RESOLVE_TILE",
     currentTile: {
       tileId: finalTileId,
       type: finalTile.type,
@@ -350,4 +379,218 @@ export async function chooseDirection(gameCode, playerId, directionIndex) {
   await update(gameRef, globalUpdate);
 
   return { finalTileId, finalTile };
+}
+
+function prepareCategoryQuestionForTile(game, playerId, tile, tileId) {
+  const players = game.players || {};
+  const player = players[playerId];
+  if (!player) {
+    throw new Error("Giocatore non trovato in prepareCategoryQuestionForTile.");
+  }
+
+  const category = tile.category;
+  if (!category) {
+    throw new Error("La casella non ha categoria definita.");
+  }
+
+  const levels = player.levels || {};
+  const keys = player.keys || {};
+  const currentLevel = levels[category] ?? 0;
+  const hasKey = !!keys[category];
+
+  const usedCategoryQuestionIds = game.usedCategoryQuestionIds || {};
+
+  // Decidiamo il "tipo" di domanda da fare
+  let questionLevel;    // 1,2,3 oppure "key" o "normalPoints"
+  let advancesLevel = false;
+  let isKeyQuestion = false;
+
+  if (tile.type === "category") {
+    if (currentLevel < 3) {
+      // Livello successivo
+      questionLevel = currentLevel + 1; // 1→2→3
+      advancesLevel = true;
+    } else {
+      // Categoria già a livello 3 → solo punti, usiamo domanda di "livello 2"
+      questionLevel = 2;
+      advancesLevel = false;
+    }
+  } else if (tile.type === "key") {
+    if (currentLevel < 3) {
+      // Non hai ancora tutti e 3 i livelli → è come una casella categoria
+      questionLevel = currentLevel + 1;
+      advancesLevel = true;
+    } else if (!hasKey) {
+      // Hai i 3 livelli ma non la chiave → domanda chiave
+      questionLevel = "key";
+      isKeyQuestion = true;
+      advancesLevel = false;
+    } else {
+      // Hai già la chiave → solo punti
+      questionLevel = 2;
+      advancesLevel = false;
+    }
+  } else {
+    // In teoria non dovrebbe succedere
+    questionLevel = 1;
+  }
+
+  // Estraiamo la domanda corretta
+  const usedIds = Object.keys(usedCategoryQuestionIds);
+
+  let rawQuestion;
+  if (questionLevel === "key") {
+    rawQuestion = getRandomKeyQuestion(category, usedIds);
+  } else {
+    rawQuestion = getRandomCategoryQuestion(category, questionLevel, usedIds);
+  }
+
+  if (!rawQuestion) {
+    throw new Error("Non ci sono più domande disponibili per questa categoria/livello.");
+  }
+
+  // Mischiamo le risposte per non avere sempre lo stesso ordine
+  const indices = [0, 1, 2, 3];
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+
+  const shuffledAnswers = indices.map((i) => rawQuestion.answers[i]);
+  const newCorrectIndex = indices.indexOf(rawQuestion.correctIndex);
+
+  const questionData = {
+    id: rawQuestion.id,
+    category,
+    level: questionLevel,           // 1,2,3 oppure "key"
+    text: rawQuestion.text,
+    answers: shuffledAnswers,
+    correctIndex: newCorrectIndex,
+    forPlayerId: playerId,
+    tileId,
+    tileType: tile.type,
+    advancesLevel,
+    isKeyQuestion,
+  };
+
+  const extraUpdates = {
+    [`usedCategoryQuestionIds/${rawQuestion.id}`]: true,
+  };
+
+  return { questionData, extraUpdates };
+}
+
+/**
+ * Il giocatore di turno risponde alla domanda di categoria.
+ * answerIndex = 0..3 (A,B,C,D)
+ */
+export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+
+  if (!snap.exists()) {
+    throw new Error("Partita non trovata");
+  }
+
+  const game = snap.val();
+
+  if (game.state !== "IN_PROGRESS") {
+    throw new Error("La partita non è in corso.");
+  }
+
+  if (game.currentPlayerId !== playerId) {
+    throw new Error("Non è il tuo turno.");
+  }
+
+  if (game.phase !== "QUESTION") {
+    throw new Error("Non è il momento di rispondere alla domanda.");
+  }
+
+  const q = game.currentQuestion;
+  if (!q) {
+    throw new Error("Nessuna domanda attiva.");
+  }
+
+  if (q.forPlayerId !== playerId) {
+    throw new Error("Questa domanda non è destinata a te.");
+  }
+
+  const players = game.players || {};
+  const player = players[playerId];
+  if (!player) {
+    throw new Error("Giocatore non trovato.");
+  }
+
+  const correct = answerIndex === q.correctIndex;
+
+  let pointsToAdd = 0;
+  const levels = player.levels || {};
+  const keys = player.keys || {};
+  const currentLevel = levels[q.category] ?? 0;
+  const hasKey = !!keys[q.category];
+
+  if (correct) {
+    if (q.isKeyQuestion) {
+      // domanda chiave
+      if (!hasKey) {
+        keys[q.category] = true;
+      }
+      pointsToAdd += 40;
+    } else if (typeof q.level === "number") {
+      if (q.advancesLevel && currentLevel < 3) {
+        // avanzamento di livello
+        const newLevel = Math.max(currentLevel, q.level);
+        levels[q.category] = Math.min(3, newLevel);
+      }
+      // punti in base al livello della domanda
+      if (q.level === 1) pointsToAdd += 15;
+      else if (q.level === 2) pointsToAdd += 20;
+      else if (q.level === 3) pointsToAdd += 25;
+    } else {
+      // "normalPoints" o altro tipo futuro → per ora +20
+      pointsToAdd += 20;
+    }
+  }
+
+  // Prepariamo update per il giocatore
+  const playerPath = `players/${playerId}`;
+  const playerUpdate = {
+    ...player,
+    levels,
+    keys,
+    points: (player.points ?? 0) + pointsToAdd,
+  };
+
+  const updates = {
+    [`${playerPath}`]: playerUpdate,
+    currentQuestion: null,
+  };
+
+  // Decidiamo se il turno continua (risposta giusta) o passa al prossimo
+  if (correct) {
+    // Turno continua → stesso giocatore, torna a WAIT_ROLL
+    updates.phase = "WAIT_ROLL";
+  } else {
+    // Turno passa al prossimo giocatore
+    const { nextIndex, nextPlayerId } = getNextTurn(game);
+    updates.currentTurnIndex = nextIndex;
+    updates.currentPlayerId = nextPlayerId;
+    updates.phase = "WAIT_ROLL";
+  }
+
+  await update(gameRef, updates);
+
+  return { correct, pointsToAdd };
+}
+
+/**
+ * Restituisce indice e id del prossimo giocatore nel turno.
+ */
+function getNextTurn(game) {
+  const order = game.turnOrder || [];
+  if (!order.length) return { nextIndex: 0, nextPlayerId: null };
+
+  const currentIndex = game.currentTurnIndex ?? 0;
+  const nextIndex = (currentIndex + 1) % order.length;
+  return { nextIndex, nextPlayerId: order[nextIndex] };
 }
