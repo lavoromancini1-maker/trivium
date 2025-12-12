@@ -7,29 +7,40 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="page--player">
-  <main id="player-root">
-    <header class="player-header">
-      <h1>Trvium</h1>
-      <div id="player-name-display"></div>
-      <div id="player-status"></div> <!-- livelli / chiavi / punti -->
-    </header>
+<main id="player-root">
+  <header class="player-header">
+    <h1>Trvium</h1>
+    <div id="player-name-display"></div>
+    <div id="player-status"></div>
+  </header>
 
-    <section id="player-main-area">
-      <!-- Qui compariranno i diversi pannelli:
-           - inserisci nome
-           - inserisci codice partita
-           - tirare il dado
-           - scegliere direzione
-           - rispondere (A/B/C/D)
-           - usare carte
-           - mini-sfida -->
-    </section>
+  <section id="player-main-area">
+    <div id="join-game-panel">
+      <h2>Entra in una partita</h2>
+      <form id="join-game-form">
+        <label>
+          Codice partita
+          <input type="text" id="game-code-input" required maxlength="6" />
+        </label>
+        <label>
+          Il tuo nome
+          <input type="text" id="player-name-input" required maxlength="20" />
+        </label>
+        <button type="submit" class="btn btn-primary">Entra</button>
+      </form>
+      <div id="join-error" class="join-error"></div>
+    </div>
 
-    <section id="player-cards-panel">
-      <!-- Icone carte:
-           [50/50] [Cambio] [Domanda Alt] [Tempo Extra] [Salvezza] -->
-    </section>
-  </main>
+    <div id="waiting-panel" class="hidden">
+      <p>Hai joinato la partita.</p>
+      <p>In attesa che l’host inizi il gioco...</p>
+    </div>
+  </section>
+
+  <section id="player-cards-panel">
+    <!-- Qui più avanti vedremo le carte -->
+  </section>
+</main>
 
   <script type="module" src="js/player.js"></script>
 </body>
