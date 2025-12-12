@@ -1,5 +1,3 @@
-// Definizione del tabellone di Trvium (73 caselle fisse, identiche in ogni partita)
-
 export const CATEGORIES = [
   "geografia",
   "storia",
