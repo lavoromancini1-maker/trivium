@@ -163,8 +163,6 @@ function renderGameMessage(gameState, messageEl) {
   messageEl.textContent = "Stato: " + state;
 }
 
-// ⬇⬇⬇ DA QUI IN GIÙ siamo fuori da renderGameMessage
-
 function setupTimeoutInterval() {
   // Evita più intervalli sovrapposti
   if (timeoutIntervalId) {
@@ -192,8 +190,3 @@ window.addEventListener("beforeunload", () => {
     clearInterval(timeoutIntervalId);
   }
 });
-
-});
-
-  messageEl.textContent = "Stato: " + state;
-}
