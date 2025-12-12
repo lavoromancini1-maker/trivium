@@ -1,5 +1,6 @@
 // host.js
 import { renderBoard } from "./ui-host.js";
+import { renderQuestionOverlay } from "./ui-host.js";
 import { createGame, listenGame, startGame } from "./firebase-game.js";
 
 let currentGameCode = null;
@@ -37,14 +38,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Ascolta lo stato della partita
       if (unsubscribeGame) unsubscribeGame();
-      unsubscribeGame = listenGame(gameCode, (gameState) => {
-        if (!gameState) {
-          messageTextEl.textContent = "Partita non trovata.";
-          return;
-        }
-        renderPlayers(gameState, playersListEl);
-        renderGameMessage(gameState, messageTextEl);
-      });
+unsubscribeGame = listenGame(gameCode, (gameState) => {
+  if (!gameState) {
+    messageTextEl.textContent = "Partita non trovata.";
+    return;
+  }
+  renderPlayers(gameState, playersListEl);
+  renderGameMessage(gameState, messageTextEl);
+  renderQuestionOverlay(gameState);
+});
+
 
       createGameBtn.textContent = "Partita creata";
     } catch (err) {
