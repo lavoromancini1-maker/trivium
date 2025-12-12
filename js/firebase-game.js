@@ -386,10 +386,45 @@ export async function chooseDirection(gameCode, playerId, directionIndex) {
     return { finalTileId, finalTile, question: questionData };
   }
 
-  // Per ora: le altre caselle (event, minigame, scrigno) vanno in RESOLVE_TILE "placeholder"
+  // Gestione caselle speciali
+  if (finalTile.type === "minigame") {
+    // Per ora: fase specifica placeholder per mini-sfida
+    const globalUpdate = {
+      ...baseUpdate,
+      phase: "MINIGAME_PENDING",
+      currentTile: {
+        tileId: finalTileId,
+        type: finalTile.type,
+        category: finalTile.category || null,
+        zone: finalTile.zone,
+      },
+    };
+
+    await update(gameRef, globalUpdate);
+    return { finalTileId, finalTile };
+  }
+
+  if (finalTile.type === "event" || finalTile.type === "scrigno") {
+    // Rimangono ancora in una fase generica da implementare
+    const globalUpdate = {
+      ...baseUpdate,
+      phase: "RESOLVE_TILE",
+      currentTile: {
+        tileId: finalTileId,
+        type: finalTile.type,
+        category: finalTile.category || null,
+        zone: finalTile.zone,
+      },
+    };
+
+    await update(gameRef, globalUpdate);
+    return { finalTileId, finalTile };
+  }
+
+  // fallback di sicurezza se mai capitasse altro
   const globalUpdate = {
     ...baseUpdate,
-    phase: "RESOLVE_TILE",
+    phase: "WAIT_ROLL",
     currentTile: {
       tileId: finalTileId,
       type: finalTile.type,
@@ -399,9 +434,9 @@ export async function chooseDirection(gameCode, playerId, directionIndex) {
   };
 
   await update(gameRef, globalUpdate);
-
   return { finalTileId, finalTile };
 }
+
 
 function prepareCategoryQuestionForTile(game, playerId, tile, tileId) {
   const players = game.players || {};
