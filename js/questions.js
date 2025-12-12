@@ -38,10 +38,46 @@ const GEO_QUESTIONS = [
   {
     id: "geo_002",
     category: "geografia",
+    level: 1,
+    text: "Quale di questi mari bagna l'Italia?",
+    answers: ["Mar Baltico", "Mar Mediterraneo", "Mar del Nord", "Mar Arabico"],
+    correctIndex: 1,
+    media: null,
+  },
+  {
+    id: "geo_003",
+    category: "geografia",
     level: 2,
     text: "Quale di questi fiumi attraversa Parigi?",
     answers: ["Danubio", "Senna", "Reno", "Rodano"],
     correctIndex: 1,
+    media: null,
+  },
+  {
+    id: "geo_004",
+    category: "geografia",
+    level: 2,
+    text: "In quale continente si trova il deserto del Sahara?",
+    answers: ["Asia", "Africa", "America", "Europa"],
+    correctIndex: 1,
+    media: null,
+  },
+  {
+    id: "geo_005",
+    category: "geografia",
+    level: 3,
+    text: "Qual è il monte più alto del Sud America?",
+    answers: ["Aconcagua", "Chimborazo", "Huascarán", "Nevado Ojos del Salado"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "geo_006",
+    category: "geografia",
+    level: 3,
+    text: "Qual è il lago più profondo del mondo?",
+    answers: ["Lago Bajkal", "Lago Vittoria", "Lago Superiore", "Lago Tanganica"],
+    correctIndex: 0,
     media: null,
   },
   {
@@ -53,7 +89,6 @@ const GEO_QUESTIONS = [
     correctIndex: 1,
     media: null,
   },
-  // ... TUTTE le altre domande di geografia
 ];
 
 /* ─────────────────────
@@ -70,7 +105,70 @@ const STORIA_QUESTIONS = [
     correctIndex: 1,
     media: null,
   },
-  // ... altre domande di storia
+  {
+    id: "sto_002",
+    category: "storia",
+    level: 1,
+    text: "In che anno è caduto l'Impero Romano d'Occidente?",
+    answers: ["476", "1492", "1066", "395"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "sto_003",
+    category: "storia",
+    level: 2,
+    text: "Chi guidò la spedizione dei Mille?",
+    answers: ["Garibaldi", "Cavour", "Mazzini", "Vittorio Emanuele II"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "sto_004",
+    category: "storia",
+    level: 2,
+    text: "Quale rivoluzione iniziò nel 1789?",
+    answers: [
+      "Rivoluzione americana",
+      "Rivoluzione francese",
+      "Rivoluzione russa",
+      "Rivoluzione industriale",
+    ],
+    correctIndex: 1,
+    media: null,
+  },
+  {
+    id: "sto_005",
+    category: "storia",
+    level: 3,
+    text: "In quale anno iniziò la Prima Guerra Mondiale?",
+    answers: ["1912", "1914", "1916", "1918"],
+    correctIndex: 1,
+    media: null,
+  },
+  {
+    id: "sto_006",
+    category: "storia",
+    level: 3,
+    text: "Chi fu il primo re d'Italia?",
+    answers: [
+      "Vittorio Emanuele II",
+      "Umberto I",
+      "Napoleone",
+      "Carlo Alberto",
+    ],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "sto_key_001",
+    category: "storia",
+    level: "key",
+    text: "In quale anno avvenne la Rivoluzione russa di ottobre?",
+    answers: ["1914", "1917", "1921", "1936"],
+    correctIndex: 1,
+    media: null,
+  },
 ];
 
 /* ─────────────────────
@@ -78,7 +176,84 @@ const STORIA_QUESTIONS = [
    ───────────────────── */
 
 const ARTE_QUESTIONS = [
-  // ... domande arte/letteratura
+  {
+    id: "art_001",
+    category: "arte",
+    level: 1,
+    text: "Chi ha dipinto la Gioconda?",
+    answers: [
+      "Leonardo da Vinci",
+      "Michelangelo",
+      "Raffaello",
+      "Caravaggio",
+    ],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "art_002",
+    category: "arte",
+    level: 1,
+    text: "Quale scrittore ha scritto 'I promessi sposi'?",
+    answers: [
+      "Alessandro Manzoni",
+      "Gabriele D'Annunzio",
+      "Italo Calvino",
+      "Giovanni Verga",
+    ],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "art_003",
+    category: "arte",
+    level: 2,
+    text: "Il Guernica è un'opera di…",
+    answers: ["Picasso", "Dalí", "Mirò", "Goya"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "art_004",
+    category: "arte",
+    level: 2,
+    text: "Chi è l'autore della Divina Commedia?",
+    answers: ["Dante Alighieri", "Boccaccio", "Petrarca", "Ariosto"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "art_005",
+    category: "arte",
+    level: 3,
+    text: "In quale città si trova il museo del Louvre?",
+    answers: ["Parigi", "Roma", "Madrid", "Vienna"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "art_006",
+    category: "arte",
+    level: 3,
+    text: "Chi ha composto l'opera 'La Traviata'?",
+    answers: ["Verdi", "Puccini", "Rossini", "Donizetti"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "art_key_001",
+    category: "arte",
+    level: "key",
+    text: "Chi dipinse il ciclo di affreschi della volta della Cappella Sistina?",
+    answers: [
+      "Michelangelo",
+      "Leonardo da Vinci",
+      "Raffaello",
+      "Botticelli",
+    ],
+    correctIndex: 0,
+    media: null,
+  },
 ];
 
 /* ─────────────────────
@@ -86,7 +261,69 @@ const ARTE_QUESTIONS = [
    ───────────────────── */
 
 const SPORT_QUESTIONS = [
-  // ... domande sport
+  {
+    id: "spo_001",
+    category: "sport",
+    level: 1,
+    text: "Quanti giocatori ci sono in una squadra di calcio in campo?",
+    answers: ["9", "10", "11", "12"],
+    correctIndex: 2,
+    media: null,
+  },
+  {
+    id: "spo_002",
+    category: "sport",
+    level: 1,
+    text: "In quale sport si usa la racchetta?",
+    answers: ["Tennis", "Calcio", "Basket", "Nuoto"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "spo_003",
+    category: "sport",
+    level: 2,
+    text: "Quale nazione ha vinto più Mondiali di calcio?",
+    answers: ["Brasile", "Italia", "Germania", "Argentina"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "spo_004",
+    category: "sport",
+    level: 2,
+    text: "In quale città si sono svolte le Olimpiadi invernali del 2006?",
+    answers: ["Torino", "Atene", "Sydney", "Londra"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "spo_005",
+    category: "sport",
+    level: 3,
+    text: "Chi detiene il record mondiale dei 100 metri piani (uomini)?",
+    answers: ["Usain Bolt", "Carl Lewis", "Tyson Gay", "Asafa Powell"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "spo_006",
+    category: "sport",
+    level: 3,
+    text: "Quanti anelli ci sono nel simbolo olimpico?",
+    answers: ["4", "5", "6", "7"],
+    correctIndex: 1,
+    media: null,
+  },
+  {
+    id: "spo_key_001",
+    category: "sport",
+    level: "key",
+    text: "In che anno si tennero le prime Olimpiadi moderne?",
+    answers: ["1896", "1900", "1888", "1912"],
+    correctIndex: 0,
+    media: null,
+  },
 ];
 
 /* ─────────────────────
@@ -94,7 +331,84 @@ const SPORT_QUESTIONS = [
    ───────────────────── */
 
 const SPETTACOLO_QUESTIONS = [
-  // ... domande spettacolo
+  {
+    id: "spe_001",
+    category: "spettacolo",
+    level: 1,
+    text: "Chi ha interpretato Jack in 'Titanic'?",
+    answers: ["Leonardo DiCaprio", "Brad Pitt", "Tom Cruise", "Matt Damon"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "spe_002",
+    category: "spettacolo",
+    level: 1,
+    text: "In quale città si svolge il Festival di Sanremo?",
+    answers: ["Sanremo", "Roma", "Milano", "Torino"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "spe_003",
+    category: "spettacolo",
+    level: 2,
+    text: "In quale città si svolge il Festival di Cannes?",
+    answers: ["Cannes", "Venezia", "Berlino", "Los Angeles"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "spe_004",
+    category: "spettacolo",
+    level: 2,
+    text: "Chi ha diretto 'La Dolce Vita'?",
+    answers: ["Fellini", "Visconti", "Antonioni", "Bertolucci"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "spe_005",
+    category: "spettacolo",
+    level: 3,
+    text: "Quale film ha vinto l'Oscar come miglior film nel 1994?",
+    answers: [
+      "Forrest Gump",
+      "Pulp Fiction",
+      "Le ali della libertà",
+      "Il re leone",
+    ],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "spe_006",
+    category: "spettacolo",
+    level: 3,
+    text: "Chi è l'autore della colonna sonora de 'Il Padrino'?",
+    answers: [
+      "Nino Rota",
+      "Ennio Morricone",
+      "John Williams",
+      "Hans Zimmer",
+    ],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "spe_key_001",
+    category: "spettacolo",
+    level: "key",
+    text: "Qual è stato il primo film sonoro della storia del cinema?",
+    answers: [
+      "Il cantante di jazz",
+      "Via col vento",
+      "Metropolis",
+      "Quarto potere",
+    ],
+    correctIndex: 0,
+    media: null,
+  },
 ];
 
 /* ─────────────────────
@@ -102,7 +416,84 @@ const SPETTACOLO_QUESTIONS = [
    ───────────────────── */
 
 const SCIENZA_QUESTIONS = [
-  // ... domande scienza/natura
+  {
+    id: "sci_001",
+    category: "scienza",
+    level: 1,
+    text: "Qual è il pianeta più grande del Sistema Solare?",
+    answers: ["Giove", "Saturno", "Nettuno", "Urano"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "sci_002",
+    category: "scienza",
+    level: 1,
+    text: "Qual è la formula dell'acqua?",
+    answers: ["H₂O", "CO₂", "NaCl", "O₂"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "sci_003",
+    category: "scienza",
+    level: 2,
+    text: "Chi ha scoperto la penicillina?",
+    answers: [
+      "Alexander Fleming",
+      "Marie Curie",
+      "Isaac Newton",
+      "Albert Einstein",
+    ],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "sci_004",
+    category: "scienza",
+    level: 2,
+    text: "Come si chiama il processo con cui le piante producono ossigeno?",
+    answers: ["Fotosintesi", "Respirazione", "Fermentazione", "Transpirazione"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "sci_005",
+    category: "scienza",
+    level: 3,
+    text: "Qual è la particella con carica negativa?",
+    answers: ["Elettrone", "Protone", "Neutrone", "Quark up"],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "sci_006",
+    category: "scienza",
+    level: 3,
+    text: "Chi ha formulato la teoria della relatività?",
+    answers: [
+      "Albert Einstein",
+      "Niels Bohr",
+      "Erwin Schrödinger",
+      "Max Planck",
+    ],
+    correctIndex: 0,
+    media: null,
+  },
+  {
+    id: "sci_key_001",
+    category: "scienza",
+    level: "key",
+    text: "Che tipo di particelle sono i quark?",
+    answers: [
+      "Particelle subatomiche",
+      "Molecole",
+      "Atomi",
+      "Radiazioni",
+    ],
+    correctIndex: 0,
+    media: null,
+  },
 ];
 
 // Collezione unica di tutte le domande categoria
