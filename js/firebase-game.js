@@ -1,10 +1,99 @@
-import { firebaseConfig } from "./firebase-config.js";
-// TODO: import di initializeApp, getDatabase, ref, onValue, set, update, ecc.
+import {
+  db,
+  ref,
+  set,
+  get,
+  update,
+  push,
+  onValue,
+  serverTimestamp,
+} from "./firebase-config.js";
 
-export function createNewGame() {
-  // TODO
+const GAMES_PATH = "games";
+
+// Genera un codice partita (6 cifre)
+function generateGameCode() {
+  const code = Math.floor(100000 + Math.random() * 900000);
+  return String(code);
 }
 
-export function joinGame(gameCode, playerName) {
-  // TODO
+/**
+ * Crea una nuova partita e la salva nel DB.
+ * Restituisce { gameCode }.
+ */
+export async function createGame() {
+  const gameCode = generateGameCode();
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+
+  const snapshot = await get(gameRef);
+  if (snapshot.exists()) {
+    // Se per caso il codice esiste già, rigeneriamo (molto raro)
+    return createGame();
+  }
+
+  const gameData = {
+    createdAt: Date.now(),
+    state: "LOBBY",
+    players: {},
+  };
+
+  await set(gameRef, gameData);
+
+  return { gameCode };
+}
+
+/**
+ * Verifica se una partita esiste.
+ */
+export async function gameExists(gameCode) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+  return snap.exists();
+}
+
+/**
+ * Aggiunge un giocatore alla partita.
+ * Restituisce { playerId }.
+ */
+export async function joinGame(gameCode, playerName) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+
+  if (!snap.exists()) {
+    throw new Error("Partita non trovata");
+  }
+
+  const playersRef = ref(db, `${GAMES_PATH}/${gameCode}/players`);
+  const newPlayerRef = push(playersRef);
+
+  const playerId = newPlayerRef.key;
+
+  const playerData = {
+    name: playerName,
+    joinedAt: Date.now(),
+    points: 0,
+    // qui in futuro aggiungeremo livelli, chiavi, carte, ecc.
+  };
+
+  await set(newPlayerRef, playerData);
+
+  return { playerId };
+}
+
+/**
+ * Ascolta i cambiamenti di una partita.
+ * callback riceve l'intero gameState.
+ * Restituisce una funzione per disiscriversi.
+ */
+export function listenGame(gameCode, callback) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const unsubscribe = onValue(gameRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      callback(null);
+      return;
+    }
+    callback(snapshot.val());
+  });
+
+  return () => unsubscribe();
 }
