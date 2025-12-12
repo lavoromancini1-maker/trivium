@@ -90,3 +90,86 @@ body {
   font-size: 0.9rem;
 }
 
+/* === BOARD GRID (vista debug) === */
+
+.board-grid {
+  display: grid;
+  /* 14 colonne = 42 caselle circ. si vedono come 3 righe da 14 */
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: 4px;
+  padding: 8px;
+}
+
+.tile {
+  position: relative;
+  min-height: 60px;
+  border-radius: 8px;
+  font-size: 0.6rem;
+  padding: 4px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: center;
+  white-space: pre-line; /* per andare a capo nei label con "\n" */
+}
+
+/* Tipo casella */
+.tile--category {
+  background: #1f2933;
+}
+
+.tile--key {
+  background: #ecc94b22;
+  border: 2px solid #ecc94b;
+}
+
+.tile--event {
+  background: var(--color-evento);
+}
+
+.tile--minigame {
+  background: var(--color-minisfida);
+}
+
+.tile--scrigno {
+  background: linear-gradient(135deg, gold, #b7791f);
+  color: #1a202c;
+  font-weight: 700;
+}
+
+/* Colori per categoria */
+.tile--cat-geografia {
+  outline: 2px solid var(--cat-geografia);
+}
+
+.tile--cat-storia {
+  outline: 2px solid var(--cat-storia);
+}
+
+.tile--cat-arte {
+  outline: 2px solid var(--cat-arte);
+}
+
+.tile--cat-sport {
+  outline: 2px solid var(--cat-sport);
+}
+
+.tile--cat-spettacolo {
+  outline: 2px solid var(--cat-spettacolo);
+}
+
+.tile--cat-scienza {
+  outline: 2px solid var(--cat-scienza);
+}
+
+.tile-id {
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+.tile-type {
+  margin-top: 2px;
+  font-size: 0.55rem;
+  opacity: 0.9;
+}
