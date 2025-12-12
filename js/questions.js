@@ -1,19 +1,4 @@
-/**
- * Struttura domanda normale (scelta multipla):
- * {
- *   id: "geo_001",
- *   category: "geografia",         // una delle 6 categorie
- *   level: 1 | 2 | 3 | "key" | "final", // livello di difficoltà / tipo
- *   text: "Qual è la capitale del Canada?",
- *   answers: ["Toronto", "Montreal", "Ottawa", "Vancouver"],
- *   correctIndex: 2,               // index in answers
- *   media: null | {
- *     type: "image" | "audio",
- *     url: "..."
- *   }
- * }
- */
-
+// Categorie principali del gioco
 export const CATEGORIES = [
   "geografia",
   "storia",
@@ -23,12 +8,24 @@ export const CATEGORIES = [
   "scienza",
 ];
 
-// 🔹 DOMANDE DI CATEGORIA (livelli 1, 2, 3, key, final)
+/**
+ * Struttura domanda categoria (scelta multipla):
+ * {
+ *   id: "geo_001",
+ *   category: "geografia",
+ *   level: 1 | 2 | 3 | "key" | "final",
+ *   text: "Qual è la capitale del Canada?",
+ *   answers: ["Toronto", "Montreal", "Ottawa", "Vancouver"],
+ *   correctIndex: 2,
+ *   media: null | { type: "image" | "audio", url: "..." }
+ * }
+ */
 
-// Per ora mettiamo solo qualche esempio. Tu potrai aggiungere
-// tutte le tue >1000 domande seguendo lo stesso formato.
-export const CATEGORY_QUESTIONS = [
-  // Esempi GEOGRAFIA
+/* ─────────────────────
+   GEOGRAFIA
+   ───────────────────── */
+
+const GEO_QUESTIONS = [
   {
     id: "geo_001",
     category: "geografia",
@@ -56,8 +53,14 @@ export const CATEGORY_QUESTIONS = [
     correctIndex: 1,
     media: null,
   },
+  // ... TUTTE le altre domande di geografia
+];
 
-  // Esempi STORIA
+/* ─────────────────────
+   STORIA
+   ───────────────────── */
+
+const STORIA_QUESTIONS = [
   {
     id: "sto_001",
     category: "storia",
@@ -67,24 +70,61 @@ export const CATEGORY_QUESTIONS = [
     correctIndex: 1,
     media: null,
   },
-
-  // ... continua tu con tutte le domande reali
+  // ... altre domande di storia
 ];
 
-/**
- * Restituisce tutte le domande di una certa categoria e di un certo livello.
- */
+/* ─────────────────────
+   ARTE E LETTERATURA
+   ───────────────────── */
+
+const ARTE_QUESTIONS = [
+  // ... domande arte/letteratura
+];
+
+/* ─────────────────────
+   SPORT E HOBBY
+   ───────────────────── */
+
+const SPORT_QUESTIONS = [
+  // ... domande sport
+];
+
+/* ─────────────────────
+   SPETTACOLO
+   ───────────────────── */
+
+const SPETTACOLO_QUESTIONS = [
+  // ... domande spettacolo
+];
+
+/* ─────────────────────
+   SCIENZA / NATURA
+   ───────────────────── */
+
+const SCIENZA_QUESTIONS = [
+  // ... domande scienza/natura
+];
+
+// Collezione unica di tutte le domande categoria
+export const CATEGORY_QUESTIONS = [
+  ...GEO_QUESTIONS,
+  ...STORIA_QUESTIONS,
+  ...ARTE_QUESTIONS,
+  ...SPORT_QUESTIONS,
+  ...SPETTACOLO_QUESTIONS,
+  ...SCIENZA_QUESTIONS,
+];
+
+// ─────────────────────────────────────────────
+// Helper per domande di categoria
+// ─────────────────────────────────────────────
+
 export function getQuestionsByCategoryAndLevel(category, level) {
   return CATEGORY_QUESTIONS.filter(
     (q) => q.category === category && q.level === level
   );
 }
 
-/**
- * Estrae una domanda casuale dalla categoria e livello indicati,
- * escludendo quelle già usate (usedIds = Set o array di id).
- * Ritorna null se non ci sono domande disponibili.
- */
 export function getRandomCategoryQuestion(category, level, usedIds = []) {
   const usedSet = new Set(usedIds);
   const pool = CATEGORY_QUESTIONS.filter(
@@ -94,17 +134,12 @@ export function getRandomCategoryQuestion(category, level, usedIds = []) {
       !usedSet.has(q.id)
   );
 
-  if (pool.length === 0) {
-    return null;
-  }
+  if (pool.length === 0) return null;
 
   const index = Math.floor(Math.random() * pool.length);
   return pool[index];
 }
 
-/**
- * Estrae una domanda "chiave" (level = "key") per una categoria.
- */
 export function getRandomKeyQuestion(category, usedIds = []) {
   const usedSet = new Set(usedIds);
   const pool = CATEGORY_QUESTIONS.filter(
@@ -114,18 +149,12 @@ export function getRandomKeyQuestion(category, usedIds = []) {
       !usedSet.has(q.id)
   );
 
-  if (pool.length === 0) {
-    return null;
-  }
+  if (pool.length === 0) return null;
 
   const index = Math.floor(Math.random() * pool.length);
   return pool[index];
 }
 
-/**
- * Estrae una domanda finale per lo scrigno (level = "final").
- * (Se vorrai avere un set speciale per domande finali)
- */
 export function getRandomFinalQuestion(category, usedIds = []) {
   const usedSet = new Set(usedIds);
   const pool = CATEGORY_QUESTIONS.filter(
@@ -135,20 +164,17 @@ export function getRandomFinalQuestion(category, usedIds = []) {
       !usedSet.has(q.id)
   );
 
-  if (pool.length === 0) {
-    return null;
-  }
+  if (pool.length === 0) return null;
 
   const index = Math.floor(Math.random() * pool.length);
   return pool[index];
 }
 
-// 🔹 MINI-SFIDE
+/* ─────────────────────
+   MINI-SFIDE (scheletri)
+   ───────────────────── */
 
-/**
- * Rapid Fire:
- * 3 domande veloci di cultura generale (misc).
- */
+// Rapid Fire
 export const RAPID_FIRE_QUESTIONS = [
   {
     id: "rf_001",
@@ -156,52 +182,25 @@ export const RAPID_FIRE_QUESTIONS = [
     answers: ["7", "8", "9", "10"],
     correctIndex: 1,
   },
-  {
-    id: "rf_002",
-    text: "Chi ha dipinto la Gioconda?",
-    answers: [
-      "Michelangelo",
-      "Raffaello",
-      "Leonardo da Vinci",
-      "Caravaggio",
-    ],
-    correctIndex: 2,
-  },
-  // ... aggiungi a decine
+  // ...
 ];
 
 export function getRandomRapidFireQuestions(count = 3, usedIds = []) {
   const usedSet = new Set(usedIds);
   const pool = RAPID_FIRE_QUESTIONS.filter((q) => !usedSet.has(q.id));
-
-  if (pool.length < count) {
-    // se non abbastanza, usiamo tutto il pool
-    return pool;
-  }
+  if (pool.length <= count) return pool;
 
   const clone = [...pool];
   const result = [];
-
   for (let i = 0; i < count; i++) {
     const idx = Math.floor(Math.random() * clone.length);
     result.push(clone[idx]);
     clone.splice(idx, 1);
   }
-
   return result;
 }
 
-/**
- * Ordina la sequenza:
- * 
- * {
- *   id: "seq_001",
- *   instruction: "Ordina dal più antico al più recente",
- *   items: ["Rivoluzione francese", "Rivoluzione americana", "Rivoluzione russa"],
- *   correctOrder: [1, 0, 2] // indici dell'array items
- * }
- */
-
+// Ordina la sequenza
 export const SEQUENCE_CHALLENGES = [
   {
     id: "seq_001",
@@ -224,15 +223,7 @@ export function getRandomSequenceChallenge(usedIds = []) {
   return pool[idx];
 }
 
-/**
- * Più vicino vince:
- * {
- *   id: "close_001",
- *   text: "In che anno è stata inaugurata la Torre Eiffel?",
- *   correctValue: 1889
- * }
- */
-
+// Più vicino vince
 export const CLOSEST_QUESTIONS = [
   {
     id: "close_001",
@@ -250,16 +241,7 @@ export function getRandomClosestQuestion(usedIds = []) {
   return pool[idx];
 }
 
-/**
- * Indovina immagine:
- * {
- *   id: "img_001",
- *   prompt: "Riconosci il monumento",
- *   imageUrl: "assets/mini/torre_eiffel_blur.jpg",
- *   correctAnswer: "Torre Eiffel"
- * }
- */
-
+// Indovina immagine
 export const IMAGE_CHALLENGES = [
   {
     id: "img_001",
@@ -278,36 +260,14 @@ export function getRandomImageChallenge(usedIds = []) {
   return pool[idx];
 }
 
-/**
- * Categoria lampo Vero/Falso:
- * Ogni "pack" ha 3 affermazioni.
- *
- * {
- *   id: "vf_001",
- *   statements: [
- *     { text: "Il Nilo è il fiume più lungo del mondo.", correct: true },
- *     { text: "Il Monte Bianco è in Spagna.", correct: false },
- *     { text: "Parigi è la capitale della Francia.", correct: true }
- *   ]
- * }
- */
-
+// Vero/Falso (pack da 3)
 export const TRUE_FALSE_PACKS = [
   {
     id: "vf_001",
     statements: [
-      {
-        text: "Il Nilo è il fiume più lungo del mondo.",
-        correct: true,
-      },
-      {
-        text: "Il Monte Bianco è in Spagna.",
-        correct: false,
-      },
-      {
-        text: "Parigi è la capitale della Francia.",
-        correct: true,
-      },
+      { text: "Il Nilo è il fiume più lungo del mondo.", correct: true },
+      { text: "Il Monte Bianco è in Spagna.", correct: false },
+      { text: "Parigi è la capitale della Francia.", correct: true },
     ],
   },
   // ...
@@ -321,15 +281,7 @@ export function getRandomTrueFalsePack(usedIds = []) {
   return pool[idx];
 }
 
-/**
- * L'intruso:
- * {
- *   id: "odd_001",
- *   items: ["Leonardo da Vinci", "Michelangelo", "Raffaello", "Einstein"],
- *   correctIndex: 3 // Einstein è l'intruso
- * }
- */
-
+// L'intruso
 export const ODD_ONE_OUT_CHALLENGES = [
   {
     id: "odd_001",
