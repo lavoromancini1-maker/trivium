@@ -173,3 +173,13 @@ body {
   font-size: 0.55rem;
   opacity: 0.9;
 }
+
+.hidden {
+  display: none;
+}
+
+.join-error {
+  color: #feb2b2;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
