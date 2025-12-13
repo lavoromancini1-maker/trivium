@@ -1,5 +1,5 @@
 import { renderBoard, renderQuestionOverlay } from "./ui-host.js";
-import { createGame, listenGame, startGame, checkAndHandleQuestionTimeout } from "./firebase-game.js";
+import { createGame, listenGame, startGame, checkAndHandleQuestionTimeout, checkAndHandleRapidFireTimeout } from "./firebase-game.js";
 
 let currentGameCode = null;
 let unsubscribeGame = null;
@@ -188,6 +188,10 @@ function setupTimeoutInterval() {
       if (res && res.handled) {
         console.log("⏰ Timeout domanda gestito automaticamente:", res.reason);
         // Il listener listenGame aggiornerà UI, turni, ecc.
+      }
+      const resRF = await checkAndHandleRapidFireTimeout(currentGameCode);
+      if (resRF && resRF.handled) {
+        console.log("⏰ Rapid Fire avanzato:", resRF.reason);
       }
     } catch (err) {
       console.error("Errore nel controllo timeout domanda:", err);
