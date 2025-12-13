@@ -144,24 +144,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!currentGameCode || !currentPlayerId) return;
 
-    try {
-      // disattivo i pulsanti per evitare doppi tap
-      Array.from(answerButtons.querySelectorAll("button")).forEach(
-        (b) => (b.disabled = true)
+  try {
+    // disattivo i pulsanti per evitare doppi tap
+    Array.from(answerButtons.querySelectorAll("button")).forEach(
+      (b) => (b.disabled = true)
+    );
+
+    if (latestGameState && latestGameState.phase === "RAPID_FIRE_QUESTION") {
+      await answerRapidFireQuestion(
+        currentGameCode,
+        currentPlayerId,
+        answerIndex
       );
+    } else {
       await answerCategoryQuestion(
         currentGameCode,
         currentPlayerId,
         answerIndex
       );
-      // Il listener di stato si occuperà di aggiornare pannelli, overlay, ecc.
-    } catch (err) {
-      console.error(err);
-      alert(err.message || "Errore nell'invio della risposta.");
-      Array.from(answerButtons.querySelectorAll("button")).forEach(
-        (b) => (b.disabled = false)
-      );
     }
+
+    // Il listener di stato si occuperà di aggiornare pannelli, overlay, ecc.
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Errore nell'invio della risposta.");
+    Array.from(answerButtons.querySelectorAll("button")).forEach(
+      (b) => (b.disabled = false)
+    );
+  }
+
   });
 });
 
