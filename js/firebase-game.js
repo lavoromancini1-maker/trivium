@@ -444,7 +444,7 @@ async function startRapidFireMinigame(
   finalTile,
   baseUpdate
 ) {
-  // Prendiamo 3 domande Rapid Fire
+  // Prendiamo fino a 3 domande Rapid Fire
   const questions = getRandomRapidFireQuestions(3, []); // per ora ignoriamo usedIds
   if (!questions || questions.length === 0) {
     console.warn("Nessuna domanda Rapid Fire disponibile.");
@@ -464,32 +464,33 @@ async function startRapidFireMinigame(
   }
 
   const now = Date.now();
-// Nuova struttura Rapid Fire compatibile con ui-host.js
-const selectedQuestions = questions;  // rinominazione più chiara
 
-const updates = {
-  ...baseUpdate,
-  phase: "RAPID_FIRE",
-  rapidFire: {
-    questions: selectedQuestions,
-    index: 0,                                // domanda attuale
-    total: selectedQuestions.length,         // numero totale
-    forPlayerId: ownerPlayerId,              // giocatore proprietario
-    questionStartTime: Date.now(),           // per timer
-  },
-  currentTile: {
-    tileId: finalTileId,
-    type: finalTile.type,
-    category: finalTile.category || null,
-    zone: finalTile.zone,
-  },
-};
+  const rapidFire = {
+    ownerPlayerId,
+    questions,                // array di { id, text, answers, correctIndex }
+    currentIndex: 0,          // domanda corrente (0..questions.length-1)
+    scores: {},               // { playerId: numero risposte corrette }
+    answeredThisQuestion: {}, // { playerId: true se ha già risposto a questa domanda }
+    durationSec: 10,
+    startedAt: now,
+    expiresAt: now + 10 * 1000,
+  };
 
-await update(gameRef, updates);
-
+  const updates = {
+    ...baseUpdate,
+    phase: "RAPID_FIRE", // ⬅ FASE UNICA per tutto il minigioco
+    currentTile: {
+      tileId: finalTileId,
+      type: finalTile.type,
+      category: finalTile.category || null,
+      zone: finalTile.zone,
+    },
+    rapidFire,
+  };
 
   await update(gameRef, updates);
 }
+
 
 
 function prepareCategoryQuestionForTile(game, playerId, tile, tileId) {
@@ -725,7 +726,9 @@ export async function answerRapidFireQuestion(gameCode, playerId, answerIndex) {
     throw new Error("La partita non è in corso.");
   }
 
-  if (game.phase !== "RAPID_FIRE_QUESTION") {
+  // In Rapid Fire tutti i giocatori possono rispondere,
+  // quindi NON controlliamo currentPlayerId
+  if (game.phase !== "RAPID_FIRE") {
     throw new Error("Non è una fase Rapid Fire.");
   }
 
@@ -767,46 +770,76 @@ export async function answerRapidFireQuestion(gameCode, playerId, answerIndex) {
   return { correct };
 }
 
+
 export async function checkAndHandleRapidFireTimeout(gameCode) {
-  const gameRef = ref(db, `games/${gameCode}`);
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
   const snapshot = await get(gameRef);
   const game = snapshot.val();
-  if (!game) return { handled: false };
+  if (!game) return { handled: false, reason: "NO_GAME" };
 
-  if (game.phase !== "RAPID_FIRE") return { handled: false };
-
-  const rf = game.rapidFire;
-  if (!rf) return { handled: false };
-
-  const now = Date.now();
-  const elapsed = now - (rf.questionStartTime || 0);
-
-  const LIMIT = 10000; // 10 sec
-  if (elapsed < LIMIT) return { handled: false };
-
-  // fine domanda → passiamo alla prossima
-  const nextIndex = rf.index + 1;
-
-  // se NON ci sono più domande → mini sfida finita!
-  if (nextIndex >= rf.total) {
-    await update(gameRef, {
-      phase: "WAIT_ROLL",
-      rapidFire: null,
-    });
-    return { handled: true, reason: "Rapid Fire terminata" };
+  if (game.state !== "IN_PROGRESS") {
+    return { handled: false, reason: "NOT_IN_PROGRESS" };
   }
 
-  // altrimenti → prossima domanda
-  await update(gameRef, {
-    rapidFire: {
-      ...rf,
-      index: nextIndex,
-      questionStartTime: Date.now(),
-    }
-  });
+  if (game.phase !== "RAPID_FIRE") {
+    return { handled: false, reason: "NOT_IN_RAPID_FIRE" };
+  }
 
-  return { handled: true, reason: "Domanda Rapid Fire successiva" };
+  const rapidFire = game.rapidFire;
+  if (!rapidFire || !rapidFire.questions || rapidFire.questions.length === 0) {
+    return { handled: false, reason: "NO_RAPID_FIRE_DATA" };
+  }
+
+  const now = Date.now();
+  const expiresAt = rapidFire.expiresAt;
+  if (!expiresAt) {
+    return { handled: false, reason: "NO_EXPIRES_AT" };
+  }
+
+  // Se il tempo non è ancora scaduto → non facciamo nulla
+  if (now < expiresAt) {
+    return { handled: false, reason: "NOT_EXPIRED" };
+  }
+
+  const players = game.players || {};
+  const playerIds = Object.keys(players);
+
+  // Vediamo se ci sono altre domande
+  const currentIndex = rapidFire.currentIndex ?? 0;
+  const totalQuestions = rapidFire.questions.length;
+
+  if (currentIndex < totalQuestions - 1) {
+    // Passiamo alla domanda successiva
+    const now2 = Date.now();
+    rapidFire.currentIndex = currentIndex + 1;
+    rapidFire.answeredThisQuestion = {};
+    rapidFire.startedAt = now2;
+    rapidFire.expiresAt = now2 + rapidFire.durationSec * 1000;
+
+    await update(gameRef, { rapidFire });
+    return { handled: true, reason: "NEXT_QUESTION" };
+  }
+
+  // Altrimenti, era l'ultima domanda → assegniamo i punti e chiudiamo il minigioco
+  const scores = rapidFire.scores || {};
+  const updates = {};
+
+  for (const pid of playerIds) {
+    const player = players[pid];
+    const correctCount = scores[pid] ?? 0;
+    const bonusPoints = correctCount * 10; // 10 punti per risposta corretta
+    updates[`players/${pid}/points`] = (player.points ?? 0) + bonusPoints;
+  }
+
+  updates.rapidFire = null;
+  updates.phase = "WAIT_ROLL";
+  // currentPlayerId e currentTurnIndex restano invariati: turno prosegue
+
+  await update(gameRef, updates);
+
+  return { handled: true, reason: "FINISHED" };
 }
+
 
 
 /**
