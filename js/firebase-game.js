@@ -464,28 +464,29 @@ async function startRapidFireMinigame(
   }
 
   const now = Date.now();
-  const rapidFire = {
-    ownerPlayerId,
-    questions,
-    currentIndex: 0,
-    scores: {}, // { playerId: numero risposte corrette }
-    answeredThisQuestion: {}, // { playerId: true se ha già risposto a questa domanda }
-    durationSec: 10,
-    startedAt: now,
-    expiresAt: now + 10 * 1000,
-  };
+// Nuova struttura Rapid Fire compatibile con ui-host.js
+const selectedQuestions = questions;  // rinominazione più chiara
 
-  const updates = {
-    ...baseUpdate,
-    phase: "RAPID_FIRE_QUESTION",
-    currentTile: {
-      tileId: finalTileId,
-      type: finalTile.type,
-      category: finalTile.category || null,
-      zone: finalTile.zone,
-    },
-    rapidFire,
-  };
+const updates = {
+  ...baseUpdate,
+  phase: "RAPID_FIRE",
+  rapidFire: {
+    questions: selectedQuestions,
+    index: 0,                                // domanda attuale
+    total: selectedQuestions.length,         // numero totale
+    forPlayerId: ownerPlayerId,              // giocatore proprietario
+    questionStartTime: Date.now(),           // per timer
+  },
+  currentTile: {
+    tileId: finalTileId,
+    type: finalTile.type,
+    category: finalTile.category || null,
+    zone: finalTile.zone,
+  },
+};
+
+await update(gameRef, updates);
+
 
   await update(gameRef, updates);
 }
