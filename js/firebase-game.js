@@ -767,78 +767,46 @@ export async function answerRapidFireQuestion(gameCode, playerId, answerIndex) {
 }
 
 export async function checkAndHandleRapidFireTimeout(gameCode) {
-  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
-  const snap = await get(gameRef);
+  const gameRef = ref(db, `games/${gameCode}`);
+  const snapshot = await get(gameRef);
+  const game = snapshot.val();
+  if (!game) return { handled: false };
 
-  if (!snap.exists()) {
-    return { handled: false, reason: "NO_GAME" };
-  }
+  if (game.phase !== "RAPID_FIRE") return { handled: false };
 
-  const game = snap.val();
-
-  if (game.state !== "IN_PROGRESS") {
-    return { handled: false, reason: "NOT_IN_PROGRESS" };
-  }
-
-  if (game.phase !== "RAPID_FIRE_QUESTION") {
-    return { handled: false, reason: "NOT_IN_RAPID_FIRE" };
-  }
-
-  const rapidFire = game.rapidFire;
-  if (!rapidFire) {
-    return { handled: false, reason: "NO_RAPID_FIRE" };
-  }
+  const rf = game.rapidFire;
+  if (!rf) return { handled: false };
 
   const now = Date.now();
-  const expired = now >= rapidFire.expiresAt;
+  const elapsed = now - (rf.questionStartTime || 0);
 
-  const players = game.players || {};
-  const playerIds = Object.keys(players);
-  const answered = rapidFire.answeredThisQuestion || {};
+  const LIMIT = 10000; // 10 sec
+  if (elapsed < LIMIT) return { handled: false };
 
-  const allAnswered =
-    playerIds.length > 0 &&
-    playerIds.every((pid) => answered[pid]);
+  // fine domanda → passiamo alla prossima
+  const nextIndex = rf.index + 1;
 
-  if (!expired && !allAnswered) {
-    return { handled: false, reason: "NOT_EXPIRED_AND_NOT_ALL_ANSWERED" };
+  // se NON ci sono più domande → mini sfida finita!
+  if (nextIndex >= rf.total) {
+    await update(gameRef, {
+      phase: "WAIT_ROLL",
+      rapidFire: null,
+    });
+    return { handled: true, reason: "Rapid Fire terminata" };
   }
 
-  // Se siamo qui: o è scaduto il tempo o hanno risposto tutti
-  const totalQuestions = rapidFire.questions.length;
-  const currentIndex = rapidFire.currentIndex ?? 0;
+  // altrimenti → prossima domanda
+  await update(gameRef, {
+    rapidFire: {
+      ...rf,
+      index: nextIndex,
+      questionStartTime: Date.now(),
+    }
+  });
 
-  if (currentIndex < totalQuestions - 1) {
-    // Passa alla domanda successiva
-    const now2 = Date.now();
-    rapidFire.currentIndex = currentIndex + 1;
-    rapidFire.answeredThisQuestion = {};
-    rapidFire.startedAt = now2;
-    rapidFire.expiresAt = now2 + rapidFire.durationSec * 1000;
-
-    await update(gameRef, { rapidFire });
-    return { handled: true, reason: "NEXT_QUESTION" };
-  }
-
-  // Ultima domanda conclusa → assegna punti e chiudi minigioco
-  const scores = rapidFire.scores || {};
-  const updates = {};
-
-  for (const pid of playerIds) {
-    const player = players[pid];
-    const score = scores[pid] ?? 0;
-    const bonusPoints = score * 10; // 10 punti per risposta corretta
-    updates[`players/${pid}/points`] = (player.points ?? 0) + bonusPoints;
-  }
-
-  updates.rapidFire = null;
-  updates.phase = "WAIT_ROLL";
-  // currentPlayerId e currentTurnIndex restano invariati: il turno prosegue al giocatore attuale
-
-  await update(gameRef, updates);
-
-  return { handled: true, reason: "FINISHED" };
+  return { handled: true, reason: "Domanda Rapid Fire successiva" };
 }
+
 
 /**
  * Restituisce indice e id del prossimo giocatore nel turno.
