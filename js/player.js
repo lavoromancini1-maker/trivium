@@ -258,6 +258,24 @@ function handleGameUpdate(
           turnStatusText.textContent = "Attendi la domanda...";
           answerPanel.classList.add("hidden");
         }
+          } else if (phase === "RAPID_FIRE_QUESTION") {
+        rollDiceBtn.disabled = true;
+        directionPanel.classList.add("hidden");
+
+        // In Rapid Fire tutti possono rispondere
+        turnStatusText.textContent =
+          "MINIGIOCO: Rapid Fire! Rispondi più domande possibili.";
+
+        const rapidFire = gameState.rapidFire;
+        const alreadyAnswered =
+          rapidFire &&
+          rapidFire.answeredThisQuestion &&
+          rapidFire.answeredThisQuestion[myId];
+
+        answerPanel.classList.remove("hidden");
+        Array.from(answerButtons.querySelectorAll("button")).forEach((b) => {
+          b.disabled = !!alreadyAnswered;
+        });
       } else {
         turnStatusText.textContent = "Attendi le prossime azioni...";
         rollDiceBtn.disabled = true;
