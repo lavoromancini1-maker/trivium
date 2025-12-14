@@ -227,6 +227,7 @@ export async function startGame(gameCode) {
     players: updatedPlayers,
     usedCategoryQuestionIds: {}, // per non ripetere domande
     usedRapidFireQuestionIds: {},
+    usedClosestQuestionIds: {},
   };
 
   await update(gameRef, updateData);
