@@ -11,6 +11,7 @@ import {
   answerEventQuestion,
   answerClosestMinigame,
   answerVFFlashMinigame,
+  answerIntruderMinigame,
 } from "./firebase-game.js";
 
 
@@ -29,6 +30,7 @@ let vfText = null;
 let vfTrueBtn = null;
 let vfFalseBtn = null;
 let vfHint = null;
+let intruderPanel, intruderPrompt, intrA, intrB, intrC, intrD, intruderHint;
 
 async function sendVF(choice) {
   if (!currentGameCode || !currentPlayerId) return;
@@ -83,7 +85,15 @@ vfFalseBtn = document.getElementById("vf-false-btn");
 vfHint = document.getElementById("vf-hint"); 
 
 vfTrueBtn?.addEventListener("click", () => sendVF(true));
-vfFalseBtn?.addEventListener("click", () => sendVF(false));  
+vfFalseBtn?.addEventListener("click", () => sendVF(false));
+
+intruderPanel = document.getElementById("intruder-panel");
+intruderPrompt = document.getElementById("intruder-prompt");
+intrA = document.getElementById("intr-a");
+intrB = document.getElementById("intr-b");
+intrC = document.getElementById("intr-c");
+intrD = document.getElementById("intr-d");
+intruderHint = document.getElementById("intruder-hint");  
 
 closestSendBtn?.addEventListener("click", async () => {
   if (!currentGameCode || !currentPlayerId) return;
@@ -99,7 +109,36 @@ closestSendBtn?.addEventListener("click", async () => {
   }
 });
 
+let intruderPanel, intruderPrompt, intrA, intrB, intrC, intrD, intruderHint;
 
+intruderPanel = document.getElementById("intruder-panel");
+intruderPrompt = document.getElementById("intruder-prompt");
+intrA = document.getElementById("intr-a");
+intrB = document.getElementById("intr-b");
+intrC = document.getElementById("intr-c");
+intrD = document.getElementById("intr-d");
+intruderHint = document.getElementById("intruder-hint");
+
+async function sendIntruder(idx) {
+  if (!currentGameCode || !currentPlayerId) return;
+  if (!intruderHint) return;
+
+  intruderHint.textContent = "";
+  try {
+    [intrA, intrB, intrC, intrD].forEach(b => b && (b.disabled = true));
+    await answerIntruderMinigame(currentGameCode, currentPlayerId, idx);
+    intruderHint.textContent = "✅ Risposta inviata!";
+  } catch (e) {
+    intruderHint.textContent = e.message || "Errore invio.";
+    [intrA, intrB, intrC, intrD].forEach(b => b && (b.disabled = false));
+  }
+}
+
+intrA?.addEventListener("click", () => sendIntruder(0));
+intrB?.addEventListener("click", () => sendIntruder(1));
+intrC?.addEventListener("click", () => sendIntruder(2));
+intrD?.addEventListener("click", () => sendIntruder(3));
+  
   // precompila codice se c'è ?game=XXXX
   const params = new URLSearchParams(window.location.search);
   const gameFromUrl = params.get("game");
@@ -304,6 +343,13 @@ if (!isClosestActive && closestPanel && closestHint && closestSendBtn) {
   closestHint.textContent = "";
   closestSendBtn.disabled = false;
 }
+
+const isIntruderActive = phase === "MINIGAME" && mg && mg.type === "INTRUDER";
+if (!isIntruderActive && intruderPanel && intruderHint) {
+  intruderPanel.classList.add("hidden");
+  intruderHint.textContent = "";
+  [intrA, intrB, intrC, intrD].forEach(b => b && (b.disabled = false));
+}    
     
 // --- RESET UI minigame "VF Flash" se non siamo in MINIGAME/VF_FLASH ---
 const isVFActive = phase === "MINIGAME" && mg && mg.type === "VF_FLASH";
@@ -501,6 +547,22 @@ if (mg && mg.type === "VF_FLASH") {
 
   return;
 }
+
+ if (mg && mg.type === "INTRUDER") {
+  turnStatusText.textContent = "MINIGIOCO: L’intruso!";
+  if (closestPanel) closestPanel.classList.add("hidden");
+  if (vfPanel) vfPanel.classList.add("hidden");
+  if (answerPanel) answerPanel.classList.add("hidden");
+
+  if (intruderPanel) intruderPanel.classList.remove("hidden");
+  if (intruderPrompt) intruderPrompt.textContent = mg.prompt || "Qual è l’intruso?";
+
+  const already = mg.answeredThis && mg.answeredThis[myId];
+  [intrA, intrB, intrC, intrD].forEach(b => b && (b.disabled = !!already));
+  if (intruderHint) intruderHint.textContent = already ? "Hai già risposto." : "";
+
+  return;
+} 
 
   if (mg && mg.type === "CLOSEST") {
     turnStatusText.textContent = "MINIGIOCO: Più vicino vince. Inserisci un numero!";
