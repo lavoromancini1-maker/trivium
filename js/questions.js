@@ -573,8 +573,38 @@ export const RAPID_FIRE_QUESTIONS = [
     answers: ["7", "8", "9", "10"],
     correctIndex: 1,
   },
-  // ...
+  {
+    id: "rf_002",
+    text: "Qual è la capitale del Canada?",
+    answers: ["Toronto", "Ottawa", "Montreal", "Vancouver"],
+    correctIndex: 1,
+  },
+  {
+    id: "rf_003",
+    text: "In che continente si trova il deserto del Sahara?",
+    answers: ["Asia", "Africa", "Oceania", "America"],
+    correctIndex: 1,
+  },
+  {
+    id: "rf_004",
+    text: "Quante sono le regioni italiane?",
+    answers: ["18", "19", "20", "21"],
+    correctIndex: 2,
+  },
+  {
+    id: "rf_005",
+    text: "Quale animale è noto come 'Re della Savana'?",
+    answers: ["Tigre", "Leone", "Elefante", "Ghepardo"],
+    correctIndex: 1,
+  },
+  {
+    id: "rf_006",
+    text: "Qual è il simbolo chimico dell’ossigeno?",
+    answers: ["O", "Ox", "Og", "Os"],
+    correctIndex: 0,
+  },
 ];
+
 
 export function getRandomRapidFireQuestions(count = 3, usedIds = []) {
   const usedSet = new Set(usedIds);
