@@ -55,19 +55,17 @@ export function renderBoard(container) {
 /**
  * Mostra la domanda corrente in overlay sull'host.
  */
-/**
- * Mostra la domanda corrente in overlay sull'host.
- */
 export function renderQuestionOverlay(gameState) {
   const overlay = document.getElementById("overlay");
   const overlayContent = document.getElementById("overlay-content");
 
   if (!overlay || !overlayContent) return;
 
-    if (gameState && gameState.phase === "RAPID_FIRE_QUESTION") {
-    renderRapidFireOverlay(gameState);
-    return;
-  }
+if (gameState && (gameState.phase === "RAPID_FIRE" || gameState.phase === "RAPID_FIRE_QUESTION")) {
+  renderRapidFireOverlay(gameState);
+  return;
+}
+
 
   // Se non siamo in fase QUESTION o non c'è una domanda, nascondi overlay
   if (
@@ -170,16 +168,23 @@ export function renderRapidFireOverlay(gameState) {
   if (!overlay || !overlayContent) return;
 
   const rapidFire = gameState.rapidFire;
-  if (
-    !rapidFire ||
-    gameState.phase !== "RAPID_FIRE_QUESTION" ||
-    !rapidFire.questions ||
-    rapidFire.questions.length === 0
-  ) {
-    overlay.classList.add("hidden");
-    overlayContent.innerHTML = "";
-    return;
+if (
+  !rapidFire ||
+  (gameState.phase !== "RAPID_FIRE" && gameState.phase !== "RAPID_FIRE_QUESTION") ||
+  !rapidFire.questions ||
+  rapidFire.questions.length === 0
+) {
+  overlay.classList.add("hidden");
+  overlayContent.innerHTML = "";
+
+  if (overlayTimerInterval) {
+    clearInterval(overlayTimerInterval);
+    overlayTimerInterval = null;
   }
+
+  return;
+}
+
 
   const currentIndex = rapidFire.currentIndex ?? 0;
   const question = rapidFire.questions[currentIndex];
