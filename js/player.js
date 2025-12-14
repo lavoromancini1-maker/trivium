@@ -33,20 +33,23 @@ let vfHint = null;
 async function sendVF(choice) {
   if (!currentGameCode || !currentPlayerId) return;
   if (!vfHint || !vfTrueBtn || !vfFalseBtn) return;
+
   vfHint.textContent = "";
 
   try {
     vfTrueBtn.disabled = true;
     vfFalseBtn.disabled = true;
-    const res = await answerVFFlashMinigame(currentGameCode, currentPlayerId, choice);
-    vfHint.textContent = res.correct ? "✅ Corretto!" : "❌ Sbagliato!";
+
+    await answerVFFlashMinigame(currentGameCode, currentPlayerId, choice);
+
+    // feedback neutro (evita errori di sync)
+    vfHint.textContent = "✅ Risposta inviata!";
   } catch (e) {
     vfHint.textContent = e.message || "Errore invio.";
     vfTrueBtn.disabled = false;
     vfFalseBtn.disabled = false;
   }
 }
-
 
 document.addEventListener("DOMContentLoaded", () => {
   const gameCodeInput = document.getElementById("game-code-input");
