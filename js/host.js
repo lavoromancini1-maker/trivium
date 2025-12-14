@@ -157,17 +157,13 @@ function setupTimeoutInterval() {
         // Il listener listenGame aggiornerà UI, turni, ecc.
       }
       const resReveal = await checkAndHandleRevealAdvance(currentGameCode);
-if (resReveal && resReveal.handled) {
-  console.log("✅ Reveal chiuso:", resReveal.reason);
-}
+      if (resReveal && resReveal.handled) {
+        console.log("✅ Reveal chiuso:", resReveal.reason);
+      }
       const resRF = await checkAndHandleRapidFireTimeout(currentGameCode);
       if (resRF && resRF.handled) {
         console.log("⏰ Rapid Fire avanzato:", resRF.reason);
       }
-      const resReveal = await checkAndHandleRevealAdvance(currentGameCode);
-if (resReveal && resReveal.handled) {
-  console.log("✅ Reveal chiuso:", resReveal.reason);
-}
     } catch (err) {
       console.error("Errore nel controllo timeout domanda:", err);
     }
