@@ -381,6 +381,8 @@ export async function chooseDirection(gameCode, playerId, directionIndex) {
       },
       currentQuestion: questionData,
       ...extraUpdates, // include usedCategoryQuestionIds
+      playerAnswerIndex: null,
+playerAnswerCorrect: null,
     };
 
     await update(gameRef, globalUpdate);
@@ -974,4 +976,27 @@ export async function checkAndHandleQuestionTimeout(gameCode) {
   await update(gameRef, updates);
 
   return { handled: true, reason: "EXPIRED_TIMEOUT" };
+}
+
+export async function checkAndHandleRevealAdvance(gameCode) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+  if (!snap.exists()) return { handled: false, reason: "NO_GAME" };
+
+  const game = snap.val();
+  if (game.state !== "IN_PROGRESS") return { handled: false, reason: "NOT_IN_PROGRESS" };
+  if (game.phase !== "REVEAL") return { handled: false, reason: "NOT_IN_REVEAL" };
+
+  const reveal = game.reveal;
+  if (!reveal || !reveal.hideAt) return { handled: false, reason: "NO_REVEAL_DATA" };
+
+  const now = Date.now();
+  if (now < reveal.hideAt) return { handled: false, reason: "NOT_EXPIRED" };
+
+  await update(gameRef, {
+    phase: "WAIT_ROLL",
+    reveal: null,
+  });
+
+  return { handled: true, reason: "REVEAL_FINISHED" };
 }
