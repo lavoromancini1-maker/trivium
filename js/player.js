@@ -304,6 +304,15 @@ if (!isClosestActive && closestPanel && closestHint && closestSendBtn) {
   closestHint.textContent = "";
   closestSendBtn.disabled = false;
 }
+    
+// --- RESET UI minigame "VF Flash" se non siamo in MINIGAME/VF_FLASH ---
+const isVFActive = phase === "MINIGAME" && mg && mg.type === "VF_FLASH";
+if (!isVFActive && vfPanel && vfHint && vfTrueBtn && vfFalseBtn) {
+  vfPanel.classList.add("hidden");
+  vfHint.textContent = "";
+  vfTrueBtn.disabled = false;
+  vfFalseBtn.disabled = false;
+}
 
     renderPlayerProgress(gameState, myId, playerProgressEl);
 
@@ -476,6 +485,7 @@ if (phase === "MINIGAME") {
 if (mg && mg.type === "VF_FLASH") {
   turnStatusText.textContent = "MINIGIOCO: Vero/Falso lampo!";
   closestPanel.classList.add("hidden");
+  if (vfPanel) vfPanel.classList.add("hidden");
   answerPanel.classList.add("hidden");
 
   vfPanel.classList.remove("hidden");
@@ -502,6 +512,7 @@ if (mg && mg.type === "VF_FLASH") {
   } else {
     closestPanel.classList.add("hidden");
     turnStatusText.textContent = "Minigioco in corso... attendi.";
+    if (vfPanel) vfPanel.classList.add("hidden");
   }
 
   return;
