@@ -1343,14 +1343,14 @@ export async function checkAndHandleMinigameTimeout(gameCode) {
   const now = Date.now();
   if (now < mg.expiresAt) return { handled: false };
 
-  // Solo CLOSEST per ora
-  if (mg.type !== "CLOSEST") {
-    await update(gameRef, { phase: "WAIT_ROLL", minigame: null });
-    return { handled: true };
-  }
-  if (mg.type === "SEQUENCE") {
-  // scaduto: finalizza e chiudi
+
+if (mg.type === "SEQUENCE") {
   await finalizeSequenceMinigame(gameRef, game);
+  return { handled: true };
+}
+
+if (mg.type !== "CLOSEST") {
+  await update(gameRef, { phase: "WAIT_ROLL", minigame: null });
   return { handled: true };
 }
 
