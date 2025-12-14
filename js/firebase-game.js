@@ -17,6 +17,7 @@ import {
   push,
   onValue,
   serverTimestamp,
+  runTransaction,
 } from "./firebase-config.js";
 
 const GAMES_PATH = "games";
@@ -229,6 +230,7 @@ export async function startGame(gameCode) {
     usedCategoryQuestionIds: {}, // per non ripetere domande
     usedRapidFireQuestionIds: {},
     usedClosestQuestionIds: {},
+    usedVFFlashQuestionIds: {},
   };
 
   await update(gameRef, updateData);
@@ -396,7 +398,7 @@ export async function chooseDirection(gameCode, playerId, directionIndex) {
 
   // Caselle speciali: minigame / event / scrigno
 if (finalTile.type === "minigame") {
-  await startVFFlashMinigame(gameRef, game, playerId, finalTileId, finalTile, baseUpdate);
+  await startRandomMinigame(gameRef, game, playerId, finalTileId, finalTile, baseUpdate);
   return { finalTileId, finalTile };
 }
 
@@ -526,6 +528,35 @@ const updates = {
 
 await update(gameRef, updates);
 }
+
+async function startRandomMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate) {
+  // Tipi disponibili (solo quelli che esistono già)
+  const pool = ["VF_FLASH", "CLOSEST", "RAPID_FIRE"];
+
+  // (Opzionale) evita ripetizione immediata dello stesso minigame
+  const last = game.lastMinigameType || null;
+  const filtered = last ? pool.filter(t => t !== last) : pool;
+  const pickFrom = filtered.length ? filtered : pool;
+
+  const type = pickFrom[Math.floor(Math.random() * pickFrom.length)];
+
+  // salva per evitare ripetizioni immediate
+  await update(gameRef, { lastMinigameType: type });
+
+  if (type === "VF_FLASH") {
+    await startVFFlashMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate);
+    return;
+  }
+
+  if (type === "CLOSEST") {
+    await startClosestMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate);
+    return;
+  }
+
+  // RAPID_FIRE (usa la tua fase RAPID_FIRE separata)
+  await startRapidFireMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate);
+}
+
 
 async function startClosestMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate) {
   const used = game.usedClosestQuestionIds ? Object.keys(game.usedClosestQuestionIds) : [];
@@ -931,64 +962,100 @@ export async function answerClosestMinigame(gameCode, playerId, value) {
 
 export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
   const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
-  const snap = await get(gameRef);
-  if (!snap.exists()) throw new Error("Partita non trovata");
 
-  const game = snap.val();
-  if (game.state !== "IN_PROGRESS") throw new Error("La partita non è in corso.");
-  if (game.phase !== "MINIGAME") throw new Error("Non è una fase minigioco.");
+  const tx = await runTransaction(gameRef, (game) => {
+    if (!game) return game;
+    if (game.state !== "IN_PROGRESS") return game;
+    if (game.phase !== "MINIGAME") return game;
 
-  const mg = game.minigame;
-  if (!mg || mg.type !== "VF_FLASH") throw new Error("Minigioco VF_FLASH non attivo.");
+    const mg = game.minigame;
+    if (!mg || mg.type !== "VF_FLASH") return game;
 
-  const players = game.players || {};
-  if (!players[playerId]) throw new Error("Giocatore non trovato.");
+    const players = game.players || {};
+    const playerIds = Object.keys(players);
+    if (!players[playerId]) return game;
 
-  const idx = mg.index ?? 0;
-  const stmt = mg.statements?.[idx];
-  if (!stmt) throw new Error("Affermazione non trovata.");
+    const idx = mg.index ?? 0;
+    const stmt = mg.statements?.[idx];
+    if (!stmt) return game;
 
-  const answeredThis = mg.answeredThis || {};
-  const eliminatedThis = mg.eliminatedThis || {};
-  const winners = mg.winners || {};
+    // inizializza strutture
+    mg.answeredThis = mg.answeredThis || {};
+    mg.eliminatedThis = mg.eliminatedThis || {};
+    mg.winners = mg.winners || {};
+    mg.currentWinnerId = mg.currentWinnerId || null;
 
-  // se già c'è un vincitore per questa affermazione → ignora
-  if (mg.currentWinnerId) return { alreadyClosed: true };
+    // se già chiusa (qualcuno ha già vinto questa affermazione)
+    if (mg.currentWinnerId) return game;
 
-  // se questo player ha già tentato → ignora
-  if (answeredThis[playerId]) return { alreadyAnswered: true };
+    // se il player ha già tentato questa affermazione
+    if (mg.answeredThis[playerId]) return game;
 
-  const choice = !!choiceBool;
-  const correct = choice === !!stmt.correct;
+    const choice = !!choiceBool;
+    const correct = choice === !!stmt.correct;
 
-  // segna che ha tentato
-  answeredThis[playerId] = true;
+    // segna il tentativo
+    mg.answeredThis[playerId] = true;
 
-  if (correct) {
-    // se è il primo corretto, vince il punto
-    mg.currentWinnerId = playerId;
-    winners[playerId] = (winners[playerId] || 0) + 1;
+    if (correct) {
+      // PRIMO corretto: vince il punto
+      mg.currentWinnerId = playerId;
+      mg.winners[playerId] = (mg.winners[playerId] || 0) + 1;
 
-    await update(gameRef, {
-      minigame: { ...mg, answeredThis, eliminatedThis, winners },
-    });
+      // punti immediati: +10 per affermazione corretta
+      players[playerId].points = (players[playerId].points || 0) + 10;
 
-    // assegna punti subito al vincitore della singola affermazione
-    await awardVFFlashPointAndAdvance(gameRef);
-    return { correct: true, winner: true };
-  } else {
-    // sbagliato: eliminato solo per questa affermazione
-    eliminatedThis[playerId] = true;
+      // passa subito alla prossima affermazione (o chiudi)
+      if (idx < 2) {
+        mg.index = idx + 1;
+        mg.answeredThis = {};
+        mg.eliminatedThis = {};
+        mg.currentWinnerId = null;
+      } else {
+        // finito pack: chiudi minigioco
+        game.phase = "WAIT_ROLL";
+        game.minigame = null;
+      }
 
-    await update(gameRef, {
-      minigame: { ...mg, answeredThis, eliminatedThis, winners },
-    });
+      game.players = players;
+      game.minigame = mg;
+      return game;
+    }
 
-    // se tutti hanno tentato o sono eliminati → passa alla prossima affermazione
-    await maybeAdvanceVFFlashIfAllTried(gameRef);
-    return { correct: false, winner: false };
-  }
+    // sbagliato: eliminato per questa affermazione
+    mg.eliminatedThis[playerId] = true;
+
+    // se tutti hanno tentato e nessuno ha vinto -> passa alla prossima (o chiudi)
+    const allTried = playerIds.length > 0 && playerIds.every((pid) => mg.answeredThis[pid]);
+    if (allTried) {
+      if (idx < 2) {
+        mg.index = idx + 1;
+        mg.answeredThis = {};
+        mg.eliminatedThis = {};
+        mg.currentWinnerId = null;
+      } else {
+        game.phase = "WAIT_ROLL";
+        game.minigame = null;
+      }
+    }
+
+    game.minigame = mg;
+    return game;
+  });
+
+  // Risposta al client (non perfetta al 100% in tutte le edge-case, ma sufficiente per UI)
+  if (!tx.committed) return { ok: false };
+
+  const after = tx.snapshot.val();
+  const mgAfter = after?.minigame;
+
+  // Se minigame ancora attivo ed il player risulta in answeredThis dell'affermazione corrente,
+  // significa che ha appena tentato oppure aveva già tentato.
+  // Per feedback UI (✅/❌) possiamo ricalcolare dal pack originale in snapshot PRE-advance? Non ce l'abbiamo.
+  // Quindi ritorniamo "ok" e lato UI mostri "Inviato" / "Attendi".
+  return { ok: true };
 }
+
 
 async function awardVFFlashPointAndAdvance(gameRef) {
   const snap = await get(gameRef);
