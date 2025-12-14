@@ -739,3 +739,24 @@ export function getRandomIntruderQuestion(usedIds = []) {
   if (!pool.length) return null;
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
+// ───────────────────────────────
+// MINIGAME: ORDINA LA SEQUENZA
+// ───────────────────────────────
+export const SEQUENCE_QUESTIONS = [
+  {
+    id: "seq_001",
+    prompt: "Metti in ordine cronologico (dal più antico al più recente):",
+    items: ["Scoperta dell’America", "Rivoluzione francese", "Caduta del Muro di Berlino", "Invenzione della stampa"],
+    // ordine corretto espresso come INDICI della lista items
+    // Stampa (3) -> America (0) -> Rivoluzione (1) -> Muro (2)
+    correctOrder: [3, 0, 1, 2],
+  },
+];
+
+export function getRandomSequenceQuestion(usedIds = []) {
+  const pool = SEQUENCE_QUESTIONS.filter(q => !usedIds.includes(q.id));
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
