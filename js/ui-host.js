@@ -67,6 +67,10 @@ if (gameState && (gameState.phase === "RAPID_FIRE" || gameState.phase === "RAPID
   renderRapidFireOverlay(gameState);
   return;
 }
+ if (gameState && gameState.phase === "MINIGAME" && gameState.minigame?.type === "CLOSEST") {
+  renderClosestOverlay(gameState);
+  return;
+} 
 if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.reveal.question) {
   const r = gameState.reveal;
   const q = r.question;
@@ -536,3 +540,41 @@ function formatPosition(position) {
 
   return `${position} (${typeLabel})`;
 }
+function renderClosestOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+  if (!overlay || !overlayContent) return;
+
+  const mg = gameState.minigame;
+  const now = Date.now();
+  const remaining = mg.expiresAt ? Math.max(0, Math.ceil((mg.expiresAt - now) / 1000)) : "--";
+
+  overlayContent.innerHTML = `
+    <div class="question-card">
+      <div class="question-header">
+        <div class="question-category">MINIGIOCO – PIÙ VICINO VINCE</div>
+        <div class="question-player">Tempo: <strong>${remaining}s</strong></div>
+      </div>
+      <div class="question-text">${mg.challenge?.text || ""}</div>
+      <div class="question-footer">
+        <span>Tutti inseriscono un numero dal telefono. Vince chi è più vicino.</span>
+      </div>
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
+
+  // aggiorna countdown live
+  if (overlayTimerInterval) clearInterval(overlayTimerInterval);
+  overlayTimerInterval = setInterval(() => {
+    const now2 = Date.now();
+    const rem2 = mg.expiresAt ? Math.max(0, Math.ceil((mg.expiresAt - now2) / 1000)) : 0;
+    const el = overlayContent.querySelector(".question-player strong");
+    if (el) el.textContent = `${rem2}s`;
+    if (rem2 <= 0) {
+      clearInterval(overlayTimerInterval);
+      overlayTimerInterval = null;
+    }
+  }, 250);
+}
+
