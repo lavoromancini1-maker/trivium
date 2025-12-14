@@ -707,12 +707,34 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
     points: (player.points ?? 0) + pointsToAdd,
   };
 
-  const updates = {
-    [`${playerPath}`]: playerUpdate,
-    currentQuestion: null,
-    playerAnswerIndex: answerIndex,
-    playerAnswerCorrect: correct,
-  };
+  const now = Date.now();
+const REVEAL_MS = 1400; // 1.4s di reveal su TV (no scroll, effetto rapido)
+
+const updates = {
+  [`${playerPath}`]: playerUpdate,
+
+  // ✅ chiudiamo la domanda per il player
+  currentQuestion: null,
+
+  // ✅ fase reveal per l'host
+  phase: "REVEAL",
+  reveal: {
+    // dati minimi per mostrare overlay senza currentQuestion
+    question: {
+      category: q.category,
+      isKeyQuestion: !!q.isKeyQuestion,
+      text: q.text,
+      answers: q.answers,
+      correctIndex: q.correctIndex,
+    },
+    forPlayerId: playerId,
+    answerIndex: answerIndex,
+    correct: correct,
+    shownAt: now,
+    hideAt: now + REVEAL_MS,
+  },
+};
+
 
   // Decidiamo se il turno continua (risposta giusta) o passa al prossimo
   if (correct) {
