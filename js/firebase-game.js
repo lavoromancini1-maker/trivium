@@ -225,6 +225,7 @@ export async function startGame(gameCode) {
     currentPlayerId: turnOrder[0],
     players: updatedPlayers,
     usedCategoryQuestionIds: {}, // per non ripetere domande
+    usedRapidFireQuestionIds: {},
   };
 
   await update(gameRef, updateData);
@@ -460,7 +461,9 @@ async function startRapidFireMinigame(
   baseUpdate
 ) {
   // Prendiamo fino a 3 domande Rapid Fire
- const rawQuestions = getRandomRapidFireQuestions(3, []); // per ora ignoriamo usedIds
+ const usedRF = game.usedRapidFireQuestionIds || {};
+const usedIds = Object.keys(usedRF);
+const rawQuestions = getRandomRapidFireQuestions(3, usedIds);
   if (!rawQuestions || rawQuestions.length === 0) {
     console.warn("Nessuna domanda Rapid Fire disponibile.");
     // Se non abbiamo domande, semplicemente torniamo in WAIT_ROLL
@@ -510,7 +513,7 @@ async function startRapidFireMinigame(
 
   const updates = {
     ...baseUpdate,
-    phase: "RAPID_FIRE", // ⬅ FASE UNICA per tutto il minigioco
+    phase: "RAPID_FIRE", 
     currentTile: {
       tileId: finalTileId,
       type: finalTile.type,
@@ -519,6 +522,11 @@ async function startRapidFireMinigame(
     },
     rapidFire,
   };
+
+  const rfUsedUpdates = {};
+for (const q of rawQuestions) {
+  if (q?.id) rfUsedUpdates[`usedRapidFireQuestionIds/${q.id}`] = true;
+}
 
   await update(gameRef, updates);
 }
@@ -811,18 +819,65 @@ export async function answerRapidFireQuestion(gameCode, playerId, answerIndex) {
     return { alreadyAnswered: true };
   }
 
-  // Controlliamo se è corretta
+   // Controlliamo se è corretta
   const correct = answerIndex === currentQuestion.correctIndex;
+
+  // Prepariamo update "a path" (evita collisioni tra player)
+  const updates = {
+    [`rapidFire/answeredThisQuestion/${playerId}`]: true,
+  };
+
   if (correct) {
-    const prevScore = rapidFire.scores[playerId] ?? 0;
-    rapidFire.scores[playerId] = prevScore + 1;
+    const prevScore = rapidFire.scores?.[playerId] ?? 0;
+    updates[`rapidFire/scores/${playerId}`] = prevScore + 1;
   }
 
-  rapidFire.answeredThisQuestion[playerId] = true;
+  await update(gameRef, updates);
 
-  await update(gameRef, { rapidFire });
+  // Dopo aver scritto, proviamo ad avanzare se tutti hanno risposto
+  await maybeAdvanceRapidFireIfAllAnswered(gameRef);
 
   return { correct };
+
+async function maybeAdvanceRapidFireIfAllAnswered(gameRef) {
+  const snap = await get(gameRef);
+  if (!snap.exists()) return;
+
+  const game = snap.val();
+  if (game.state !== "IN_PROGRESS") return;
+  if (game.phase !== "RAPID_FIRE") return;
+
+  const rapidFire = game.rapidFire;
+  if (!rapidFire) return;
+
+  const players = game.players || {};
+  const playerIds = Object.keys(players);
+
+  const answered = rapidFire.answeredThisQuestion || {};
+  const allAnswered = playerIds.length > 0 && playerIds.every(pid => answered[pid]);
+
+  if (!allAnswered) return;
+
+  const currentIndex = rapidFire.currentIndex ?? 0;
+  const totalQuestions = rapidFire.questions?.length ?? 0;
+
+  // Se ci sono altre domande → next subito
+  if (currentIndex < totalQuestions - 1) {
+    const now = Date.now();
+    await update(gameRef, {
+      "rapidFire/currentIndex": currentIndex + 1,
+      "rapidFire/answeredThisQuestion": {},
+      "rapidFire/startedAt": now,
+      "rapidFire/expiresAt": now + (rapidFire.durationSec ?? 10) * 1000,
+    });
+    return;
+  }
+
+  // Se era l'ultima → forza chiusura via handler (riuso logica punteggi)
+  // Chiamiamo direttamente la funzione di timeout: ora è scaduto “virtualmente”.
+  // Settiamo expiresAt = now e poi lasciamo che host loop la chiuda, oppure la chiudiamo qui.
+  const now = Date.now();
+  await update(gameRef, { "rapidFire/expiresAt": now });
 }
 
 
@@ -875,20 +930,48 @@ export async function checkAndHandleRapidFireTimeout(gameCode) {
     return { handled: true, reason: "NEXT_QUESTION" };
   }
 
-  // Altrimenti, era l'ultima domanda → assegniamo i punti e chiudiamo il minigioco
   const scores = rapidFire.scores || {};
   const updates = {};
 
+  // Costruiamo classifica per "corrette"
+  const rows = playerIds.map((pid) => ({
+    pid,
+    score: scores[pid] ?? 0,
+  }));
+
+  // Ordina decrescente
+  rows.sort((a, b) => b.score - a.score);
+
+  const maxScore = rows[0]?.score ?? 0;
+  const minScore = rows[rows.length - 1]?.score ?? 0;
+
+  const firstGroup = rows.filter(r => r.score === maxScore).map(r => r.pid);
+  const lastGroup  = rows.filter(r => r.score === minScore).map(r => r.pid);
+
+  // Secondo: solo se esiste un primo unico
+  let secondGroup = [];
+  if (firstGroup.length === 1) {
+    const secondScore = rows.find(r => r.score < maxScore)?.score;
+    if (typeof secondScore === "number") {
+      secondGroup = rows.filter(r => r.score === secondScore).map(r => r.pid);
+    }
+  }
+
+  // Applica punti: 1° +30, 2° +15, ultimo -10, altri 0
   for (const pid of playerIds) {
     const player = players[pid];
-    const correctCount = scores[pid] ?? 0;
-    const bonusPoints = correctCount * 10; // 10 punti per risposta corretta
-    updates[`players/${pid}/points`] = (player.points ?? 0) + bonusPoints;
+    let delta = 0;
+
+    if (firstGroup.includes(pid)) delta = 30;
+    else if (secondGroup.includes(pid)) delta = 15;
+    else if (lastGroup.includes(pid)) delta = -10;
+
+    updates[`players/${pid}/points`] = (player.points ?? 0) + delta;
   }
 
   updates.rapidFire = null;
   updates.phase = "WAIT_ROLL";
-  // currentPlayerId e currentTurnIndex restano invariati: turno prosegue
+
 
   await update(gameRef, updates);
 
