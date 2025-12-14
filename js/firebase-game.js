@@ -6,6 +6,7 @@ import {
   getRandomClosestQuestion,
   getRandomVFFlashQuestion,
   getRandomIntruderQuestion,
+  getRandomSequenceQuestion,
 } from "./questions.js";
 
 
@@ -233,6 +234,7 @@ export async function startGame(gameCode) {
     usedClosestQuestionIds: {},
     usedVFFlashQuestionIds: {},
     usedIntruderQuestionIds: {},
+    usedSequenceQuestionIds: {},
   };
 
   await update(gameRef, updateData);
@@ -533,7 +535,7 @@ await update(gameRef, updates);
 
 async function startRandomMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate) {
   // Tipi disponibili (solo quelli che esistono già)
-  const pool = ["VF_FLASH", "CLOSEST", "RAPID_FIRE", "INTRUDER"];
+  const pool = ["VF_FLASH", "CLOSEST", "RAPID_FIRE", "INTRUDER", "SEQUENCE"];
 
   // (Opzionale) evita ripetizione immediata dello stesso minigame
   const last = game.lastMinigameType || null;
@@ -556,6 +558,10 @@ async function startRandomMinigame(gameRef, game, ownerPlayerId, finalTileId, fi
   }
   if (type === "INTRUDER") {
   await startIntruderMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate);
+  return;
+}
+if (type === "SEQUENCE") {
+  await startSequenceMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate);
   return;
 }
 
@@ -642,6 +648,48 @@ async function startVFFlashMinigame(gameRef, game, ownerPlayerId, finalTileId, f
     reveal: null,
     minigame,
     [`usedVFFlashQuestionIds/${pack.id}`]: true,
+  });
+}
+
+async function startSequenceMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate) {
+  const used = game.usedSequenceQuestionIds ? Object.keys(game.usedSequenceQuestionIds) : [];
+  const q = getRandomSequenceQuestion(used);
+
+  if (!q) {
+    await update(gameRef, { ...baseUpdate, phase: "WAIT_ROLL", minigame: null });
+    return;
+  }
+
+  const now = Date.now();
+  const durationSec = 30;
+
+  const minigame = {
+    type: "SEQUENCE",
+    ownerPlayerId,
+    questionId: q.id,
+    prompt: q.prompt,
+    items: q.items,               // array testo
+    correctOrder: q.correctOrder, // array indici (segreto, ma ok nel DB come VF)
+    submissions: {},              // { [playerId]: [indici scelti] }
+    locked: {},                   // { [playerId]: true } ha confermato
+    durationSec,
+    startedAt: now,
+    expiresAt: now + durationSec * 1000,
+  };
+
+  await update(gameRef, {
+    ...baseUpdate,
+    phase: "MINIGAME",
+    currentTile: {
+      tileId: finalTileId,
+      type: finalTile.type,
+      category: finalTile.category || null,
+      zone: finalTile.zone,
+    },
+    currentQuestion: null,
+    reveal: null,
+    minigame,
+    [`usedSequenceQuestionIds/${q.id}`]: true,
   });
 }
 
@@ -1002,6 +1050,130 @@ export async function answerClosestMinigame(gameCode, playerId, value) {
   return { ok: true };
 }
 
+export async function answerSequenceMinigame(gameCode, playerId, orderIndices) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+
+  if (!snap.exists()) throw new Error("Partita non trovata");
+  const game = snap.val();
+
+  if (game.state !== "IN_PROGRESS") throw new Error("La partita non è in corso.");
+  if (game.phase !== "MINIGAME") throw new Error("Non è una fase minigioco.");
+
+  const mg = game.minigame;
+  if (!mg || mg.type !== "SEQUENCE") throw new Error("Minigioco SEQUENCE non attivo.");
+
+  const players = game.players || {};
+  if (!players[playerId]) throw new Error("Giocatore non trovato.");
+
+  const locked = mg.locked || {};
+  if (locked[playerId]) return { alreadyAnswered: true };
+
+  if (!Array.isArray(orderIndices)) throw new Error("Ordine non valido.");
+  const n = mg.items?.length ?? 0;
+
+  // valida: deve essere permutazione di 0..n-1
+  const arr = orderIndices.map(Number);
+  if (arr.length !== n) throw new Error("Ordine incompleto.");
+  const setVals = new Set(arr);
+  if (setVals.size !== n) throw new Error("Ordine contiene duplicati.");
+  for (const v of arr) {
+    if (!Number.isInteger(v) || v < 0 || v >= n) throw new Error("Ordine fuori range.");
+  }
+
+  const updates = {
+    [`minigame/submissions/${playerId}`]: arr,
+    [`minigame/locked/${playerId}`]: true,
+  };
+
+  await update(gameRef, updates);
+
+  // se tutti hanno risposto prima del timer, chiudiamo subito
+  await maybeCloseSequenceIfAllSubmitted(gameRef);
+
+  return { ok: true };
+}
+
+async function maybeCloseSequenceIfAllSubmitted(gameRef) {
+  const snap = await get(gameRef);
+  if (!snap.exists()) return;
+
+  const game = snap.val();
+  if (game.state !== "IN_PROGRESS") return;
+  if (game.phase !== "MINIGAME") return;
+
+  const mg = game.minigame;
+  if (!mg || mg.type !== "SEQUENCE") return;
+
+  const players = game.players || {};
+  const playerIds = Object.keys(players);
+
+  const locked = mg.locked || {};
+  const allLocked = playerIds.length > 0 && playerIds.every(pid => locked[pid]);
+
+  if (!allLocked) return;
+
+  await finalizeSequenceMinigame(gameRef, game);
+}
+
+function sequenceDistanceKendall(submitted, correct) {
+  // distanza basata su coppie invertite (più bassa = migliore)
+  const pos = {};
+  for (let i = 0; i < correct.length; i++) pos[correct[i]] = i;
+
+  let inv = 0;
+  for (let i = 0; i < submitted.length; i++) {
+    for (let j = i + 1; j < submitted.length; j++) {
+      const a = submitted[i], b = submitted[j];
+      if (pos[a] > pos[b]) inv++;
+    }
+  }
+  return inv;
+}
+
+async function finalizeSequenceMinigame(gameRef, game) {
+  const mg = game.minigame;
+  const players = game.players || {};
+  const playerIds = Object.keys(players);
+
+  const submissions = mg.submissions || {};
+  const correct = mg.correctOrder || [];
+
+  // calcola distanza per ciascun player: min = migliore
+  const distances = {};
+  let best = Infinity;
+
+  for (const pid of playerIds) {
+    const sub = submissions[pid];
+    if (Array.isArray(sub) && sub.length === correct.length) {
+      const d = sequenceDistanceKendall(sub, correct);
+      distances[pid] = d;
+      if (d < best) best = d;
+    } else {
+      // se non ha risposto, consideriamolo “peggiore”
+      distances[pid] = Infinity;
+    }
+  }
+
+  const winners = playerIds.filter(pid => distances[pid] === best && best !== Infinity);
+
+  const updates = {
+    phase: "WAIT_ROLL",
+    minigame: null,
+  };
+
+  if (winners.length === 1) {
+    const w = winners[0];
+    updates[`players/${w}/points`] = (players[w].points || 0) + 25;
+  } else if (winners.length > 1) {
+    for (const w of winners) {
+      updates[`players/${w}/points`] = (players[w].points || 0) + 10;
+    }
+  }
+
+  await update(gameRef, updates);
+}
+
 export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
   const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
 
@@ -1176,6 +1348,11 @@ export async function checkAndHandleMinigameTimeout(gameCode) {
     await update(gameRef, { phase: "WAIT_ROLL", minigame: null });
     return { handled: true };
   }
+  if (mg.type === "SEQUENCE") {
+  // scaduto: finalizza e chiudi
+  await finalizeSequenceMinigame(gameRef, game);
+  return { handled: true };
+}
 
   const players = game.players || {};
   const answers = mg.answers || {};
