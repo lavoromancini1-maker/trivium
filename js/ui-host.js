@@ -351,12 +351,28 @@ export function renderPlayers(gameState, container) {
         li.classList.add("players-list-item--active");
       }
 
+      // Generazione dell'HTML per il livello e le chiavi
+      const levelsHtml = Object.keys(player.levels).map(category => {
+        const level = player.levels[category] || 0;
+        const hasKey = player.keys[category] ? "✔️" : "❌"; // Icona chiave
+        return `
+          <div class="player-level-info">
+            <span class="category-name">${category}</span> 
+            <span class="level-bar" style="width: ${level * 25}%"></span> 
+            <span class="key-icon">${hasKey}</span>
+          </div>
+        `;
+      }).join("");
+
       li.innerHTML = `
         <div class="player-name">${player.name || "Senza nome"}</div>
         <div class="player-info">
           <span>Punti: ${player.points ?? 0}</span><br>
           <span>Chiavi: ${countKeys(player)}/6</span><br>
           <span>Casella: ${formatPosition(player.position)}</span>
+        </div>
+        <div class="player-levels">
+          ${levelsHtml} <!-- Mostra i livelli e le chiavi -->
         </div>
       `;
       ul.appendChild(li);
@@ -365,6 +381,7 @@ export function renderPlayers(gameState, container) {
 
   container.appendChild(ul);
 }
+
 function countKeys(player) {
   const keys = player?.keys || {};
   return Object.values(keys).filter(Boolean).length;
