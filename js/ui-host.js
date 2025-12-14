@@ -71,6 +71,10 @@ if (gameState && (gameState.phase === "RAPID_FIRE" || gameState.phase === "RAPID
   renderClosestOverlay(gameState);
   return;
 } 
+ if (gameState && gameState.phase === "MINIGAME" && gameState.minigame?.type === "INTRUDER") {
+  renderIntruderOverlay(gameState);
+  return;
+} 
 if (gameState && gameState.phase === "MINIGAME" && gameState.minigame?.type === "VF_FLASH") {
   renderVFFlashOverlay(gameState);
   return;
@@ -265,6 +269,33 @@ function renderVFFlashOverlay(gameState) {
       <div class="question-text">${stmt?.text || ""}</div>
       <div class="question-footer">
         <span>Il primo che risponde correttamente prende il punto.</span>
+      </div>
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
+}
+
+function renderIntruderOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+  if (!overlay || !overlayContent) return;
+
+  const mg = gameState.minigame;
+  const items = mg.items || [];
+
+  overlayContent.innerHTML = `
+    <div class="question-card">
+      <div class="question-header">
+        <div class="question-category">MINIGIOCO – L’INTRUSO</div>
+        <div class="question-player">Tutti rispondono</div>
+      </div>
+      <div class="question-text">${mg.prompt || "Qual è l’intruso?"}</div>
+      <div class="answers-grid">
+        ${items.map((t, i) => `<div class="answer">${String.fromCharCode(65+i)}. ${t}</div>`).join("")}
+      </div>
+      <div class="question-footer">
+        <span>Il primo che risponde correttamente prende +20.</span>
       </div>
     </div>
   `;
