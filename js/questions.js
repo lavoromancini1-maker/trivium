@@ -739,3 +739,21 @@ export function getRandomVFFlashQuestion(usedIds = []) {
   if (!pool.length) return null;
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
+// ───────────────────────────────
+// MINIGAME: L'INTRUSO
+// ───────────────────────────────
+export const INTRUDER_QUESTIONS = [
+  {
+    id: "intr_001",
+    prompt: "Qual è l’intruso?",
+    items: ["Squalo", "Delfino", "Balena", "Trota"],
+    intruderIndex: 3, // Trota (pesce dim. acqua dolce) vs mammiferi marini
+  },
+];
+
+export function getRandomIntruderQuestion(usedIds = []) {
+  const pool = INTRUDER_QUESTIONS.filter(q => !usedIds.includes(q.id));
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
