@@ -75,6 +75,10 @@ if (gameState && (gameState.phase === "RAPID_FIRE" || gameState.phase === "RAPID
   renderIntruderOverlay(gameState);
   return;
 } 
+if (gameState && gameState.phase === "MINIGAME" && gameState.minigame?.type === "SEQUENCE") {
+  renderSequenceOverlay(gameState);
+  return;
+}  
 if (gameState && gameState.phase === "MINIGAME" && gameState.minigame?.type === "VF_FLASH") {
   renderVFFlashOverlay(gameState);
   return;
@@ -274,6 +278,43 @@ function renderVFFlashOverlay(gameState) {
   `;
 
   overlay.classList.remove("hidden");
+}
+
+function renderSequenceOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+  if (!overlay || !overlayContent) return;
+
+  const mg = gameState.minigame;
+  const now = Date.now();
+  const remaining = mg.expiresAt ? Math.max(0, Math.ceil((mg.expiresAt - now) / 1000)) : "--";
+
+  overlayContent.innerHTML = `
+    <div class="question-card">
+      <div class="question-header">
+        <div class="question-category">MINIGIOCO – ORDINA LA SEQUENZA</div>
+        <div class="question-player">Tempo: <strong>${remaining}s</strong></div>
+      </div>
+      <div class="question-text">${mg.prompt || ""}</div>
+      <div class="question-footer">
+        <span>Ordina gli elementi dal più antico al più recente sul telefono.</span>
+      </div>
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
+
+  if (overlayTimerInterval) clearInterval(overlayTimerInterval);
+  overlayTimerInterval = setInterval(() => {
+    const now2 = Date.now();
+    const rem2 = mg.expiresAt ? Math.max(0, Math.ceil((mg.expiresAt - now2) / 1000)) : 0;
+    const el = overlayContent.querySelector(".question-player strong");
+    if (el) el.textContent = `${rem2}s`;
+    if (rem2 <= 0) {
+      clearInterval(overlayTimerInterval);
+      overlayTimerInterval = null;
+    }
+  }, 250);
 }
 
 function renderIntruderOverlay(gameState) {
