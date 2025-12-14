@@ -30,14 +30,9 @@ let vfTrueBtn = null;
 let vfFalseBtn = null;
 let vfHint = null;
 
-vfPanel = document.getElementById("vf-panel");
-vfText = document.getElementById("vf-text");
-vfTrueBtn = document.getElementById("vf-true-btn");
-vfFalseBtn = document.getElementById("vf-false-btn");
-vfHint = document.getElementById("vf-hint");
-
 async function sendVF(choice) {
   if (!currentGameCode || !currentPlayerId) return;
+  if (!vfHint || !vfTrueBtn || !vfFalseBtn) return;
   vfHint.textContent = "";
 
   try {
@@ -51,9 +46,6 @@ async function sendVF(choice) {
     vfFalseBtn.disabled = false;
   }
 }
-
-vfTrueBtn?.addEventListener("click", () => sendVF(true));
-vfFalseBtn?.addEventListener("click", () => sendVF(false));
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -80,6 +72,15 @@ closestPanel = document.getElementById("closest-panel");
 closestInput = document.getElementById("closest-input");
 closestSendBtn = document.getElementById("closest-send-btn");
 closestHint = document.getElementById("closest-hint");
+
+vfPanel = document.getElementById("vf-panel");
+vfText = document.getElementById("vf-text");
+vfTrueBtn = document.getElementById("vf-true-btn");
+vfFalseBtn = document.getElementById("vf-false-btn");
+vfHint = document.getElementById("vf-hint"); 
+
+vfTrueBtn?.addEventListener("click", () => sendVF(true));
+vfFalseBtn?.addEventListener("click", () => sendVF(false));  
 
 closestSendBtn?.addEventListener("click", async () => {
   if (!currentGameCode || !currentPlayerId) return;
@@ -468,11 +469,6 @@ if (phase === "MINIGAME") {
   answerPanel.classList.add("hidden");
 
   const mg = gameState.minigame;
-
-  if (mg && mg.type === "CLOSEST") {
-  ...
-  return;
-}
 
 if (mg && mg.type === "VF_FLASH") {
   turnStatusText.textContent = "MINIGIOCO: Vero/Falso lampo!";
