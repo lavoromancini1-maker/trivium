@@ -152,8 +152,6 @@ function renderGameMessage(gameState, messageEl) {
     const currentPlayer = players[currentPlayerId];
     const phase = gameState.phase;
     const currentTile = gameState.currentTile || null;
-    const phase = gameState.phase;
-    const currentTile = gameState.currentTile || null;
 
     // Messaggio speciale per la mini-sfida Rapid Fire
     if (
