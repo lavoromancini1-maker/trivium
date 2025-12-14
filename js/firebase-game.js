@@ -405,17 +405,28 @@ playerAnswerCorrect: null,
     return { finalTileId, finalTile };
   }
 
-  if (finalTile.type === "event" || finalTile.type === "scrigno") {
-    // TODO: logica caselle evento / scrigno
-    const globalUpdate = {
-      ...baseUpdate,
-      phase: "RESOLVE_TILE",
-      currentTile: {
-        tileId: finalTileId,
-        type: finalTile.type,
-        category: finalTile.category || null,
-        zone: finalTile.zone,
-      },
+  if (finalTile.type === "event") {
+  await startEventTile(gameRef, game, playerId, finalTileId, finalTile, baseUpdate);
+  return { finalTileId, finalTile };
+}
+
+if (finalTile.type === "scrigno") {
+  // per ora resta placeholder come prima (ma almeno separato dall'evento)
+  const globalUpdate = {
+    ...baseUpdate,
+    phase: "RESOLVE_TILE",
+    currentTile: {
+      tileId: finalTileId,
+      type: finalTile.type,
+      category: finalTile.category || null,
+      zone: finalTile.zone,
+    },
+  };
+
+  await update(gameRef, globalUpdate);
+  return { finalTileId, finalTile };
+}
+
     };
 
     await update(gameRef, globalUpdate);
@@ -992,10 +1003,423 @@ export async function checkAndHandleRevealAdvance(gameCode) {
   const now = Date.now();
   if (now < reveal.hideAt) return { handled: false, reason: "NOT_EXPIRED" };
 
+// ── Se arriva da EVENTI, gestiamo post-reveal (duello round successivo / fine evento)
+const ev = game.currentEvent;
+const after = ev?._afterReveal;
+
+if (after?.kind === "DUEL_NEXT") {
+  // Round successivo o fine duello
+  const roundIndex = ev.roundIndex ?? 0;
+  const totalRounds = ev.totalRounds ?? 3;
+
+  // se ci sono altri round
+  if (roundIndex < totalRounds - 1) {
+    const q = makeRandomEventQuestion(game, 2);
+    if (!q) {
+      // niente domande: chiudiamo duello senza assegnare altro e passiamo turno
+      const { nextIndex, nextPlayerId } = getNextTurn(game);
+      await update(gameRef, {
+        phase: "WAIT_ROLL",
+        reveal: null,
+        currentEvent: null,
+        currentQuestion: null,
+        currentTurnIndex: nextIndex,
+        currentPlayerId: nextPlayerId,
+      });
+      return { handled: true, reason: "DUEL_ABORT_NO_Q" };
+    }
+
+    await update(gameRef, {
+      phase: "EVENT_DUEL_QUESTION",
+      reveal: null,
+      currentQuestion: q,
+      [`usedCategoryQuestionIds/${q.id}`]: true,
+      currentEvent: {
+        ...ev,
+        roundIndex: roundIndex + 1,
+        answeredBy: {},
+        _afterReveal: null,
+      },
+    });
+
+    return { handled: true, reason: "DUEL_NEXT_ROUND" };
+  }
+
+  // fine duello: assegna punti (+50 winner / +10 tie / 0 loser)
+  const owner = ev.ownerPlayerId;
+  const opp = ev.opponentPlayerId;
+  const score = ev.score || {};
+  const sOwner = score[owner] || 0;
+  const sOpp = score[opp] || 0;
+
+  const updates = {
+    reveal: null,
+    currentQuestion: null,
+    currentEvent: null,
+    phase: "WAIT_ROLL",
+  };
+
+  const players = game.players || {};
+  const pOwner = players[owner];
+  const pOpp = players[opp];
+
+  if (owner && opp && pOwner && pOpp) {
+    if (sOwner > sOpp) {
+      updates[`players/${owner}/points`] = (pOwner.points || 0) + 50;
+    } else if (sOpp > sOwner) {
+      updates[`players/${opp}/points`] = (pOpp.points || 0) + 50;
+    } else {
+      updates[`players/${owner}/points`] = (pOwner.points || 0) + 10;
+      updates[`players/${opp}/points`] = (pOpp.points || 0) + 10;
+    }
+  }
+
+  // dopo un evento “a 2”, per semplicità e fluidità: passa turno
+  const { nextIndex, nextPlayerId } = getNextTurn(game);
+  updates.currentTurnIndex = nextIndex;
+  updates.currentPlayerId = nextPlayerId;
+
+  await update(gameRef, updates);
+  return { handled: true, reason: "DUEL_FINISHED" };
+}
+
+if (after?.kind === "END_SINGLE") {
+  // BOOM/RISK: evento finito (turno già preparato in answerEventQuestion se sbagliata)
   await update(gameRef, {
     phase: "WAIT_ROLL",
     reveal: null,
+    currentQuestion: null,
+    currentEvent: null,
   });
+  return { handled: true, reason: "EVENT_FINISHED" };
+}
+
+// default (domande normali)
+await update(gameRef, {
+  phase: "WAIT_ROLL",
+  reveal: null,
+});
+
+return { handled: true, reason: "REVEAL_FINISHED" };
+
 
   return { handled: true, reason: "REVEAL_FINISHED" };
+}
+
+/* ─────────────────────────────────────────────
+   EVENTI (STEP 3 - logica base)
+   DUELLO / BOOM / RISK
+   ───────────────────────────────────────────── */
+
+const EVENT_TYPES = ["DUELLO", "BOOM", "RISK"];
+const EVENT_REVEAL_MS = 1400;
+
+function randomFrom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// crea domanda di categoria random, livello dato, con risposte mischiate
+function makeRandomEventQuestion(game, level) {
+  const usedCategoryQuestionIds = game.usedCategoryQuestionIds || {};
+  const usedIds = Object.keys(usedCategoryQuestionIds);
+
+  const category = randomFrom(CATEGORIES);
+  const raw = getRandomCategoryQuestion(category, level, usedIds);
+  if (!raw) return null;
+
+  // shuffle risposte (come prepareCategoryQuestionForTile)
+  const indices = [0, 1, 2, 3];
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+
+  const answers = indices.map((i) => raw.answers[i]);
+  const correctIndex = indices.indexOf(raw.correctIndex);
+
+  return {
+    id: raw.id,
+    category,
+    level,
+    text: raw.text,
+    answers,
+    correctIndex,
+    // per coerenza col tuo overlay REVEAL:
+    durationSec: null,
+    startedAt: null,
+    expiresAt: null,
+  };
+}
+
+async function startEventTile(gameRef, game, ownerPlayerId, tileId, tile, baseUpdate) {
+  const type = randomFrom(EVENT_TYPES);
+
+  const common = {
+    ...baseUpdate,
+    currentTile: {
+      tileId,
+      type: tile.type,
+      category: tile.category || null,
+      zone: tile.zone,
+    },
+    currentQuestion: null,
+    reveal: null,
+  };
+
+  // BOOM: L3, +40 / -20 (POINTS_CONFIG)
+  if (type === "BOOM") {
+    const q = makeRandomEventQuestion(game, 3);
+    if (!q) {
+      await update(gameRef, { ...common, phase: "WAIT_ROLL" });
+      return;
+    }
+
+    await update(gameRef, {
+      ...common,
+      phase: "EVENT_QUESTION",
+      currentEvent: {
+        type: "BOOM",
+        ownerPlayerId,
+        pointsCorrect: 40,
+        pointsWrong: -20,
+      },
+      currentQuestion: q,
+      [`usedCategoryQuestionIds/${q.id}`]: true,
+    });
+    return;
+  }
+
+  // RISK: scelta YES/NO, se YES domanda L2 +30 / -15
+  if (type === "RISK") {
+    await update(gameRef, {
+      ...common,
+      phase: "EVENT_RISK_DECISION",
+      currentEvent: {
+        type: "RISK",
+        ownerPlayerId,
+        pointsCorrect: 30,
+        pointsWrong: -15,
+        decision: null,
+      },
+    });
+    return;
+  }
+
+  // DUELLO: scegli sfidante, 3 domande L2, punteggi
+  if (type === "DUELLO") {
+    await update(gameRef, {
+      ...common,
+      phase: "EVENT_DUEL_CHOOSE",
+      currentEvent: {
+        type: "DUELLO",
+        ownerPlayerId,
+        opponentPlayerId: null,
+        roundIndex: 0,      // 0..2
+        totalRounds: 3,
+        score: {},          // { pid: nCorrette }
+        answeredBy: {},     // { pid: {answerIndex, correct} } della domanda corrente
+      },
+    });
+  }
+}
+
+// RISK: decisione
+export async function chooseRiskDecision(gameCode, playerId, decision) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+  if (!snap.exists()) throw new Error("Partita non trovata");
+
+  const game = snap.val();
+  const ev = game.currentEvent;
+
+  if (game.phase !== "EVENT_RISK_DECISION") throw new Error("Fase non valida");
+  if (!ev || ev.type !== "RISK") throw new Error("Nessun evento RISK attivo");
+  if (ev.ownerPlayerId !== playerId) throw new Error("Non sei il player di turno");
+
+  // NO: nessun effetto, passa turno
+  if (decision === "NO") {
+    const { nextIndex, nextPlayerId } = getNextTurn(game);
+    await update(gameRef, {
+      currentEvent: null,
+      phase: "WAIT_ROLL",
+      currentPlayerId: nextPlayerId,
+      currentTurnIndex: nextIndex,
+    });
+    return;
+  }
+
+  const q = makeRandomEventQuestion(game, 2);
+  if (!q) {
+    const { nextIndex, nextPlayerId } = getNextTurn(game);
+    await update(gameRef, {
+      currentEvent: null,
+      phase: "WAIT_ROLL",
+      currentPlayerId: nextPlayerId,
+      currentTurnIndex: nextIndex,
+    });
+    return;
+  }
+
+  await update(gameRef, {
+    phase: "EVENT_QUESTION",
+    currentEvent: { ...ev, decision: "YES" },
+    currentQuestion: q,
+    [`usedCategoryQuestionIds/${q.id}`]: true,
+    reveal: null,
+  });
+}
+
+// DUELLO: scelta avversario
+export async function chooseDuelOpponent(gameCode, ownerPlayerId, opponentPlayerId) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+  if (!snap.exists()) throw new Error("Partita non trovata");
+
+  const game = snap.val();
+  const ev = game.currentEvent;
+
+  if (game.phase !== "EVENT_DUEL_CHOOSE") throw new Error("Fase non valida");
+  if (!ev || ev.type !== "DUELLO") throw new Error("Nessun DUELLO attivo");
+  if (ev.ownerPlayerId !== ownerPlayerId) throw new Error("Non sei l'owner del duello");
+
+  const q = makeRandomEventQuestion(game, 2);
+  if (!q) throw new Error("Nessuna domanda disponibile");
+
+  const score = { ...(ev.score || {}) };
+  score[ownerPlayerId] = score[ownerPlayerId] || 0;
+  score[opponentPlayerId] = score[opponentPlayerId] || 0;
+
+  await update(gameRef, {
+    phase: "EVENT_DUEL_QUESTION",
+    currentEvent: {
+      ...ev,
+      opponentPlayerId,
+      roundIndex: 0,
+      totalRounds: 3,
+      score,
+      answeredBy: {},
+    },
+    currentQuestion: q,
+    [`usedCategoryQuestionIds/${q.id}`]: true,
+    reveal: null,
+  });
+}
+
+// Risposta evento (BOOM / RISK / DUELLO)
+export async function answerEventQuestion(gameCode, playerId, answerIndex) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+  if (!snap.exists()) throw new Error("Partita non trovata");
+
+  const game = snap.val();
+  const ev = game.currentEvent;
+  const q = game.currentQuestion;
+
+  if (!ev || !q) throw new Error("Evento o domanda mancante");
+
+  // BOOM / RISK: risponde solo owner
+  if (ev.type === "BOOM" || ev.type === "RISK") {
+    if (game.phase !== "EVENT_QUESTION") throw new Error("Fase non valida");
+    if (ev.ownerPlayerId !== playerId) throw new Error("Non è il tuo evento");
+
+    const correct = answerIndex === q.correctIndex;
+    const delta = correct ? ev.pointsCorrect : ev.pointsWrong;
+
+    const players = game.players || {};
+    const p = players[playerId];
+    const newPoints = (p?.points || 0) + delta;
+
+    const now = Date.now();
+    const updates = {
+      [`players/${playerId}/points`]: newPoints,
+      currentQuestion: null,
+      phase: "REVEAL",
+      reveal: {
+        source: "EVENT",
+        eventType: ev.type,
+        question: {
+          category: q.category,
+          text: q.text,
+          answers: q.answers,
+          correctIndex: q.correctIndex,
+        },
+        forPlayerId: playerId,
+        answerIndex,
+        correct,
+        delta,
+        shownAt: now,
+        hideAt: now + EVENT_REVEAL_MS,
+      },
+      // memorizzo cosa fare dopo reveal
+      currentEvent: {
+        ...ev,
+        _afterReveal: {
+          kind: "END_SINGLE",
+          keepTurn: correct, // come domande normali: giusta = rimane, sbagliata = passa
+        },
+      },
+    };
+
+    // se sbaglia: preparo già il prossimo player (come answerCategoryQuestion)
+    if (!correct) {
+      const { nextIndex, nextPlayerId } = getNextTurn(game);
+      updates.currentTurnIndex = nextIndex;
+      updates.currentPlayerId = nextPlayerId;
+    }
+
+    await update(gameRef, updates);
+    return;
+  }
+
+  // DUELLO: rispondono owner + opponent
+  if (ev.type === "DUELLO") {
+    if (game.phase !== "EVENT_DUEL_QUESTION") throw new Error("Fase non valida duello");
+    const opp = ev.opponentPlayerId;
+    if (playerId !== ev.ownerPlayerId && playerId !== opp) {
+      throw new Error("Non partecipi al duello");
+    }
+
+    const answeredBy = { ...(ev.answeredBy || {}) };
+    if (answeredBy[playerId]) return; // già risposto
+
+    const correct = answerIndex === q.correctIndex;
+    answeredBy[playerId] = { answerIndex, correct };
+
+    const score = { ...(ev.score || {}) };
+    if (correct) score[playerId] = (score[playerId] || 0) + 1;
+
+    // se manca l'altro, salvo e basta
+    const otherId = playerId === ev.ownerPlayerId ? opp : ev.ownerPlayerId;
+    if (!answeredBy[otherId]) {
+      await update(gameRef, {
+        currentEvent: { ...ev, answeredBy, score },
+      });
+      return;
+    }
+
+    // entrambi hanno risposto → REVEAL (poi advance gestisce round successivo / fine duello)
+    const now = Date.now();
+    await update(gameRef, {
+      currentQuestion: null,
+      phase: "REVEAL",
+      reveal: {
+        source: "DUELLO",
+        question: {
+          category: q.category,
+          text: q.text,
+          answers: q.answers,
+          correctIndex: q.correctIndex,
+        },
+        answeredBy,
+        shownAt: now,
+        hideAt: now + EVENT_REVEAL_MS,
+      },
+      currentEvent: {
+        ...ev,
+        answeredBy,
+        score,
+        _afterReveal: { kind: "DUEL_NEXT" },
+      },
+    });
+  }
 }
