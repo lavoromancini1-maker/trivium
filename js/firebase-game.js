@@ -445,8 +445,8 @@ async function startRapidFireMinigame(
   baseUpdate
 ) {
   // Prendiamo fino a 3 domande Rapid Fire
-  const questions = getRandomRapidFireQuestions(3, []); // per ora ignoriamo usedIds
-  if (!questions || questions.length === 0) {
+ const rawQuestions = getRandomRapidFireQuestions(3, []); // per ora ignoriamo usedIds
+  if (!rawQuestions || rawQuestions.length === 0) {
     console.warn("Nessuna domanda Rapid Fire disponibile.");
     // Se non abbiamo domande, semplicemente torniamo in WAIT_ROLL
     const fallbackUpdate = {
@@ -463,11 +463,28 @@ async function startRapidFireMinigame(
     return;
   }
 
+ const shuffledQuestions = shuffleArray([...rawQuestions]).map((q) => {
+    const indices = [0, 1, 2, 3];
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+
+    const answers = indices.map((i) => q.answers[i]);
+    const correctIndex = indices.indexOf(q.correctIndex);
+
+    return {
+      ...q,
+      answers,
+      correctIndex,
+    };
+  });
+  
   const now = Date.now();
 
   const rapidFire = {
     ownerPlayerId,
-    questions,                // array di { id, text, answers, correctIndex }
+    questions: shuffledQuestions,
     currentIndex: 0,          // domanda corrente (0..questions.length-1)
     scores: {},               // { playerId: numero risposte corrette }
     answeredThisQuestion: {}, // { playerId: true se ha già risposto a questa domanda }
