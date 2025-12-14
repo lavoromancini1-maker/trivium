@@ -12,6 +12,7 @@ import {
   answerClosestMinigame,
   answerVFFlashMinigame,
   answerIntruderMinigame,
+  answerSequenceMinigame,
 } from "./firebase-game.js";
 
 
@@ -31,6 +32,8 @@ let vfTrueBtn = null;
 let vfFalseBtn = null;
 let vfHint = null;
 let intruderPanel, intruderPrompt, intrA, intrB, intrC, intrD, intruderHint;
+let sequencePanel, sequencePrompt, sequenceItems, sequenceResetBtn, sequenceSubmitBtn, sequenceHint;
+let sequenceSelection = []; // array di indici scelti
 
 async function sendVF(choice) {
   if (!currentGameCode || !currentPlayerId) return;
@@ -93,7 +96,14 @@ intrA = document.getElementById("intr-a");
 intrB = document.getElementById("intr-b");
 intrC = document.getElementById("intr-c");
 intrD = document.getElementById("intr-d");
-intruderHint = document.getElementById("intruder-hint");  
+intruderHint = document.getElementById("intruder-hint"); 
+
+sequencePanel = document.getElementById("sequence-panel");
+sequencePrompt = document.getElementById("sequence-prompt");
+sequenceItems = document.getElementById("sequence-items");
+sequenceResetBtn = document.getElementById("sequence-reset-btn");
+sequenceSubmitBtn = document.getElementById("sequence-submit-btn");
+sequenceHint = document.getElementById("sequence-hint");  
 
 closestSendBtn?.addEventListener("click", async () => {
   if (!currentGameCode || !currentPlayerId) return;
@@ -123,6 +133,59 @@ async function sendIntruder(idx) {
     [intrA, intrB, intrC, intrD].forEach(b => b && (b.disabled = false));
   }
 }
+
+function renderSequencePicker(items) {
+  if (!sequenceItems) return;
+  sequenceItems.innerHTML = "";
+
+  items.forEach((text, idx) => {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-secondary";
+    btn.style.display = "block";
+    btn.style.width = "100%";
+    btn.style.margin = "6px 0";
+
+    const pickedPos = sequenceSelection.indexOf(idx);
+    btn.textContent = pickedPos >= 0 ? `${pickedPos + 1}. ${text}` : text;
+
+    btn.disabled = pickedPos >= 0; // una volta scelto, non puoi riselezionarlo finché non resetti
+
+    btn.addEventListener("click", () => {
+      sequenceSelection.push(idx);
+      renderSequencePicker(items);
+    });
+
+    sequenceItems.appendChild(btn);
+  });
+}
+
+sequenceResetBtn?.addEventListener("click", () => {
+  sequenceSelection = [];
+  if (latestGameState?.minigame?.type === "SEQUENCE") {
+    renderSequencePicker(latestGameState.minigame.items || []);
+  }
+  if (sequenceHint) sequenceHint.textContent = "";
+});
+
+sequenceSubmitBtn?.addEventListener("click", async () => {
+  if (!currentGameCode || !currentPlayerId) return;
+  if (!latestGameState?.minigame || latestGameState.minigame.type !== "SEQUENCE") return;
+
+  const items = latestGameState.minigame.items || [];
+  if (sequenceSelection.length !== items.length) {
+    if (sequenceHint) sequenceHint.textContent = "Devi selezionare tutti gli elementi in ordine.";
+    return;
+  }
+
+  try {
+    sequenceSubmitBtn.disabled = true;
+    await answerSequenceMinigame(currentGameCode, currentPlayerId, sequenceSelection);
+    if (sequenceHint) sequenceHint.textContent = "✅ Ordine inviato!";
+  } catch (e) {
+    if (sequenceHint) sequenceHint.textContent = e.message || "Errore invio.";
+    sequenceSubmitBtn.disabled = false;
+  }
+});  
 
 intrA?.addEventListener("click", () => sendIntruder(0));
 intrB?.addEventListener("click", () => sendIntruder(1));
@@ -340,6 +403,14 @@ if (!isIntruderActive && intruderPanel && intruderHint) {
   intruderHint.textContent = "";
   [intrA, intrB, intrC, intrD].forEach(b => b && (b.disabled = false));
 }    
+
+const isSequenceActive = phase === "MINIGAME" && mg && mg.type === "SEQUENCE";
+if (!isSequenceActive && sequencePanel && sequenceHint && sequenceSubmitBtn) {
+  sequencePanel.classList.add("hidden");
+  sequenceHint.textContent = "";
+  sequenceSubmitBtn.disabled = false;
+  sequenceSelection = [];
+}
     
 // --- RESET UI minigame "VF Flash" se non siamo in MINIGAME/VF_FLASH ---
 const isVFActive = phase === "MINIGAME" && mg && mg.type === "VF_FLASH";
@@ -537,6 +608,33 @@ answerPanel.classList.add("hidden");
 
   return;
 }
+
+if (mg && mg.type === "SEQUENCE") {
+  turnStatusText.textContent = "MINIGIOCO: Ordina la sequenza!";
+  if (closestPanel) closestPanel.classList.add("hidden");
+  if (vfPanel) vfPanel.classList.add("hidden");
+  if (intruderPanel) intruderPanel.classList.add("hidden");
+  answerPanel.classList.add("hidden");
+
+  if (sequencePanel) sequencePanel.classList.remove("hidden");
+  if (sequencePrompt) sequencePrompt.textContent = mg.prompt || "";
+
+  const already = mg.locked && mg.locked[myId];
+  if (already) {
+    if (sequenceHint) sequenceHint.textContent = "Hai già confermato l’ordine.";
+    if (sequenceSubmitBtn) sequenceSubmitBtn.disabled = true;
+  } else {
+    if (sequenceHint) sequenceHint.textContent = "";
+    if (sequenceSubmitBtn) sequenceSubmitBtn.disabled = false;
+    // se nuova domanda/nuovo start, reset locale
+    if (!Array.isArray(sequenceSelection) || sequenceSelection.length > (mg.items?.length || 0)) {
+      sequenceSelection = [];
+    }
+    renderSequencePicker(mg.items || []);
+  }
+
+  return;
+}  
 
  if (mg && mg.type === "INTRUDER") {
   turnStatusText.textContent = "MINIGIOCO: L’intruso!";
