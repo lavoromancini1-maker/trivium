@@ -239,6 +239,26 @@ function handleGameUpdate(
 
       return;
     }
+    // ✅ Fase REVEAL: mostra esito al giocatore che ha risposto
+if (phase === "REVEAL") {
+  rollDiceBtn.disabled = true;
+  directionPanel.classList.add("hidden");
+  answerPanel.classList.add("hidden");
+
+  const r = gameState.reveal;
+  if (r && r.forPlayerId === myId) {
+    turnStatusText.textContent = r.correct
+      ? "✅ Risposta corretta!"
+      : "❌ Risposta sbagliata!";
+  } else {
+    turnStatusText.textContent = "Attendi...";
+  }
+
+  // (opzionale) riabilita i pulsanti A/B/C/D quando si torna in QUESTION/RAPID_FIRE
+  Array.from(answerButtons.querySelectorAll("button")).forEach((b) => (b.disabled = true));
+  return;
+}
+
     
     if (isMyTurn) {
       if (phase === "WAIT_ROLL") {
@@ -247,6 +267,7 @@ function handleGameUpdate(
         directionPanel.classList.add("hidden");
         diceResultEl.textContent = "";
         answerPanel.classList.add("hidden");
+        Array.from(answerButtons.querySelectorAll("button")).forEach((b) => (b.disabled = false));
       } else if (phase === "CHOOSE_DIRECTION") {
         const dice = gameState.currentDice;
         turnStatusText.textContent = `Hai tirato ${dice}. Scegli la direzione.`;
