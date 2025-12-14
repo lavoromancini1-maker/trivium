@@ -710,6 +710,8 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
   const updates = {
     [`${playerPath}`]: playerUpdate,
     currentQuestion: null,
+    playerAnswerIndex: answerIndex,
+    playerAnswerCorrect: correct,
   };
 
   // Decidiamo se il turno continua (risposta giusta) o passa al prossimo
