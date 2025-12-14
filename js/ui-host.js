@@ -71,6 +71,10 @@ if (gameState && (gameState.phase === "RAPID_FIRE" || gameState.phase === "RAPID
   renderClosestOverlay(gameState);
   return;
 } 
+if (gameState && gameState.phase === "MINIGAME" && gameState.minigame?.type === "VF_FLASH") {
+  renderVFFlashOverlay(gameState);
+  return;
+}
 if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.reveal.question) {
   const r = gameState.reveal;
   const q = r.question;
@@ -241,6 +245,31 @@ if (gameState && gameState.phase && gameState.phase.startsWith("EVENT")) {
       }
     }, 250);
   }
+}
+
+function renderVFFlashOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+  if (!overlay || !overlayContent) return;
+
+  const mg = gameState.minigame;
+  const idx = mg.index ?? 0;
+  const stmt = mg.statements?.[idx];
+
+  overlayContent.innerHTML = `
+    <div class="question-card">
+      <div class="question-header">
+        <div class="question-category">MINIGIOCO – VERO/FALSO LAMPO</div>
+        <div class="question-player">Affermazione ${idx + 1}/3</div>
+      </div>
+      <div class="question-text">${stmt?.text || ""}</div>
+      <div class="question-footer">
+        <span>Il primo che risponde correttamente prende il punto.</span>
+      </div>
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
 }
 
 function renderEventOverlay(gameState) {
