@@ -511,26 +511,25 @@ const rawQuestions = getRandomRapidFireQuestions(3, usedIds);
     expiresAt: now + 10 * 1000,
   };
 
-  const updates = {
-    ...baseUpdate,
-    phase: "RAPID_FIRE", 
-    currentTile: {
-      tileId: finalTileId,
-      type: finalTile.type,
-      category: finalTile.category || null,
-      zone: finalTile.zone,
-    },
-    rapidFire,
-  };
-
-  const rfUsedUpdates = {};
+const rfUsedUpdates = {};
 for (const q of rawQuestions) {
   if (q?.id) rfUsedUpdates[`usedRapidFireQuestionIds/${q.id}`] = true;
 }
 
-  await update(gameRef, updates);
-}
+const updates = {
+  ...baseUpdate,
+  phase: "RAPID_FIRE",
+  currentTile: {
+    tileId: finalTileId,
+    type: finalTile.type,
+    category: finalTile.category || null,
+    zone: finalTile.zone,
+  },
+  rapidFire,
+  ...rfUsedUpdates,
+};
 
+await update(gameRef, updates);
 
 
 function prepareCategoryQuestionForTile(game, playerId, tile, tileId) {
@@ -779,50 +778,31 @@ export async function answerRapidFireQuestion(gameCode, playerId, answerIndex) {
   const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
   const snap = await get(gameRef);
 
-  if (!snap.exists()) {
-    throw new Error("Partita non trovata");
-  }
-
+  if (!snap.exists()) throw new Error("Partita non trovata");
   const game = snap.val();
 
-  if (game.state !== "IN_PROGRESS") {
-    throw new Error("La partita non è in corso.");
-  }
-
-  // In Rapid Fire tutti i giocatori possono rispondere,
-  // quindi NON controlliamo currentPlayerId
-  if (game.phase !== "RAPID_FIRE") {
-    throw new Error("Non è una fase Rapid Fire.");
-  }
+  if (game.state !== "IN_PROGRESS") throw new Error("La partita non è in corso.");
+  if (game.phase !== "RAPID_FIRE") throw new Error("Non è una fase Rapid Fire.");
 
   const rapidFire = game.rapidFire;
-  if (!rapidFire) {
-    throw new Error("Rapid Fire non attivo.");
-  }
+  if (!rapidFire) throw new Error("Rapid Fire non attivo.");
 
   const players = game.players || {};
-  if (!players[playerId]) {
-    throw new Error("Giocatore non trovato nella partita.");
-  }
+  if (!players[playerId]) throw new Error("Giocatore non trovato nella partita.");
 
   const currentIndex = rapidFire.currentIndex ?? 0;
   const currentQuestion = rapidFire.questions?.[currentIndex];
-  if (!currentQuestion) {
-    throw new Error("Nessuna domanda Rapid Fire corrente.");
-  }
+  if (!currentQuestion) throw new Error("Nessuna domanda Rapid Fire corrente.");
 
   rapidFire.answeredThisQuestion = rapidFire.answeredThisQuestion || {};
   rapidFire.scores = rapidFire.scores || {};
 
-  // Se ha già risposto a questa domanda, ignora
   if (rapidFire.answeredThisQuestion[playerId]) {
     return { alreadyAnswered: true };
   }
 
-   // Controlliamo se è corretta
   const correct = answerIndex === currentQuestion.correctIndex;
 
-  // Prepariamo update "a path" (evita collisioni tra player)
   const updates = {
     [`rapidFire/answeredThisQuestion/${playerId}`]: true,
   };
@@ -834,11 +814,13 @@ export async function answerRapidFireQuestion(gameCode, playerId, answerIndex) {
 
   await update(gameRef, updates);
 
-  // Dopo aver scritto, proviamo ad avanzare se tutti hanno risposto
+  // prova ad avanzare se tutti hanno risposto
   await maybeAdvanceRapidFireIfAllAnswered(gameRef);
 
   return { correct };
+}
 
+// 👇 QUESTA FUNZIONE DEVE STARE FUORI (scope file)
 async function maybeAdvanceRapidFireIfAllAnswered(gameRef) {
   const snap = await get(gameRef);
   if (!snap.exists()) return;
@@ -855,13 +837,11 @@ async function maybeAdvanceRapidFireIfAllAnswered(gameRef) {
 
   const answered = rapidFire.answeredThisQuestion || {};
   const allAnswered = playerIds.length > 0 && playerIds.every(pid => answered[pid]);
-
   if (!allAnswered) return;
 
   const currentIndex = rapidFire.currentIndex ?? 0;
   const totalQuestions = rapidFire.questions?.length ?? 0;
 
-  // Se ci sono altre domande → next subito
   if (currentIndex < totalQuestions - 1) {
     const now = Date.now();
     await update(gameRef, {
@@ -873,11 +853,8 @@ async function maybeAdvanceRapidFireIfAllAnswered(gameRef) {
     return;
   }
 
-  // Se era l'ultima → forza chiusura via handler (riuso logica punteggi)
-  // Chiamiamo direttamente la funzione di timeout: ora è scaduto “virtualmente”.
-  // Settiamo expiresAt = now e poi lasciamo che host loop la chiuda, oppure la chiudiamo qui.
-  const now = Date.now();
-  await update(gameRef, { "rapidFire/expiresAt": now });
+  // ultima domanda: forza scadenza così host loop assegna punti
+  await update(gameRef, { "rapidFire/expiresAt": Date.now() });
 }
 
 
