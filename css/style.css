@@ -429,3 +429,6 @@ body {
 .key-dot--sport, .lvl-bar--sport .lvl-fill { background: var(--cat-sport); }
 .key-dot--spettacolo, .lvl-bar--spettacolo .lvl-fill { background: var(--cat-spettacolo); }
 .key-dot--scienza, .lvl-bar--scienza .lvl-fill { background: var(--cat-scienza); }
+
+.vf-btns { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
+
