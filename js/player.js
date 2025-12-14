@@ -6,7 +6,11 @@ import {
   chooseDirection,
   answerCategoryQuestion,
   answerRapidFireQuestion,
+  chooseRiskDecision,
+  chooseDuelOpponent,
+  answerEventQuestion,
 } from "./firebase-game.js";
+
 
 
 let currentGameCode = null;
@@ -113,28 +117,46 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Scegli direzione: i pulsanti sono creati dinamicamente
-  directionButtons.addEventListener("click", async (e) => {
-    const btn = e.target.closest("button[data-dir-index]");
-    if (!btn) return;
+directionButtons.addEventListener("click", async (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+
+  if (!currentGameCode || !currentPlayerId) return;
+
+  try {
+    // disattiva tutti i pulsanti per evitare doppi click
+    Array.from(directionButtons.querySelectorAll("button")).forEach(
+      (b) => (b.disabled = true)
+    );
+
+    // 1) EVENTO: scelta avversario (DUELLO)
+    const opponentId = btn.dataset.opponentId;
+    if (opponentId) {
+      turnStatusText.textContent = "Scelta sfidante in corso...";
+      await chooseDuelOpponent(currentGameCode, currentPlayerId, opponentId);
+      return;
+    }
+
+    // 2) EVENTO: scelta sì/no (RISK)
+    const riskChoice = btn.dataset.riskChoice;
+    if (riskChoice) {
+      turnStatusText.textContent = "Scelta in corso...";
+      await chooseRiskDecision(currentGameCode, currentPlayerId, riskChoice);
+      return;
+    }
+
+    // 3) NORMALE: scelta direzione
     const dirIndex = parseInt(btn.getAttribute("data-dir-index"), 10);
     if (Number.isNaN(dirIndex)) return;
 
-    if (!currentGameCode || !currentPlayerId) return;
+    turnStatusText.textContent = "Spostamento in corso...";
+    await chooseDirection(currentGameCode, currentPlayerId, dirIndex);
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Errore nella selezione.");
+  }
+});
 
-    try {
-      // disattiva i pulsanti per evitare doppi click
-      Array.from(directionButtons.querySelectorAll("button")).forEach(
-        (b) => (b.disabled = true)
-      );
-      turnStatusText.textContent = "Spostamento in corso...";
-      await chooseDirection(currentGameCode, currentPlayerId, dirIndex);
-      // il listener aggiornerà lo stato e nasconderà il pannello
-    } catch (err) {
-      console.error(err);
-      alert(err.message || "Errore nella scelta della direzione.");
-    }
-  });
 
   // Risposta A/B/C/D
   answerButtons.addEventListener("click", async (e) => {
@@ -152,18 +174,13 @@ document.addEventListener("DOMContentLoaded", () => {
         (b) => (b.disabled = true)
       );
 if (latestGameState && latestGameState.phase === "RAPID_FIRE") {
-        await answerRapidFireQuestion(
-          currentGameCode,
-          currentPlayerId,
-          answerIndex
-        );
-      } else {
-        await answerCategoryQuestion(
-          currentGameCode,
-          currentPlayerId,
-          answerIndex
-        );
-      }
+  await answerRapidFireQuestion(currentGameCode, currentPlayerId, answerIndex);
+} else if (latestGameState && latestGameState.phase && latestGameState.phase.startsWith("EVENT")) {
+  await answerEventQuestion(currentGameCode, currentPlayerId, answerIndex);
+} else {
+  await answerCategoryQuestion(currentGameCode, currentPlayerId, answerIndex);
+}
+
 
       // Il listener di stato si occuperà di aggiornare pannelli, overlay, ecc.
     } catch (err) {
@@ -264,6 +281,106 @@ if (phase === "REVEAL") {
   return;
 }
 
+// ───────────────────────────────
+// EVENTI (STEP 3) - UI PLAYER
+// ───────────────────────────────
+
+if (phase === "EVENT_RISK_DECISION") {
+  rollDiceBtn.disabled = true;
+  answerPanel.classList.add("hidden");
+
+  const ev = gameState.currentEvent;
+  const isOwner = ev && ev.ownerPlayerId === myId;
+
+  directionPanel.classList.remove("hidden");
+  directionButtons.innerHTML = "";
+
+  if (isOwner) {
+    turnStatusText.textContent = "EVENTO: Rischia o Vinci. Vuoi partecipare?";
+    const yesBtn = document.createElement("button");
+    yesBtn.className = "btn btn-secondary dir-btn";
+    yesBtn.textContent = "SÌ";
+    yesBtn.dataset.riskChoice = "YES";
+
+    const noBtn = document.createElement("button");
+    noBtn.className = "btn btn-secondary dir-btn";
+    noBtn.textContent = "NO";
+    noBtn.dataset.riskChoice = "NO";
+
+    directionButtons.appendChild(yesBtn);
+    directionButtons.appendChild(noBtn);
+  } else {
+    turnStatusText.textContent = "Evento in corso... attendi.";
+  }
+
+  return;
+}
+
+if (phase === "EVENT_DUEL_CHOOSE") {
+  rollDiceBtn.disabled = true;
+  answerPanel.classList.add("hidden");
+
+  const ev = gameState.currentEvent;
+  const isOwner = ev && ev.ownerPlayerId === myId;
+
+  directionPanel.classList.remove("hidden");
+  directionButtons.innerHTML = "";
+
+  if (isOwner) {
+    turnStatusText.textContent = "EVENTO: Duello. Scegli uno sfidante.";
+    Object.entries(players).forEach(([pid, p]) => {
+      if (pid === myId) return;
+      const b = document.createElement("button");
+      b.className = "btn btn-secondary dir-btn";
+      b.textContent = p.name || "Giocatore";
+      b.dataset.opponentId = pid;
+      directionButtons.appendChild(b);
+    });
+  } else {
+    turnStatusText.textContent = "Evento Duello: l'avversario sta scegliendo lo sfidante...";
+  }
+
+  return;
+}
+
+if (phase === "EVENT_QUESTION") {
+  rollDiceBtn.disabled = true;
+  directionPanel.classList.add("hidden");
+
+  const ev = gameState.currentEvent;
+  const isOwner = ev && ev.ownerPlayerId === myId;
+
+  if (isOwner && currentQuestion) {
+    turnStatusText.textContent = "EVENTO: rispondi (A/B/C/D).";
+    answerPanel.classList.remove("hidden");
+    Array.from(answerButtons.querySelectorAll("button")).forEach((b) => (b.disabled = false));
+  } else {
+    turnStatusText.textContent = "Evento in corso... attendi.";
+    answerPanel.classList.add("hidden");
+  }
+
+  return;
+}
+
+if (phase === "EVENT_DUEL_QUESTION") {
+  rollDiceBtn.disabled = true;
+  directionPanel.classList.add("hidden");
+
+  const ev = gameState.currentEvent;
+  const isParticipant =
+    ev && (ev.ownerPlayerId === myId || ev.opponentPlayerId === myId);
+
+  if (isParticipant && currentQuestion) {
+    turnStatusText.textContent = "DUELLO: rispondi (A/B/C/D).";
+    answerPanel.classList.remove("hidden");
+    Array.from(answerButtons.querySelectorAll("button")).forEach((b) => (b.disabled = false));
+  } else {
+    turnStatusText.textContent = "DUELLO in corso... attendi.";
+    answerPanel.classList.add("hidden");
+  }
+
+  return;
+}
     
     if (isMyTurn) {
       if (phase === "WAIT_ROLL") {
