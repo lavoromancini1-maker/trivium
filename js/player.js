@@ -34,6 +34,7 @@ let vfHint = null;
 let intruderPanel, intruderPrompt, intrA, intrB, intrC, intrD, intruderHint;
 let sequencePanel, sequencePrompt, sequenceItems, sequenceResetBtn, sequenceSubmitBtn, sequenceHint;
 let sequenceSelection = []; // array di indici scelti
+let lastSequenceQuestionId = null;
 
 async function sendVF(choice) {
   if (!currentGameCode || !currentPlayerId) return;
@@ -618,6 +619,11 @@ if (mg && mg.type === "SEQUENCE") {
 
   if (sequencePanel) sequencePanel.classList.remove("hidden");
   if (sequencePrompt) sequencePrompt.textContent = mg.prompt || "";
+
+  if (mg.questionId && mg.questionId !== lastSequenceQuestionId) {
+  lastSequenceQuestionId = mg.questionId;
+  sequenceSelection = [];
+}
 
   const already = mg.locked && mg.locked[myId];
   if (already) {
