@@ -725,7 +725,7 @@ export function getRandomOddOneOut(usedIds = []) {
 // ───────────────────────────────
 export const VF_FLASH_QUESTIONS = [
   {
-    id: "vf_001",
+    id: "vf_flash_001",
     statements: [
       { text: "Venere è il pianeta più caldo del Sistema Solare.", correct: true },
       { text: "La Grande Muraglia Cinese è visibile dalla Luna a occhio nudo.", correct: false },
