@@ -1,4 +1,4 @@
-import { renderBoard, renderQuestionOverlay } from "./ui-host.js";
+import { renderBoard, renderQuestionOverlay, renderPlayers } from "./ui-host.js";
 import {
   createGame,
   listenGame,
@@ -92,58 +92,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
-
-function renderPlayers(gameState, container) {
-  container.innerHTML = "";
-
-  const playersObj = gameState.players || {};
-  const turnOrder = gameState.turnOrder || [];
-  const currentPlayerId = gameState.currentPlayerId || null;
-
-  const playerEntries = Object.entries(playersObj);
-
-  if (playerEntries.length === 0) {
-    container.textContent = "Nessun giocatore connesso.";
-    return;
-  }
-
-  const ul = document.createElement("ul");
-  ul.className = "players-list";
-
-  if (turnOrder.length > 0) {
-    // Ordine definito: seguiamo turnOrder
-    for (const pid of turnOrder) {
-      const player = playersObj[pid];
-      if (!player) continue;
-      const li = document.createElement("li");
-      li.className = "players-list-item";
-      if (pid === currentPlayerId) {
-        li.classList.add("players-list-item--active");
-      }
-
-      const pos = player.position ?? 0;
-      
-      li.innerHTML = `
-        <div class="player-name">${player.name || "Senza nome"}</div>
-        <div class="player-info">
-          <span>Punti: ${player.points ?? 0}</span><br>
-          <span>Casella: ${pos}</span>
-        </div>
-      `;
-      ul.appendChild(li);
-    }
-  } else {
-    // Nessun ordine: siamo ancora in LOBBY, mostriamo i giocatori in ordine di arrivo
-    for (const [playerId, player] of playerEntries) {
-      const li = document.createElement("li");
-      li.className = "players-list-item";
-      li.textContent = player.name || `Giocatore (${playerId})`;
-      ul.appendChild(li);
-    }
-  }
-
-  container.appendChild(ul);
-}
 
 function renderGameMessage(gameState, messageEl) {
   const state = gameState.state || "LOBBY";
