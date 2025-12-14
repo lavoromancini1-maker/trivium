@@ -23,6 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const joinPanel = document.getElementById("join-game-panel");
   const waitingPanel = document.getElementById("waiting-panel");
   const playerNameDisplay = document.getElementById("player-name-display");
+  const playerProgressEl = document.getElementById("player-progress");
 
   const turnPanel = document.getElementById("turn-panel");
   const turnStatusText = document.getElementById("turn-status-text");
@@ -87,6 +88,7 @@ document.addEventListener("DOMContentLoaded", () => {
           directionButtons,
           answerPanel,
           answerButtons,
+          playerProgressEl,
         });
       });
     } catch (err) {
@@ -190,6 +192,7 @@ function handleGameUpdate(
     directionButtons,
     answerPanel,
     answerButtons,
+    playerProgressEl
   }
 ) {
   if (!gameState) {
@@ -214,6 +217,8 @@ function handleGameUpdate(
 
     const myId = currentPlayerId;
     const isMyTurn = myId && activePlayerId === myId;
+
+    renderPlayerProgress(gameState, myId, playerProgressEl);
 
     waitingPanel.classList.add("hidden");
     turnPanel.classList.remove("hidden");
@@ -332,4 +337,62 @@ if (phase === "REVEAL") {
   }
 
   // altri stati futuri
+}
+
+const CATEGORIES = ["geografia", "storia", "arte", "sport", "spettacolo", "scienza"];
+
+function renderPlayerProgress(gameState, myId, container) {
+  if (!container) return;
+
+  const players = gameState?.players || {};
+  const me = players[myId];
+  if (!me) {
+    container.classList.add("hidden");
+    container.innerHTML = "";
+    return;
+  }
+
+  container.classList.remove("hidden");
+
+  const levels = me.levels || {};
+  const keys = me.keys || {};
+
+  // evidenzia la categoria della domanda se sto rispondendo io
+  let activeCategory = null;
+  if (
+    gameState?.phase === "QUESTION" &&
+    gameState.currentQuestion &&
+    gameState.currentQuestion.forPlayerId === myId
+  ) {
+    activeCategory = gameState.currentQuestion.category;
+  }
+
+  const rowsHtml = CATEGORIES.map((cat) => {
+    const lvl = Math.max(0, Math.min(3, Number(levels[cat] ?? 0)));
+    const hasKey = !!keys[cat];
+    const isActive = activeCategory === cat;
+
+    return `
+      <div class="pp-row ${isActive ? "pp-row--active" : ""}">
+        <div class="pp-left">
+          <span class="pp-cat pp-cat--${cat}">${cat}</span>
+          <span class="key-dot key-dot--${cat} ${hasKey ? "key-dot--on" : ""}"></span>
+        </div>
+
+        <div class="pp-right">
+          <div class="lvl-bar lvl-bar--${cat} ${hasKey ? "lvl-bar--key" : ""}">
+            <span class="lvl-fill lvl-fill--${lvl}"></span>
+          </div>
+          <span class="pp-lvl">Liv. ${lvl}</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="pp-title">Progressi categorie</div>
+    <div class="pp-grid">
+      ${rowsHtml}
+    </div>
+  `;
 }
