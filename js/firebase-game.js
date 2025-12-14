@@ -4,7 +4,8 @@ import {
   getRandomKeyQuestion,
   getRandomRapidFireQuestions,
   getRandomClosestQuestion,
-  getRandomVFFlashQuestion
+  getRandomVFFlashQuestion,
+  getRandomIntruderQuestion,
 } from "./questions.js";
 
 
@@ -231,6 +232,7 @@ export async function startGame(gameCode) {
     usedRapidFireQuestionIds: {},
     usedClosestQuestionIds: {},
     usedVFFlashQuestionIds: {},
+    usedIntruderQuestionIds: {},
   };
 
   await update(gameRef, updateData);
@@ -531,7 +533,7 @@ await update(gameRef, updates);
 
 async function startRandomMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate) {
   // Tipi disponibili (solo quelli che esistono già)
-  const pool = ["VF_FLASH", "CLOSEST", "RAPID_FIRE"];
+  const pool = ["VF_FLASH", "CLOSEST", "RAPID_FIRE", "INTRUDER"];
 
   // (Opzionale) evita ripetizione immediata dello stesso minigame
   const last = game.lastMinigameType || null;
@@ -552,6 +554,10 @@ async function startRandomMinigame(gameRef, game, ownerPlayerId, finalTileId, fi
     await startClosestMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate);
     return;
   }
+  if (type === "INTRUDER") {
+  await startIntruderMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate);
+  return;
+}
 
   // RAPID_FIRE (usa la tua fase RAPID_FIRE separata)
   await startRapidFireMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate);
@@ -636,6 +642,42 @@ async function startVFFlashMinigame(gameRef, game, ownerPlayerId, finalTileId, f
     reveal: null,
     minigame,
     [`usedVFFlashQuestionIds/${pack.id}`]: true,
+  });
+}
+
+async function startIntruderMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate) {
+  const used = game.usedIntruderQuestionIds ? Object.keys(game.usedIntruderQuestionIds) : [];
+  const q = getRandomIntruderQuestion(used);
+
+  if (!q) {
+    await update(gameRef, { ...baseUpdate, phase: "WAIT_ROLL", minigame: null });
+    return;
+  }
+
+  const minigame = {
+    type: "INTRUDER",
+    ownerPlayerId,
+    questionId: q.id,
+    prompt: q.prompt,
+    items: q.items,               // 4 opzioni (testo)
+    intruderIndex: q.intruderIndex, // resta nel DB per verifica (come VF)
+    answeredThis: {},             // { [playerId]: true } = ha già tentato
+    currentWinnerId: null,        // primo corretto
+  };
+
+  await update(gameRef, {
+    ...baseUpdate,
+    phase: "MINIGAME",
+    currentTile: {
+      tileId: finalTileId,
+      type: finalTile.type,
+      category: finalTile.category || null,
+      zone: finalTile.zone,
+    },
+    currentQuestion: null,
+    reveal: null,
+    minigame,
+    [`usedIntruderQuestionIds/${q.id}`]: true,
   });
 }
 
@@ -1056,6 +1098,63 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
   return { ok: true };
 }
 
+export async function answerIntruderMinigame(gameCode, playerId, chosenIndex) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+
+  await runTransaction(gameRef, (game) => {
+    if (!game) return game;
+    if (game.state !== "IN_PROGRESS") return game;
+    if (game.phase !== "MINIGAME") return game;
+
+    const mg = game.minigame;
+    if (!mg || mg.type !== "INTRUDER") return game;
+
+    const players = game.players || {};
+    const playerIds = Object.keys(players);
+    if (!players[playerId]) return game;
+
+    mg.answeredThis = mg.answeredThis || {};
+    mg.currentWinnerId = mg.currentWinnerId || null;
+
+    // se già c'è un vincitore, stop
+    if (mg.currentWinnerId) return game;
+
+    // se questo player ha già tentato, stop
+    if (mg.answeredThis[playerId]) return game;
+
+    const idx = Number(chosenIndex);
+    if (!Number.isInteger(idx) || idx < 0 || idx > 3) return game;
+
+    mg.answeredThis[playerId] = true;
+
+    const correct = idx === mg.intruderIndex;
+
+    if (correct) {
+      // primo corretto vince e prende +20 (POINTS_CONFIG)
+      mg.currentWinnerId = playerId;
+      players[playerId].points = (players[playerId].points || 0) + 20;
+
+      // chiudi minigame subito
+      game.phase = "WAIT_ROLL";
+      game.minigame = null;
+      game.players = players;
+      return game;
+    }
+
+    // se tutti hanno tentato e nessuno ha vinto -> chiudi minigame
+    const allTried = playerIds.length > 0 && playerIds.every((pid) => mg.answeredThis[pid]);
+    if (allTried) {
+      game.phase = "WAIT_ROLL";
+      game.minigame = null;
+    } else {
+      game.minigame = mg;
+    }
+
+    return game;
+  });
+
+  return { ok: true };
+}
 
 async function awardVFFlashPointAndAdvance(gameRef) {
   const snap = await get(gameRef);
