@@ -720,13 +720,16 @@ export function getRandomOddOneOut(usedIds = []) {
   return pool[idx];
 }
 
+// ───────────────────────────────
+// MINIGAME: VERO/FALSO LAMPO (3 affermazioni)
+// ───────────────────────────────
 export const VF_FLASH_QUESTIONS = [
   {
     id: "vf_001",
     statements: [
-      { text: "Il Nilo è il fiume più lungo del mondo.", trueFalse: false },
-      { text: "Venere è il pianeta più caldo del Sistema Solare.", trueFalse: true },
-      { text: "La Grande Muraglia Cinese è visibile dalla Luna a occhio nudo.", trueFalse: false },
+      { text: "Venere è il pianeta più caldo del Sistema Solare.", correct: true },
+      { text: "La Grande Muraglia Cinese è visibile dalla Luna a occhio nudo.", correct: false },
+      { text: "Il Nilo è sempre considerato il fiume più lungo del mondo senza eccezioni.", correct: false }
     ],
   },
 ];
