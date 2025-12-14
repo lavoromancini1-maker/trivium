@@ -9,6 +9,7 @@ import {
   chooseRiskDecision,
   chooseDuelOpponent,
   answerEventQuestion,
+  answerClosestMinigame
 } from "./firebase-game.js";
 
 
@@ -39,6 +40,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const answerPanel = document.getElementById("answer-panel");
   const answerButtons = document.getElementById("answer-buttons");
+
+const closestPanel = document.getElementById("closest-panel");
+const closestInput = document.getElementById("closest-input");
+const closestSendBtn = document.getElementById("closest-send-btn");
+const closestHint = document.getElementById("closest-hint");
+
+closestSendBtn?.addEventListener("click", async () => {
+  if (!currentGameCode || !currentPlayerId) return;
+  closestHint.textContent = "";
+
+  try {
+    closestSendBtn.disabled = true;
+    await answerClosestMinigame(currentGameCode, currentPlayerId, closestInput.value);
+    closestHint.textContent = "✅ Inviato!";
+  } catch (e) {
+    closestHint.textContent = e.message || "Errore invio.";
+    closestSendBtn.disabled = false;
+  }
+});
+
 
   // precompila codice se c'è ?game=XXXX
   const params = new URLSearchParams(window.location.search);
@@ -236,6 +257,16 @@ function handleGameUpdate(
     const myId = currentPlayerId;
     const isMyTurn = myId && activePlayerId === myId;
 
+    // --- RESET UI minigame "Closest" se non siamo in MINIGAME/CLOSEST ---
+const mg = gameState.minigame;
+const isClosestActive = phase === "MINIGAME" && mg && mg.type === "CLOSEST";
+if (!isClosestActive) {
+  closestPanel.classList.add("hidden");
+  closestHint.textContent = "";
+  closestSendBtn.disabled = false;
+}
+
+
     renderPlayerProgress(gameState, myId, playerProgressEl);
 
     waitingPanel.classList.add("hidden");
@@ -396,6 +427,28 @@ if (phase === "EVENT_DUEL_QUESTION") {
 
   return;
 }
+
+if (phase === "MINIGAME") {
+  rollDiceBtn.disabled = true;
+  directionPanel.classList.add("hidden");
+  answerPanel.classList.add("hidden");
+
+  const mg = gameState.minigame;
+
+  if (mg && mg.type === "CLOSEST") {
+    turnStatusText.textContent = "MINIGIOCO: Più vicino vince. Inserisci un numero!";
+    closestPanel.classList.remove("hidden");
+
+    const already = mg.locked && mg.locked[myId];
+    closestSendBtn.disabled = !!already;
+    if (already) closestHint.textContent = "Hai già inviato.";
+  } else {
+    closestPanel.classList.add("hidden");
+    turnStatusText.textContent = "Minigioco in corso... attendi.";
+  }
+
+  return;
+} 
     
     if (isMyTurn) {
       if (phase === "WAIT_ROLL") {
