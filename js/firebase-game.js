@@ -530,7 +530,7 @@ const updates = {
 };
 
 await update(gameRef, updates);
-
+}
 
 function prepareCategoryQuestionForTile(game, playerId, tile, tileId) {
   const players = game.players || {};
