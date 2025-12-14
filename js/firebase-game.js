@@ -382,7 +382,7 @@ export async function chooseDirection(gameCode, playerId, directionIndex) {
       currentQuestion: questionData,
       ...extraUpdates, // include usedCategoryQuestionIds
       playerAnswerIndex: null,
-playerAnswerCorrect: null,
+      playerAnswerCorrect: null,
     };
 
     await update(gameRef, globalUpdate);
@@ -406,26 +406,28 @@ playerAnswerCorrect: null,
   }
 
   if (finalTile.type === "event") {
-  await startEventTile(gameRef, game, playerId, finalTileId, finalTile, baseUpdate);
-  return { finalTileId, finalTile };
-}
+     await startEventTile(
+      gameRef,
+      game,
+      playerId,
+      finalTileId,
+      finalTile,
+      baseUpdate
+    );
+    return { finalTileId, finalTile };
+  }
 
-if (finalTile.type === "scrigno") {
-  // per ora resta placeholder come prima (ma almeno separato dall'evento)
-  const globalUpdate = {
-    ...baseUpdate,
-    phase: "RESOLVE_TILE",
-    currentTile: {
-      tileId: finalTileId,
-      type: finalTile.type,
-      category: finalTile.category || null,
-      zone: finalTile.zone,
-    },
-  };
-
-  await update(gameRef, globalUpdate);
-  return { finalTileId, finalTile };
-}
+  if (finalTile.type === "scrigno") {
+    // per ora resta placeholder come prima (ma almeno separato dall'evento)
+    const globalUpdate = {
+      ...baseUpdate,
+      phase: "RESOLVE_TILE",
+      currentTile: {
+        tileId: finalTileId,
+        type: finalTile.type,
+        category: finalTile.category || null,
+        zone: finalTile.zone,
+      },
 
     };
 
