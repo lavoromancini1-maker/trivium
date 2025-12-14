@@ -109,16 +109,6 @@ closestSendBtn?.addEventListener("click", async () => {
   }
 });
 
-let intruderPanel, intruderPrompt, intrA, intrB, intrC, intrD, intruderHint;
-
-intruderPanel = document.getElementById("intruder-panel");
-intruderPrompt = document.getElementById("intruder-prompt");
-intrA = document.getElementById("intr-a");
-intrB = document.getElementById("intr-b");
-intrC = document.getElementById("intr-c");
-intrD = document.getElementById("intr-d");
-intruderHint = document.getElementById("intruder-hint");
-
 async function sendIntruder(idx) {
   if (!currentGameCode || !currentPlayerId) return;
   if (!intruderHint) return;
@@ -530,9 +520,9 @@ if (phase === "MINIGAME") {
 
 if (mg && mg.type === "VF_FLASH") {
   turnStatusText.textContent = "MINIGIOCO: Vero/Falso lampo!";
-  closestPanel.classList.add("hidden");
-  if (vfPanel) vfPanel.classList.add("hidden");
-  answerPanel.classList.add("hidden");
+if (closestPanel) closestPanel.classList.add("hidden");
+if (intruderPanel) intruderPanel.classList.add("hidden");
+answerPanel.classList.add("hidden");
 
   vfPanel.classList.remove("hidden");
 
