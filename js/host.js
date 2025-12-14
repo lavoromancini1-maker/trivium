@@ -109,15 +109,11 @@ function renderGameMessage(gameState, messageEl) {
     const phase = gameState.phase;
     const currentTile = gameState.currentTile || null;
 
-    // Messaggio speciale per la mini-sfida Rapid Fire
-    if (
-      (phase === "RAPID_FIRE_QUESTION" || phase === "RAPID_FIRE") &&
-      currentTile?.type === "minigame"
-    ) {
-      const name = currentPlayer ? currentPlayer.name : "un giocatore";
-      messageEl.textContent = `Mini-sfida RAPID FIRE in corso! ${name} ha attivato il minigioco, tutti stanno rispondendo.`;
-      return;
-    }
+  if (phase === "RAPID_FIRE" && currentTile?.type === "minigame") {
+  const name = currentPlayer ? currentPlayer.name : "un giocatore";
+  messageEl.textContent = `Mini-sfida RAPID FIRE in corso! ${name} ha attivato il minigioco, tutti stanno rispondendo.`;
+  return;
+}
 
     // Vecchia fase segnaposto, nel caso fosse ancora usata da qualche versione del backend
     if (phase === "MINIGAME_PENDING" && currentTile?.type === "minigame") {
