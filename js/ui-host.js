@@ -61,6 +61,8 @@ export function renderQuestionOverlay(gameState) {
 
   if (!overlay || !overlayContent) return;
 
+overlay.classList.remove("correct-answer", "wrong-answer");
+  
 if (gameState && (gameState.phase === "RAPID_FIRE" || gameState.phase === "RAPID_FIRE_QUESTION")) {
   renderRapidFireOverlay(gameState);
   return;
@@ -139,6 +141,16 @@ if (gameState && (gameState.phase === "RAPID_FIRE" || gameState.phase === "RAPID
 
   overlay.classList.remove("hidden");
 
+ if (gameState.playerAnswerIndex !== undefined && gameState.playerAnswerIndex !== null) {
+    const correct = q.correctIndex === gameState.playerAnswerIndex;
+
+    if (correct) {
+      overlay.classList.add("correct-answer");
+    } else {
+      overlay.classList.add("wrong-answer");
+    }
+  }
+  
   // Gestione countdown visuale
   if (overlayTimerInterval) {
     clearInterval(overlayTimerInterval);
