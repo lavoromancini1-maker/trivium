@@ -738,17 +738,16 @@ const updates = {
 };
 
 
-  // Decidiamo se il turno continua (risposta giusta) o passa al prossimo
-  if (correct) {
-    // Turno continua → stesso giocatore, torna a WAIT_ROLL
-    updates.phase = "WAIT_ROLL";
-  } else {
-    // Turno passa al prossimo giocatore
-    const { nextIndex, nextPlayerId } = getNextTurn(game);
-    updates.currentTurnIndex = nextIndex;
-    updates.currentPlayerId = nextPlayerId;
-    updates.phase = "WAIT_ROLL";
-  }
+// Decidiamo se il turno continua (risposta giusta) o passa al prossimo
+// ⚠️ NON tocchiamo la phase: deve restare "REVEAL" per 1.4s
+if (!correct) {
+  // Turno passa al prossimo giocatore
+  const { nextIndex, nextPlayerId } = getNextTurn(game);
+  updates.currentTurnIndex = nextIndex;
+  updates.currentPlayerId = nextPlayerId;
+}
+// se correct = true → restano currentPlayerId/currentTurnIndex invariati
+
 
   await update(gameRef, updates);
 
