@@ -329,3 +329,68 @@ body {
   border-radius: 10px;
   padding: 6px 8px;
 }
+
+/* ===== Players panel: Keys + Levels (TV-friendly) ===== */
+
+.player-sep {
+  opacity: 0.6;
+  margin: 0 6px;
+}
+
+.key-row,
+.levels-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: nowrap;
+}
+
+.key-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  opacity: 0.25;
+  outline: 2px solid rgba(255,255,255,0.25);
+}
+
+.key-dot--on {
+  opacity: 1;
+  outline: 2px solid rgba(255,255,255,0.65);
+  box-shadow: 0 0 10px rgba(255,255,255,0.15);
+}
+
+/* Livelli: barre 0-3 */
+.lvl-bar {
+  width: 32px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.10);
+  outline: 1px solid rgba(255,255,255,0.20);
+  overflow: hidden;
+}
+
+.lvl-bar--key {
+  outline: 2px solid rgba(255,255,255,0.60);
+  box-shadow: 0 0 10px rgba(255,255,255,0.12);
+}
+
+.lvl-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: rgba(255,255,255,0.35);
+}
+
+/* 0/3, 1/3, 2/3, 3/3 */
+.lvl-fill--0 { width: 0%; }
+.lvl-fill--1 { width: 33.33%; }
+.lvl-fill--2 { width: 66.66%; }
+.lvl-fill--3 { width: 100%; }
+
+/* Colori categoria (riusiamo le CSS var già esistenti) */
+.key-dot--geografia, .lvl-bar--geografia .lvl-fill { background: var(--cat-geografia); }
+.key-dot--storia, .lvl-bar--storia .lvl-fill { background: var(--cat-storia); }
+.key-dot--arte, .lvl-bar--arte .lvl-fill { background: var(--cat-arte); }
+.key-dot--sport, .lvl-bar--sport .lvl-fill { background: var(--cat-sport); }
+.key-dot--spettacolo, .lvl-bar--spettacolo .lvl-fill { background: var(--cat-spettacolo); }
+.key-dot--scienza, .lvl-bar--scienza .lvl-fill { background: var(--cat-scienza); }
