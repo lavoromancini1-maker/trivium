@@ -17,6 +17,7 @@ let currentGameCode = null;
 let currentPlayerId = null;
 let unsubscribeGame = null;
 let latestGameState = null;
+let lastRapidFireIndex = null;
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -240,27 +241,41 @@ function handleGameUpdate(
     waitingPanel.classList.add("hidden");
     turnPanel.classList.remove("hidden");
 
-   // Fase Rapid Fire: tutti i giocatori possono rispondere, indipendentemente dal turno
-    if (phase === "RAPID_FIRE") {
-      rollDiceBtn.disabled = true;
-      directionPanel.classList.add("hidden");
+if (phase === "RAPID_FIRE") {
+  rollDiceBtn.disabled = true;
+  directionPanel.classList.add("hidden");
 
-      const rapidFire = gameState.rapidFire;
-      const alreadyAnswered =
-        rapidFire &&
-        rapidFire.answeredThisQuestion &&
-        rapidFire.answeredThisQuestion[myId];
+  const rapidFire = gameState.rapidFire || null;
+  const idx = rapidFire ? (rapidFire.currentIndex ?? 0) : 0;
 
-      turnStatusText.textContent =
-        "MINIGIOCO: Rapid Fire! Rispondi più domande possibili.";
+  // Reset UI quando cambia domanda (indice diverso)
+  if (lastRapidFireIndex !== idx) {
+    lastRapidFireIndex = idx;
 
-      answerPanel.classList.remove("hidden");
-      Array.from(answerButtons.querySelectorAll("button")).forEach((b) => {
-        b.disabled = !!alreadyAnswered;
-      });
+    // riabilita bottoni (poi li disabilitiamo se alreadyAnswered)
+    Array.from(answerButtons.querySelectorAll("button")).forEach((b) => {
+      b.disabled = false;
+    });
+  }
 
-      return;
-    }
+  const alreadyAnswered =
+    rapidFire &&
+    rapidFire.answeredThisQuestion &&
+    rapidFire.answeredThisQuestion[myId];
+
+  turnStatusText.textContent = alreadyAnswered
+    ? "Rapid Fire: hai già risposto. Attendi la prossima domanda..."
+    : "MINIGIOCO: Rapid Fire! Rispondi più domande possibili.";
+
+  answerPanel.classList.remove("hidden");
+
+  Array.from(answerButtons.querySelectorAll("button")).forEach((b) => {
+    b.disabled = !!alreadyAnswered;
+  });
+
+  return;
+}
+
     // ✅ Fase REVEAL: mostra esito al giocatore che ha risposto
 if (phase === "REVEAL") {
   rollDiceBtn.disabled = true;
@@ -407,6 +422,8 @@ if (phase === "EVENT_DUEL_QUESTION") {
           directionButtons.appendChild(btn);
         });
 
+        lastRapidFireIndex = null;
+        
         answerPanel.classList.add("hidden");
       } else if (phase === "QUESTION") {
         rollDiceBtn.disabled = true;
