@@ -702,24 +702,6 @@ export function getRandomTrueFalsePack(usedIds = []) {
   return pool[idx];
 }
 
-// L'intruso
-export const ODD_ONE_OUT_CHALLENGES = [
-  {
-    id: "odd_001",
-    items: ["Leonardo da Vinci", "Michelangelo", "Raffaello", "Einstein"],
-    correctIndex: 3,
-  },
-  // ...
-];
-
-export function getRandomOddOneOut(usedIds = []) {
-  const usedSet = new Set(usedIds);
-  const pool = ODD_ONE_OUT_CHALLENGES.filter((q) => !usedSet.has(q.id));
-  if (pool.length === 0) return null;
-  const idx = Math.floor(Math.random() * pool.length);
-  return pool[idx];
-}
-
 // ───────────────────────────────
 // MINIGAME: VERO/FALSO LAMPO (3 affermazioni)
 // ───────────────────────────────
