@@ -67,6 +67,65 @@ if (gameState && (gameState.phase === "RAPID_FIRE" || gameState.phase === "RAPID
   renderRapidFireOverlay(gameState);
   return;
 }
+if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.reveal.question) {
+  const r = gameState.reveal;
+  const q = r.question;
+
+  const answersHtml = q.answers
+    .map((ans, idx) => {
+      const isCorrect = idx === q.correctIndex;
+      const isChosen = r.answerIndex === idx;
+
+      const cls = [
+        "answer-item",
+        isCorrect ? "answer-item--correct" : "",
+        isChosen && !isCorrect ? "answer-item--chosen-wrong" : "",
+        isChosen && isCorrect ? "answer-item--chosen-correct" : "",
+      ].filter(Boolean).join(" ");
+
+      return `
+        <li class="${cls}">
+          <span class="answer-label">${String.fromCharCode(65 + idx)}.</span>
+          <span class="answer-text">${ans}</span>
+        </li>
+      `;
+    })
+    .join("");
+
+  overlayContent.innerHTML = `
+    <div class="question-card">
+      <div class="question-header">
+        <div class="question-category">
+          ${q.category.toUpperCase()} ${q.isKeyQuestion ? "– DOMANDA CHIAVE" : ""}
+        </div>
+        <div class="question-player">
+          Esito: <strong>${r.correct ? "CORRETTA ✅" : "SBAGLIATA ❌"}</strong>
+        </div>
+      </div>
+
+      <div class="question-text">${q.text}</div>
+
+      <ul class="answers-list">
+        ${answersHtml}
+      </ul>
+
+      <div class="question-footer">
+        <span>${r.correct ? "Turno continua." : "Turno passa."}</span>
+      </div>
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
+  overlay.classList.toggle("correct-answer", !!r.correct);
+  overlay.classList.toggle("wrong-answer", !r.correct);
+
+  // stop timer interval (qui non serve countdown)
+  if (overlayTimerInterval) {
+    clearInterval(overlayTimerInterval);
+    overlayTimerInterval = null;
+  }
+  return;
+}
 
 
   // Se non siamo in fase QUESTION o non c'è una domanda, nascondi overlay
