@@ -127,6 +127,13 @@ if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.r
   return;
 }
 
+  // ───────────────────────────────
+// EVENTI (STEP 3) - Overlay Host
+// ───────────────────────────────
+if (gameState && gameState.phase && gameState.phase.startsWith("EVENT")) {
+  renderEventOverlay(gameState);
+  return;
+}
 
   // Se non siamo in fase QUESTION o non c'è una domanda, nascondi overlay
   if (
@@ -231,6 +238,127 @@ if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.r
     }, 250);
   }
 }
+
+function renderEventOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+  if (!overlay || !overlayContent) return;
+
+  // stop timer interval (per eventi base non facciamo countdown qui)
+  if (overlayTimerInterval) {
+    clearInterval(overlayTimerInterval);
+    overlayTimerInterval = null;
+  }
+
+  const ev = gameState.currentEvent || {};
+  const q = gameState.currentQuestion || null;
+
+  const title =
+    ev.type === "DUELLO"
+      ? "EVENTO – DUELLO"
+      : ev.type === "BOOM"
+      ? "EVENTO – DOMANDA BOOM"
+      : ev.type === "RISK"
+      ? "EVENTO – RISCHIA O VINCI"
+      : "EVENTO";
+
+  // blocco contenuto variabile in base alla phase
+  let bodyHtml = "";
+
+  if (gameState.phase === "EVENT_RISK_DECISION") {
+    bodyHtml = `
+      <div class="question-text">
+        Il giocatore sta decidendo se partecipare (SÌ/NO)…
+      </div>
+      <div class="question-footer">
+        <span>In attesa della scelta sul dispositivo del giocatore.</span>
+      </div>
+    `;
+  } else if (gameState.phase === "EVENT_DUEL_CHOOSE") {
+    bodyHtml = `
+      <div class="question-text">
+        Il giocatore sta scegliendo lo sfidante…
+      </div>
+      <div class="question-footer">
+        <span>In attesa della scelta sul dispositivo del giocatore.</span>
+      </div>
+    `;
+  } else if (gameState.phase === "EVENT_QUESTION" || gameState.phase === "EVENT_DUEL_QUESTION") {
+    if (!q) {
+      bodyHtml = `
+        <div class="question-text">Caricamento domanda evento…</div>
+      `;
+    } else {
+      const answersHtml = (q.answers || [])
+        .map(
+          (ans, idx) => `
+          <li class="answer-item">
+            <span class="answer-label">${String.fromCharCode(65 + idx)}.</span>
+            <span class="answer-text">${ans}</span>
+          </li>
+        `
+        )
+        .join("");
+
+      // Info extra duello (round + score live)
+      let duelInfo = "";
+      if (ev.type === "DUELLO") {
+        const round = (ev.roundIndex ?? 0) + 1;
+        const total = ev.totalRounds ?? 3;
+
+        const players = gameState.players || {};
+        const ownerName = players[ev.ownerPlayerId]?.name || "Owner";
+        const oppName = players[ev.opponentPlayerId]?.name || "Sfidante";
+
+        const sOwner = (ev.score && ev.ownerPlayerId) ? (ev.score[ev.ownerPlayerId] || 0) : 0;
+        const sOpp = (ev.score && ev.opponentPlayerId) ? (ev.score[ev.opponentPlayerId] || 0) : 0;
+
+        duelInfo = `
+          <div class="question-player">
+            Round <strong>${round}/${total}</strong> — 
+            <strong>${ownerName}</strong>: ${sOwner} | <strong>${oppName}</strong>: ${sOpp}
+          </div>
+        `;
+      }
+
+      bodyHtml = `
+        <div class="question-header">
+          <div class="question-category">
+            ${q.category ? q.category.toUpperCase() : "CATEGORIA"} 
+            ${ev.type === "DUELLO" ? "– DUELLO" : ""}
+          </div>
+          ${duelInfo}
+        </div>
+
+        <div class="question-text">${q.text || ""}</div>
+
+        <ul class="answers-list">
+          ${answersHtml}
+        </ul>
+
+        <div class="question-footer">
+          <span>In attesa delle risposte dai dispositivi...</span>
+        </div>
+      `;
+    }
+  } else {
+    bodyHtml = `
+      <div class="question-text">Evento in corso…</div>
+    `;
+  }
+
+  overlayContent.innerHTML = `
+    <div class="question-card">
+      <div class="question-header">
+        <div class="question-category">${title}</div>
+      </div>
+      ${bodyHtml}
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
+}
+
 
 export function renderRapidFireOverlay(gameState) {
   const overlay = document.getElementById("overlay");
