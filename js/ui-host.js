@@ -355,7 +355,8 @@ export function renderPlayers(gameState, container) {
         <div class="player-name">${player.name || "Senza nome"}</div>
         <div class="player-info">
           <span>Punti: ${player.points ?? 0}</span><br>
-          <span>Chiavi: ${Object.values(player.keys).filter((k) => k).length}/6</span>
+          <span>Chiavi: ${countKeys(player)}/6</span><br>
+          <span>Casella: ${formatPosition(player.position)}</span>
         </div>
       `;
       ul.appendChild(li);
@@ -363,4 +364,30 @@ export function renderPlayers(gameState, container) {
   }
 
   container.appendChild(ul);
+}
+function countKeys(player) {
+  const keys = player?.keys || {};
+  return Object.values(keys).filter(Boolean).length;
+}
+
+function formatPosition(position) {
+  if (position === undefined || position === null) return "--";
+
+  const tile = BOARD[position];
+  if (!tile) return position;
+
+  const typeLabel =
+    tile.type === "category"
+      ? `categoria ${tile.category}`
+      : tile.type === "key"
+      ? `chiave ${tile.category}`
+      : tile.type === "minigame"
+      ? "minigioco"
+      : tile.type === "event"
+      ? "evento"
+      : tile.type === "scrigno"
+      ? "scrigno"
+      : tile.type;
+
+  return `${position} (${typeLabel})`;
 }
