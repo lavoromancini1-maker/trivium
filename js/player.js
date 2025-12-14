@@ -405,6 +405,7 @@ if (phase === "EVENT_DUEL_QUESTION") {
         diceResultEl.textContent = "";
         answerPanel.classList.add("hidden");
         Array.from(answerButtons.querySelectorAll("button")).forEach((b) => (b.disabled = false));
+        lastRapidFireIndex = null;
       } else if (phase === "CHOOSE_DIRECTION") {
         const dice = gameState.currentDice;
         turnStatusText.textContent = `Hai tirato ${dice}. Scegli la direzione.`;
