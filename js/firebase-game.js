@@ -3,6 +3,7 @@ import {
   getRandomCategoryQuestion,
   getRandomKeyQuestion,
   getRandomRapidFireQuestions,
+  getRandomClosestQuestion,
 } from "./questions.js";
 
 
@@ -391,20 +392,12 @@ export async function chooseDirection(gameCode, playerId, directionIndex) {
     return { finalTileId, finalTile, question: questionData };
   }
 
-  // Gestione caselle speciali
   // Caselle speciali: minigame / event / scrigno
-  if (finalTile.type === "minigame") {
-    // Avvia minigioco Rapid Fire
-    await startRapidFireMinigame(
-      gameRef,
-      game,
-      playerId,
-      finalTileId,
-      finalTile,
-      baseUpdate
-    );
-    return { finalTileId, finalTile };
-  }
+if (finalTile.type === "minigame") {
+  await startClosestMinigame(gameRef, game, playerId, finalTileId, finalTile, baseUpdate);
+  return { finalTileId, finalTile };
+}
+
 
   if (finalTile.type === "event") {
      await startEventTile(
@@ -530,6 +523,48 @@ const updates = {
 };
 
 await update(gameRef, updates);
+}
+
+async function startClosestMinigame(gameRef, game, ownerPlayerId, finalTileId, finalTile, baseUpdate) {
+  const used = game.usedClosestQuestionIds ? Object.keys(game.usedClosestQuestionIds) : [];
+  const q = getRandomClosestQuestion(used);
+
+  if (!q) {
+    // fallback: se finite, torna al turno normale
+    await update(gameRef, { ...baseUpdate, phase: "WAIT_ROLL", minigame: null });
+    return;
+  }
+
+  const now = Date.now();
+  const durationSec = 12; // per test; poi allineiamo a GAME_SPEC se serve
+
+  const minigame = {
+    type: "CLOSEST",
+    ownerPlayerId,
+    challenge: { id: q.id, text: q.text, correctValue: q.correctValue },
+    answers: {},   // { [playerId]: number }
+    locked: {},    // { [playerId]: true }
+    durationSec,
+    startedAt: now,
+    expiresAt: now + durationSec * 1000,
+  };
+
+  const usedUpdates = { [`usedClosestQuestionIds/${q.id}`]: true };
+
+  await update(gameRef, {
+    ...baseUpdate,
+    phase: "MINIGAME",
+    currentTile: {
+      tileId: finalTileId,
+      type: finalTile.type,
+      category: finalTile.category || null,
+      zone: finalTile.zone,
+    },
+    currentQuestion: null,
+    reveal: null,
+    minigame,
+    ...usedUpdates,
+  });
 }
 
 function prepareCategoryQuestionForTile(game, playerId, tile, tileId) {
@@ -819,6 +854,92 @@ export async function answerRapidFireQuestion(gameCode, playerId, answerIndex) {
 
   return { correct };
 }
+
+export async function answerClosestMinigame(gameCode, playerId, value) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+
+  if (!snap.exists()) throw new Error("Partita non trovata");
+  const game = snap.val();
+
+  if (game.state !== "IN_PROGRESS") throw new Error("La partita non è in corso.");
+  if (game.phase !== "MINIGAME") throw new Error("Non è una fase minigioco.");
+
+  const mg = game.minigame;
+  if (!mg || mg.type !== "CLOSEST") throw new Error("Minigioco CLOSEST non attivo.");
+
+  const players = game.players || {};
+  if (!players[playerId]) throw new Error("Giocatore non trovato.");
+
+  const num = Number(value);
+  if (!Number.isFinite(num)) throw new Error("Valore non valido.");
+
+  const locked = mg.locked || {};
+  if (locked[playerId]) return { alreadyAnswered: true };
+
+  const answers = mg.answers || {};
+  answers[playerId] = Math.round(num);
+  locked[playerId] = true;
+
+  await update(gameRef, {
+    minigame: { ...mg, answers, locked },
+  });
+
+  return { ok: true };
+}
+
+export async function checkAndHandleMinigameTimeout(gameCode) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+  if (!snap.exists()) return { handled: false };
+
+  const game = snap.val();
+  if (game.state !== "IN_PROGRESS") return { handled: false };
+  if (game.phase !== "MINIGAME") return { handled: false };
+
+  const mg = game.minigame;
+  if (!mg || !mg.expiresAt) return { handled: false };
+
+  const now = Date.now();
+  if (now < mg.expiresAt) return { handled: false };
+
+  // Solo CLOSEST per ora
+  if (mg.type !== "CLOSEST") {
+    await update(gameRef, { phase: "WAIT_ROLL", minigame: null });
+    return { handled: true };
+  }
+
+  const players = game.players || {};
+  const answers = mg.answers || {};
+  const correctValue = mg.challenge?.correctValue;
+
+  let winnerId = null;
+  let bestDiff = Infinity;
+
+  for (const [pid, raw] of Object.entries(answers)) {
+    const v = Number(raw);
+    if (!Number.isFinite(v)) continue;
+    const diff = Math.abs(v - correctValue);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      winnerId = pid;
+    }
+  }
+
+  const updates = {
+    phase: "WAIT_ROLL",
+    minigame: null,
+  };
+
+  // Punti: +25 al vincitore (come da config che stai usando)
+  if (winnerId && players[winnerId]) {
+    updates[`players/${winnerId}/points`] = (players[winnerId].points || 0) + 25;
+  }
+
+  await update(gameRef, updates);
+  return { handled: true, winnerId };
+}
+
 
 // 👇 QUESTA FUNZIONE DEVE STARE FUORI (scope file)
 async function maybeAdvanceRapidFireIfAllAnswered(gameRef) {
