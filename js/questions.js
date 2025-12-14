@@ -719,3 +719,20 @@ export function getRandomOddOneOut(usedIds = []) {
   const idx = Math.floor(Math.random() * pool.length);
   return pool[idx];
 }
+
+export const VF_FLASH_QUESTIONS = [
+  {
+    id: "vf_001",
+    statements: [
+      { text: "Il Nilo è il fiume più lungo del mondo.", trueFalse: false },
+      { text: "Venere è il pianeta più caldo del Sistema Solare.", trueFalse: true },
+      { text: "La Grande Muraglia Cinese è visibile dalla Luna a occhio nudo.", trueFalse: false },
+    ],
+  },
+];
+
+export function getRandomVFFlashQuestion(usedIds = []) {
+  const pool = VF_FLASH_QUESTIONS.filter(q => !usedIds.includes(q.id));
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
