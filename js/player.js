@@ -144,34 +144,33 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!currentGameCode || !currentPlayerId) return;
 
-  try {
-    // disattivo i pulsanti per evitare doppi tap
-    Array.from(answerButtons.querySelectorAll("button")).forEach(
-      (b) => (b.disabled = true)
-    );
-
-    if (latestGameState && latestGameState.phase === "RAPID_FIRE_QUESTION") {
-      await answerRapidFireQuestion(
-        currentGameCode,
-        currentPlayerId,
-        answerIndex
+    try {
+      // disattivo i pulsanti per evitare doppi tap
+      Array.from(answerButtons.querySelectorAll("button")).forEach(
+        (b) => (b.disabled = true)
       );
-    } else {
-      await answerCategoryQuestion(
-        currentGameCode,
-        currentPlayerId,
-        answerIndex
+if (latestGameState && latestGameState.phase === "RAPID_FIRE") {
+        await answerRapidFireQuestion(
+          currentGameCode,
+          currentPlayerId,
+          answerIndex
+        );
+      } else {
+        await answerCategoryQuestion(
+          currentGameCode,
+          currentPlayerId,
+          answerIndex
+        );
+      }
+
+      // Il listener di stato si occuperà di aggiornare pannelli, overlay, ecc.
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Errore nell'invio della risposta.");
+      Array.from(answerButtons.querySelectorAll("button")).forEach(
+        (b) => (b.disabled = false)
       );
     }
-
-    // Il listener di stato si occuperà di aggiornare pannelli, overlay, ecc.
-  } catch (err) {
-    console.error(err);
-    alert(err.message || "Errore nell'invio della risposta.");
-    Array.from(answerButtons.querySelectorAll("button")).forEach(
-      (b) => (b.disabled = false)
-    );
-  }
 
   });
 });
@@ -219,6 +218,28 @@ function handleGameUpdate(
     waitingPanel.classList.add("hidden");
     turnPanel.classList.remove("hidden");
 
+   // Fase Rapid Fire: tutti i giocatori possono rispondere, indipendentemente dal turno
+    if (phase === "RAPID_FIRE") {
+      rollDiceBtn.disabled = true;
+      directionPanel.classList.add("hidden");
+
+      const rapidFire = gameState.rapidFire;
+      const alreadyAnswered =
+        rapidFire &&
+        rapidFire.answeredThisQuestion &&
+        rapidFire.answeredThisQuestion[myId];
+
+      turnStatusText.textContent =
+        "MINIGIOCO: Rapid Fire! Rispondi più domande possibili.";
+
+      answerPanel.classList.remove("hidden");
+      Array.from(answerButtons.querySelectorAll("button")).forEach((b) => {
+        b.disabled = !!alreadyAnswered;
+      });
+
+      return;
+    }
+    
     if (isMyTurn) {
       if (phase === "WAIT_ROLL") {
         turnStatusText.textContent = "È il tuo turno. Tira il dado.";
@@ -258,24 +279,6 @@ function handleGameUpdate(
           turnStatusText.textContent = "Attendi la domanda...";
           answerPanel.classList.add("hidden");
         }
-          } else if (phase === "RAPID_FIRE_QUESTION") {
-        rollDiceBtn.disabled = true;
-        directionPanel.classList.add("hidden");
-
-        // In Rapid Fire tutti possono rispondere
-        turnStatusText.textContent =
-          "MINIGIOCO: Rapid Fire! Rispondi più domande possibili.";
-
-        const rapidFire = gameState.rapidFire;
-        const alreadyAnswered =
-          rapidFire &&
-          rapidFire.answeredThisQuestion &&
-          rapidFire.answeredThisQuestion[myId];
-
-        answerPanel.classList.remove("hidden");
-        Array.from(answerButtons.querySelectorAll("button")).forEach((b) => {
-          b.disabled = !!alreadyAnswered;
-        });
       } else {
         turnStatusText.textContent = "Attendi le prossime azioni...";
         rollDiceBtn.disabled = true;
