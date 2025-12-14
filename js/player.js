@@ -9,7 +9,8 @@ import {
   chooseRiskDecision,
   chooseDuelOpponent,
   answerEventQuestion,
-  answerClosestMinigame
+  answerClosestMinigame,
+  answerVFFlashMinigame,
 } from "./firebase-game.js";
 
 
@@ -23,6 +24,36 @@ let closestPanel = null;
 let closestInput = null;
 let closestSendBtn = null;
 let closestHint = null;
+let vfPanel = null;
+let vfText = null;
+let vfTrueBtn = null;
+let vfFalseBtn = null;
+let vfHint = null;
+
+vfPanel = document.getElementById("vf-panel");
+vfText = document.getElementById("vf-text");
+vfTrueBtn = document.getElementById("vf-true-btn");
+vfFalseBtn = document.getElementById("vf-false-btn");
+vfHint = document.getElementById("vf-hint");
+
+async function sendVF(choice) {
+  if (!currentGameCode || !currentPlayerId) return;
+  vfHint.textContent = "";
+
+  try {
+    vfTrueBtn.disabled = true;
+    vfFalseBtn.disabled = true;
+    const res = await answerVFFlashMinigame(currentGameCode, currentPlayerId, choice);
+    vfHint.textContent = res.correct ? "✅ Corretto!" : "❌ Sbagliato!";
+  } catch (e) {
+    vfHint.textContent = e.message || "Errore invio.";
+    vfTrueBtn.disabled = false;
+    vfFalseBtn.disabled = false;
+  }
+}
+
+vfTrueBtn?.addEventListener("click", () => sendVF(true));
+vfFalseBtn?.addEventListener("click", () => sendVF(false));
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -437,6 +468,30 @@ if (phase === "MINIGAME") {
   answerPanel.classList.add("hidden");
 
   const mg = gameState.minigame;
+
+  if (mg && mg.type === "CLOSEST") {
+  ...
+  return;
+}
+
+if (mg && mg.type === "VF_FLASH") {
+  turnStatusText.textContent = "MINIGIOCO: Vero/Falso lampo!";
+  closestPanel.classList.add("hidden");
+  answerPanel.classList.add("hidden");
+
+  vfPanel.classList.remove("hidden");
+
+  const idx = mg.index ?? 0;
+  const stmt = mg.statements?.[idx];
+  vfText.textContent = stmt?.text || "";
+
+  const already = mg.answeredThis && mg.answeredThis[myId];
+  vfTrueBtn.disabled = !!already;
+  vfFalseBtn.disabled = !!already;
+  vfHint.textContent = already ? "Hai già risposto a questa affermazione." : "";
+
+  return;
+}
 
   if (mg && mg.type === "CLOSEST") {
     turnStatusText.textContent = "MINIGIOCO: Più vicino vince. Inserisci un numero!";
