@@ -252,3 +252,44 @@ if (
     }, 250);
   }
 }
+
+export function renderPlayers(gameState, container) {
+  container.innerHTML = "";
+
+  const playersObj = gameState.players || {};
+  const turnOrder = gameState.turnOrder || [];
+  const currentPlayerId = gameState.currentPlayerId || null;
+
+  const playerEntries = Object.entries(playersObj);
+
+  if (playerEntries.length === 0) {
+    container.textContent = "Nessun giocatore connesso.";
+    return;
+  }
+
+  const ul = document.createElement("ul");
+  ul.className = "players-list";
+
+  if (turnOrder.length > 0) {
+    for (const pid of turnOrder) {
+      const player = playersObj[pid];
+      if (!player) continue;
+      const li = document.createElement("li");
+      li.className = "players-list-item";
+      if (pid === currentPlayerId) {
+        li.classList.add("players-list-item--active");
+      }
+
+      li.innerHTML = `
+        <div class="player-name">${player.name || "Senza nome"}</div>
+        <div class="player-info">
+          <span>Punti: ${player.points ?? 0}</span><br>
+          <span>Chiavi: ${Object.values(player.keys).filter((k) => k).length}/6</span>
+        </div>
+      `;
+      ul.appendChild(li);
+    }
+  }
+
+  container.appendChild(ul);
+}
