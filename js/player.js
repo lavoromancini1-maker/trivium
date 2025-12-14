@@ -19,6 +19,10 @@ let currentPlayerId = null;
 let unsubscribeGame = null;
 let latestGameState = null;
 let lastRapidFireIndex = null;
+let closestPanel = null;
+let closestInput = null;
+let closestSendBtn = null;
+let closestHint = null;
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -41,10 +45,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const answerPanel = document.getElementById("answer-panel");
   const answerButtons = document.getElementById("answer-buttons");
 
-const closestPanel = document.getElementById("closest-panel");
-const closestInput = document.getElementById("closest-input");
-const closestSendBtn = document.getElementById("closest-send-btn");
-const closestHint = document.getElementById("closest-hint");
+closestPanel = document.getElementById("closest-panel");
+closestInput = document.getElementById("closest-input");
+closestSendBtn = document.getElementById("closest-send-btn");
+closestHint = document.getElementById("closest-hint");
 
 closestSendBtn?.addEventListener("click", async () => {
   if (!currentGameCode || !currentPlayerId) return;
