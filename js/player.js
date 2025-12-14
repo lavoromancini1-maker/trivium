@@ -261,15 +261,14 @@ function handleGameUpdate(
     const myId = currentPlayerId;
     const isMyTurn = myId && activePlayerId === myId;
 
-    // --- RESET UI minigame "Closest" se non siamo in MINIGAME/CLOSEST ---
+// --- RESET UI minigame "Closest" se non siamo in MINIGAME/CLOSEST ---
 const mg = gameState.minigame;
 const isClosestActive = phase === "MINIGAME" && mg && mg.type === "CLOSEST";
-if (!isClosestActive) {
+if (!isClosestActive && closestPanel && closestHint && closestSendBtn) {
   closestPanel.classList.add("hidden");
   closestHint.textContent = "";
   closestSendBtn.disabled = false;
 }
-
 
     renderPlayerProgress(gameState, myId, playerProgressEl);
 
