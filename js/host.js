@@ -6,6 +6,7 @@ import {
   checkAndHandleQuestionTimeout,
   checkAndHandleRapidFireTimeout,
   checkAndHandleRevealAdvance,
+  checkAndHandleMinigameTimeout,
 } from "./firebase-game.js";
 
 
@@ -159,6 +160,10 @@ function setupTimeoutInterval() {
       const resRF = await checkAndHandleRapidFireTimeout(currentGameCode);
       if (resRF && resRF.handled) {
         console.log("⏰ Rapid Fire avanzato:", resRF.reason);
+      }
+      const resMg = await checkAndHandleMinigameTimeout(currentGameCode);
+      if (resMg && resMg.handled) {
+        console.log("⏰ Minigioco chiuso per timeout");
       }
     } catch (err) {
       console.error("Errore nel controllo timeout domanda:", err);
