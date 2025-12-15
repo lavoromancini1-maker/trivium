@@ -123,16 +123,8 @@ if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.r
     <div class="question-card">
       <div class="question-header">
         <div class="question-category">
-          ${
-  q.scrignoMode === "FINAL"
-    ? "SCRIGNO – DOMANDA FINALE"
-    : q.scrignoMode === "CHALLENGE"
-    ? `SCRIGNO – MINI SFIDA (${q.challengeIndex || 1}/3)`
-    : q.scrignoMode === "EXIT_POINTS"
-    ? "SCRIGNO – SOLO PUNTI (POI USCITA)"
-    : ${formatQuestionCategoryLabel(q)}
-}
-        </div>
+          ${formatQuestionCategoryLabel(q)}
+      </div>
         <div class="question-player">
           Esito: <strong>${r.correct ? "CORRETTA ✅" : "SBAGLIATA ❌"}</strong>
         </div>
@@ -221,15 +213,7 @@ if (gameState && gameState.phase && gameState.phase.startsWith("EVENT")) {
     <div class="question-card">
       <div class="question-header">
         <div class="question-category">
-          ${
-  q.scrignoMode === "FINAL"
-    ? "SCRIGNO – DOMANDA FINALE"
-    : q.scrignoMode === "CHALLENGE"
-    ? `SCRIGNO – MINI SFIDA (${q.challengeIndex || 1}/3)`
-    : q.scrignoMode === "EXIT_POINTS"
-    ? "SCRIGNO – SOLO PUNTI (POI USCITA)"
-    : ${formatQuestionCategoryLabel(q)}
-}
+          ${formatQuestionCategoryLabel(q)}
         </div>
         <div class="question-player">
           Sta rispondendo: <strong>${playerName}</strong>
