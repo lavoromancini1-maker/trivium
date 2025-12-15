@@ -1005,48 +1005,45 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
   const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
   const snap = await get(gameRef);
 
-  if (!snap.exists()) {
-    throw new Error("Partita non trovata");
-  }
+  if (!snap.exists()) throw new Error("Partita non trovata");
 
   const game = snap.val();
 
-  if (game.state !== "IN_PROGRESS") {
-    throw new Error("La partita non è in corso.");
-  }
-
-  if (game.currentPlayerId !== playerId) {
-    throw new Error("Non è il tuo turno.");
-  }
-
-  if (game.phase !== "QUESTION") {
-    throw new Error("Non è il momento di rispondere alla domanda.");
-  }
+  if (game.state !== "IN_PROGRESS") throw new Error("La partita non è in corso.");
+  if (game.currentPlayerId !== playerId) throw new Error("Non è il tuo turno.");
+  if (game.phase !== "QUESTION") throw new Error("Non è il momento di rispondere alla domanda.");
 
   const q = game.currentQuestion;
-  if (!q) {
-    throw new Error("Nessuna domanda attiva.");
-  }
-
-  if (q.forPlayerId !== playerId) {
-    throw new Error("Questa domanda non è destinata a te.");
-  }
+  if (!q) throw new Error("Nessuna domanda attiva.");
+  if (q.forPlayerId !== playerId) throw new Error("Questa domanda non è destinata a te.");
 
   const players = game.players || {};
   const player = players[playerId];
-  if (!player) {
-    throw new Error("Giocatore non trovato.");
-  }
+  if (!player) throw new Error("Giocatore non trovato.");
 
   const correct = answerIndex === q.correctIndex;
 
-  let pointsToAdd = 0;
+  // Prepariamo strutture giocatore (servono sia per scrigno sia per normali)
   const levels = player.levels || {};
   const keys = player.keys || {};
-  const currentLevel = levels[q.category] ?? 0;
-  const hasKey = !!keys[q.category];
 
-    // ───────────────────────────────
+  const playerPath = `players/${playerId}`;
+  const playerUpdate = {
+    ...player,
+    levels,
+    keys,
+    points: player.points ?? 0,
+  };
+
+  const updates = {
+    [`${playerPath}`]: playerUpdate,
+    currentQuestion: null,
+    phase: "REVEAL",
+    reveal: null,
+    playerAnswerIndex: null,
+  };
+
+  // ───────────────────────────────
   // SCRIGNO FLOW
   // ───────────────────────────────
   if (q.tileType === "scrigno" || q.scrignoMode) {
@@ -1054,13 +1051,12 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
     const attempts = scrigno.attempts || {};
     const a = attempts[playerId] || { failedFinalCount: 0 };
 
-    // punti: come domande normali (L2 per challenge/exit, finale non assegna punti qui)
-    if (correct && (q.scrignoMode === "EXIT_POINTS" || q.scrignoMode === "CHALLENGE")) {
-      const add = 20; // coerente col tuo mapping attuale L2
-      playerUpdate.points = (playerUpdate.points || 0) + add;
+    // REVEAL sempre (qui NON diamo punti per CHALLENGE e FINAL)
+    // EXIT_POINTS (scrigno senza 6 chiavi) invece dà +20 se corretta
+    if (q.scrignoMode === "EXIT_POINTS" && correct) {
+      playerUpdate.points = (playerUpdate.points || 0) + 20;
     }
 
-    // REVEAL sempre
     const reveal = {
       forPlayerId: playerId,
       correct,
@@ -1071,7 +1067,7 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
       hideAt: Date.now() + 2200,
     };
 
-    // 1) Scrigno senza 6 chiavi: dopo reveal → choose_direction (sempre, anche se sbaglia)
+    // 1) Scrigno senza 6 chiavi: dopo reveal → choose_direction (sempre)
     if (q.scrignoMode === "EXIT_POINTS") {
       reveal.turnContinues = true;
       reveal.after = { type: "SCRIGNO_EXIT" };
@@ -1079,8 +1075,7 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
       updates.reveal = reveal;
       updates.phase = "REVEAL";
       updates.currentQuestion = null;
-      updates[playerPath] = playerUpdate;
-      updates.playerAnswerIndex = null;
+
       await update(gameRef, updates);
       return { correct };
     }
@@ -1088,18 +1083,14 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
     // 2) Mini-sfida: se sbaglia → stop immediato + passa turno
     if (q.scrignoMode === "CHALLENGE") {
       if (!correct) {
-        // passa turno
         const { nextIndex, nextPlayerId } = getNextTurn(game);
         updates.currentTurnIndex = nextIndex;
         updates.currentPlayerId = nextPlayerId;
-        updates.phase = "REVEAL";
-        updates.currentQuestion = null;
 
         reveal.turnContinues = false;
         reveal.after = { type: "PASS_TURN" };
 
         updates.reveal = reveal;
-        updates[playerPath] = playerUpdate;
         updates.scrigno = { ...scrigno, attempts: { ...attempts, [playerId]: a } };
 
         await update(gameRef, updates);
@@ -1115,19 +1106,15 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
       }
 
       updates.reveal = reveal;
-      updates.phase = "REVEAL";
-      updates.currentQuestion = null;
-      updates[playerPath] = playerUpdate;
       updates.scrigno = { ...scrigno, attempts: { ...attempts, [playerId]: a } };
 
       await update(gameRef, updates);
       return { correct };
     }
 
-    // 3) Finale scrigno: se giusta → vince (ENDED). Se sbaglia → failedFinalCount++ e passa turno
+    // 3) Finale scrigno: se giusta → vince. Se sbaglia → failedFinalCount++ e passa turno
     if (q.scrignoMode === "FINAL") {
       if (correct) {
-        // chiudiamo partita
         await update(gameRef, {
           state: "ENDED",
           phase: "ENDED",
@@ -1154,9 +1141,6 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
       reveal.after = { type: "PASS_TURN" };
 
       updates.reveal = reveal;
-      updates.phase = "REVEAL";
-      updates.currentQuestion = null;
-      updates[playerPath] = playerUpdate;
       updates.scrigno = { ...scrigno, attempts };
 
       await update(gameRef, updates);
@@ -1164,51 +1148,36 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
     }
   }
 
+  // ───────────────────────────────
+  // DOMANDA NORMALE (category/key)
+  // ───────────────────────────────
+  let pointsToAdd = 0;
+  const currentLevel = levels[q.category] ?? 0;
+  const hasKey = !!keys[q.category];
+
   if (correct) {
     if (q.isKeyQuestion) {
-      // domanda chiave
-      if (!hasKey) {
-        keys[q.category] = true;
-      }
+      if (!hasKey) keys[q.category] = true;
       pointsToAdd += 40;
     } else if (typeof q.level === "number") {
       if (q.advancesLevel && currentLevel < 3) {
-        // avanzamento di livello
         const newLevel = Math.max(currentLevel, q.level);
         levels[q.category] = Math.min(3, newLevel);
       }
-      // punti in base al livello della domanda
       if (q.level === 1) pointsToAdd += 15;
       else if (q.level === 2) pointsToAdd += 20;
       else if (q.level === 3) pointsToAdd += 25;
     } else {
-      // "normalPoints" o altro tipo futuro → per ora +20
       pointsToAdd += 20;
     }
   }
 
-  // Prepariamo update per il giocatore
-  const playerPath = `players/${playerId}`;
-  const playerUpdate = {
-    ...player,
-    levels,
-    keys,
-    points: (player.points ?? 0) + pointsToAdd,
-  };
+  playerUpdate.points = (playerUpdate.points ?? 0) + pointsToAdd;
 
   const now = Date.now();
-const REVEAL_MS = 1400; // 1.4s di reveal su TV (no scroll, effetto rapido)
+  const REVEAL_MS = 1400;
 
-const updates = {
-  [`${playerPath}`]: playerUpdate,
-
-  // ✅ chiudiamo la domanda per il player
-  currentQuestion: null,
-
-  // ✅ fase reveal per l'host
-  phase: "REVEAL",
-  reveal: {
-    // dati minimi per mostrare overlay senza currentQuestion
+  updates.reveal = {
     question: {
       category: q.category,
       isKeyQuestion: !!q.isKeyQuestion,
@@ -1217,27 +1186,19 @@ const updates = {
       correctIndex: q.correctIndex,
     },
     forPlayerId: playerId,
-    answerIndex: answerIndex,
-    correct: correct,
+    answerIndex,
+    correct,
     shownAt: now,
     hideAt: now + REVEAL_MS,
-  },
-};
+  };
 
-
-// Decidiamo se il turno continua (risposta giusta) o passa al prossimo
-// ⚠️ NON tocchiamo la phase: deve restare "REVEAL" per 1.4s
-if (!correct) {
-  // Turno passa al prossimo giocatore
-  const { nextIndex, nextPlayerId } = getNextTurn(game);
-  updates.currentTurnIndex = nextIndex;
-  updates.currentPlayerId = nextPlayerId;
-}
-// se correct = true → restano currentPlayerId/currentTurnIndex invariati
-
+  if (!correct) {
+    const { nextIndex, nextPlayerId } = getNextTurn(game);
+    updates.currentTurnIndex = nextIndex;
+    updates.currentPlayerId = nextPlayerId;
+  }
 
   await update(gameRef, updates);
-
   return { correct, pointsToAdd };
 }
 
@@ -1947,174 +1908,169 @@ export async function checkAndHandleRevealAdvance(gameCode) {
   const now = Date.now();
   if (now < reveal.hideAt) return { handled: false, reason: "NOT_EXPIRED" };
 
-   const r = game.reveal;
-  if (r && r.hideAt && Date.now() >= r.hideAt) {
-    const after = r.after || null;
+  const r = game.reveal;
+  const after = r?.after || null;
 
-    // pulizia base
-    const base = { reveal: null, playerAnswerIndex: null };
+  // pulizia base
+  const base = { reveal: null, playerAnswerIndex: null };
 
-    // SCRIGNO: uscita dopo domanda “solo punti”
-    if (after?.type === "SCRIGNO_EXIT") {
-      const scrignoTileId = game.currentTile?.tileId;
-      const tile = BOARD[scrignoTileId];
-      const dirs = (tile?.neighbors || []).map((tid, idx) => ({
+  // ───────────────────────────────
+  // SCRIGNO ADVANCE
+  // ───────────────────────────────
+  if (after?.type === "SCRIGNO_EXIT") {
+    const scrignoTileId = game.currentTile?.tileId;
+    const tile = BOARD[scrignoTileId];
+    const neighbors = tile?.neighbors || [];
+
+    const availableDirections = neighbors.map((neighborId, idx) => {
+      const t = BOARD[neighborId];
+      return {
         index: idx,
-        label: `Esci verso ${BOARD[tid]?.category || ("tile " + tid)}`,
-        targetTileId: tid,
-      }));
+        toTileId: neighborId,
+        type: t.type,
+        category: t.category || null,
+        zone: t.zone,
+        label: `Uscita ${idx + 1}`,
+      };
+    });
 
-      await update(gameRef, {
-        ...base,
-        phase: "CHOOSE_DIRECTION",
-        currentDice: 1,
-        currentMove: {
-          fromTileId: scrignoTileId,
-          steps: 1,
-          availableDirections: dirs,
-        },
-      });
-      return { handled: true, reason: "SCRIGNO_EXIT" };
-    }
+    await update(gameRef, {
+      ...base,
+      phase: "CHOOSE_DIRECTION",
+      currentDice: 1,
+      currentMove: { fromTileId: scrignoTileId, dice: 1 },
+      availableDirections,
+    });
 
-    // SCRIGNO: prossima domanda mini-sfida
-    if (after?.type === "SCRIGNO_NEXT_CHALLENGE") {
-      const q2 = makeScrignoChallengeQuestion(game, r.forPlayerId, after.next);
-      if (!q2) {
-        await update(gameRef, { ...base, phase: "WAIT_ROLL" });
-        return { handled: true, reason: "SCRIGNO_CHALLENGE_FALLBACK" };
-      }
+    return { handled: true, reason: "SCRIGNO_EXIT" };
+  }
 
-      await update(gameRef, {
-        ...base,
-        phase: "QUESTION",
-        currentQuestion: q2,
-        [`usedCategoryQuestionIds/${q2.id}`]: true,
-      });
-      return { handled: true, reason: "SCRIGNO_NEXT_CHALLENGE" };
-    }
-
-    // SCRIGNO: dopo 3/3 challenge → finale
-    if (after?.type === "SCRIGNO_START_FINAL") {
-      const qF = makeScrignoFinalQuestion(game, r.forPlayerId, game.scrigno?.finalCategory || null);
-      if (!qF) {
-        await update(gameRef, { ...base, phase: "WAIT_ROLL" });
-        return { handled: true, reason: "SCRIGNO_FINAL_FALLBACK" };
-      }
-
-      await update(gameRef, {
-        ...base,
-        phase: "QUESTION",
-        currentQuestion: qF,
-        [`usedCategoryQuestionIds/${qF.id}`]: true,
-      });
-      return { handled: true, reason: "SCRIGNO_FINAL" };
-    }
-
-    // default: comportamento vecchio
-    await update(gameRef, { ...base, phase: "WAIT_ROLL" });
-    return { handled: true, reason: "REVEAL_ADVANCE_DEFAULT" };
-  } 
-
-// ── Se arriva da EVENTI, gestiamo post-reveal (duello round successivo / fine evento)
-const ev = game.currentEvent;
-const after = ev?._afterReveal;
-
-if (after?.kind === "DUEL_NEXT") {
-  // Round successivo o fine duello
-  const roundIndex = ev.roundIndex ?? 0;
-  const totalRounds = ev.totalRounds ?? 3;
-
-  // se ci sono altri round
-  if (roundIndex < totalRounds - 1) {
-    const q = makeRandomEventQuestion(game, 2);
-    if (!q) {
-      // niente domande: chiudiamo duello senza assegnare altro e passiamo turno
-      const { nextIndex, nextPlayerId } = getNextTurn(game);
-      await update(gameRef, {
-        phase: "WAIT_ROLL",
-        reveal: null,
-        currentEvent: null,
-        currentQuestion: null,
-        currentTurnIndex: nextIndex,
-        currentPlayerId: nextPlayerId,
-      });
-      return { handled: true, reason: "DUEL_ABORT_NO_Q" };
+  if (after?.type === "SCRIGNO_NEXT_CHALLENGE") {
+    const q2 = makeScrignoChallengeQuestion(game, r.forPlayerId, after.next);
+    if (!q2) {
+      await update(gameRef, { ...base, phase: "WAIT_ROLL" });
+      return { handled: true, reason: "SCRIGNO_CHALLENGE_FALLBACK" };
     }
 
     await update(gameRef, {
-      phase: "EVENT_DUEL_QUESTION",
-      reveal: null,
-      currentQuestion: q,
-      [`usedCategoryQuestionIds/${q.id}`]: true,
-      currentEvent: {
-        ...ev,
-        roundIndex: roundIndex + 1,
-        answeredBy: {},
-        _afterReveal: null,
-      },
+      ...base,
+      phase: "QUESTION",
+      currentQuestion: q2,
+      [`usedCategoryQuestionIds/${q2.id}`]: true,
     });
 
-    return { handled: true, reason: "DUEL_NEXT_ROUND" };
+    return { handled: true, reason: "SCRIGNO_NEXT_CHALLENGE" };
   }
 
-  // fine duello: assegna punti (+50 winner / +10 tie / 0 loser)
-  const owner = ev.ownerPlayerId;
-  const opp = ev.opponentPlayerId;
-  const score = ev.score || {};
-  const sOwner = score[owner] || 0;
-  const sOpp = score[opp] || 0;
-
-  const updates = {
-    reveal: null,
-    currentQuestion: null,
-    currentEvent: null,
-    phase: "WAIT_ROLL",
-  };
-
-  const players = game.players || {};
-  const pOwner = players[owner];
-  const pOpp = players[opp];
-
-  if (owner && opp && pOwner && pOpp) {
-    if (sOwner > sOpp) {
-      updates[`players/${owner}/points`] = (pOwner.points || 0) + 50;
-    } else if (sOpp > sOwner) {
-      updates[`players/${opp}/points`] = (pOpp.points || 0) + 50;
-    } else {
-      updates[`players/${owner}/points`] = (pOwner.points || 0) + 10;
-      updates[`players/${opp}/points`] = (pOpp.points || 0) + 10;
+  if (after?.type === "SCRIGNO_START_FINAL") {
+    const qF = makeScrignoFinalQuestion(game, r.forPlayerId, game.scrigno?.finalCategory || null);
+    if (!qF) {
+      await update(gameRef, { ...base, phase: "WAIT_ROLL" });
+      return { handled: true, reason: "SCRIGNO_FINAL_FALLBACK" };
     }
+
+    await update(gameRef, {
+      ...base,
+      phase: "QUESTION",
+      currentQuestion: qF,
+      [`usedCategoryQuestionIds/${qF.id}`]: true,
+    });
+
+    return { handled: true, reason: "SCRIGNO_FINAL" };
   }
 
-  // dopo un evento “a 2”, per semplicità e fluidità: passa turno
-  const { nextIndex, nextPlayerId } = getNextTurn(game);
-  updates.currentTurnIndex = nextIndex;
-  updates.currentPlayerId = nextPlayerId;
+  // ───────────────────────────────
+  // EVENTI: post-reveal (tua logica invariata)
+  // ───────────────────────────────
+  const ev = game.currentEvent;
+  const afterEv = ev?._afterReveal;
 
-  await update(gameRef, updates);
-  return { handled: true, reason: "DUEL_FINISHED" };
-}
+  if (afterEv?.kind === "DUEL_NEXT") {
+    const roundIndex = ev.roundIndex ?? 0;
+    const totalRounds = ev.totalRounds ?? 3;
 
-if (after?.kind === "END_SINGLE") {
-  // BOOM/RISK: evento finito (turno già preparato in answerEventQuestion se sbagliata)
+    if (roundIndex < totalRounds - 1) {
+      const q = makeRandomEventQuestion(game, 2);
+      if (!q) {
+        const { nextIndex, nextPlayerId } = getNextTurn(game);
+        await update(gameRef, {
+          phase: "WAIT_ROLL",
+          reveal: null,
+          currentEvent: null,
+          currentQuestion: null,
+          currentTurnIndex: nextIndex,
+          currentPlayerId: nextPlayerId,
+        });
+        return { handled: true, reason: "DUEL_ABORT_NO_Q" };
+      }
+
+      await update(gameRef, {
+        phase: "EVENT_DUEL_QUESTION",
+        reveal: null,
+        currentQuestion: q,
+        [`usedCategoryQuestionIds/${q.id}`]: true,
+        currentEvent: {
+          ...ev,
+          roundIndex: roundIndex + 1,
+          answeredBy: {},
+          _afterReveal: null,
+        },
+      });
+
+      return { handled: true, reason: "DUEL_NEXT_ROUND" };
+    }
+
+    const owner = ev.ownerPlayerId;
+    const opp = ev.opponentPlayerId;
+    const score = ev.score || {};
+    const sOwner = score[owner] || 0;
+    const sOpp = score[opp] || 0;
+
+    const updates = {
+      reveal: null,
+      currentQuestion: null,
+      currentEvent: null,
+      phase: "WAIT_ROLL",
+    };
+
+    const players = game.players || {};
+    const pOwner = players[owner];
+    const pOpp = players[opp];
+
+    if (owner && opp && pOwner && pOpp) {
+      if (sOwner > sOpp) {
+        updates[`players/${owner}/points`] = (pOwner.points || 0) + 50;
+      } else if (sOpp > sOwner) {
+        updates[`players/${opp}/points`] = (pOpp.points || 0) + 50;
+      } else {
+        updates[`players/${owner}/points`] = (pOwner.points || 0) + 10;
+        updates[`players/${opp}/points`] = (pOpp.points || 0) + 10;
+      }
+    }
+
+    const { nextIndex, nextPlayerId } = getNextTurn(game);
+    updates.currentTurnIndex = nextIndex;
+    updates.currentPlayerId = nextPlayerId;
+
+    await update(gameRef, updates);
+    return { handled: true, reason: "DUEL_FINISHED" };
+  }
+
+  if (afterEv?.kind === "END_SINGLE") {
+    await update(gameRef, {
+      phase: "WAIT_ROLL",
+      reveal: null,
+      currentQuestion: null,
+      currentEvent: null,
+    });
+    return { handled: true, reason: "EVENT_FINISHED" };
+  }
+
+  // default (domande normali)
   await update(gameRef, {
     phase: "WAIT_ROLL",
     reveal: null,
-    currentQuestion: null,
-    currentEvent: null,
   });
-  return { handled: true, reason: "EVENT_FINISHED" };
-}
-
-// default (domande normali)
-await update(gameRef, {
-  phase: "WAIT_ROLL",
-  reveal: null,
-});
-
-return { handled: true, reason: "REVEAL_FINISHED" };
-
 
   return { handled: true, reason: "REVEAL_FINISHED" };
 }
