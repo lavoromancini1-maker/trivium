@@ -2,6 +2,7 @@ import { BOARD, START_TILE_ID } from "./board.js";
 import {
   getRandomCategoryQuestion,
   getRandomKeyQuestion,
+  getRandomFinalQuestion,
   getRandomRapidFireQuestions,
   getRandomClosestQuestion,
   getRandomVFFlashQuestion,
@@ -24,8 +25,8 @@ import {
 
 const GAMES_PATH = "games";
 
-function getCategoryQuestionDurationSeconds(questionLevel, isKeyQuestion, advancesLevel) {
-  // Domanda chiave
+function getCategoryQuestionDurationSeconds(questionLevel, isKeyQuestion, advancesLevel, isFinal) {
+  if (isFinal) return 40;
   if (isKeyQuestion) {
     return 30;
   }
@@ -175,6 +176,95 @@ const CATEGORIES = [
   "spettacolo",
   "scienza",
 ];
+
+function countKeys(keysObj) {
+  if (!keysObj) return 0;
+  return Object.values(keysObj).filter(Boolean).length;
+}
+
+function hasAllSixKeys(player) {
+  return countKeys(player?.keys) >= 6;
+}
+
+function pickRandomCategory() {
+  return CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
+}
+
+function makeScrignoPointsOnlyQuestion(game, forPlayerId) {
+  const used = game.usedCategoryQuestionIds ? Object.keys(game.usedCategoryQuestionIds) : [];
+  const category = pickRandomCategory();
+  const raw = getRandomCategoryQuestion(category, 2, used);
+  if (!raw) return null;
+
+  const shuffled = shuffleAnswers(raw);
+  const now = Date.now();
+
+  return {
+    ...shuffled,
+    forPlayerId,
+    tileType: "scrigno",
+    category,
+    level: 2,
+    advancesLevel: false,
+    isKeyQuestion: false,
+    isFinal: false,
+    scrignoMode: "EXIT_POINTS",
+    startedAt: now,
+    durationSec: getCategoryQuestionDurationSeconds(2, false, false, false),
+    expiresAt: now + getCategoryQuestionDurationSeconds(2, false, false, false) * 1000,
+  };
+}
+
+function makeScrignoChallengeQuestion(game, forPlayerId, challengeIndex) {
+  const used = game.usedCategoryQuestionIds ? Object.keys(game.usedCategoryQuestionIds) : [];
+  const category = pickRandomCategory();
+  const raw = getRandomCategoryQuestion(category, 2, used);
+  if (!raw) return null;
+
+  const shuffled = shuffleAnswers(raw);
+  const now = Date.now();
+
+  return {
+    ...shuffled,
+    forPlayerId,
+    tileType: "scrigno",
+    category,
+    level: 2,
+    advancesLevel: false,
+    isKeyQuestion: false,
+    isFinal: false,
+    scrignoMode: "CHALLENGE",
+    challengeIndex, // 1..3
+    startedAt: now,
+    durationSec: getCategoryQuestionDurationSeconds(2, false, false, false),
+    expiresAt: now + getCategoryQuestionDurationSeconds(2, false, false, false) * 1000,
+  };
+}
+
+function makeScrignoFinalQuestion(game, forPlayerId, forcedCategory = null) {
+  const used = game.usedCategoryQuestionIds ? Object.keys(game.usedCategoryQuestionIds) : [];
+  const category = forcedCategory || pickRandomCategory();
+  const raw = getRandomFinalQuestion(category, used);
+  if (!raw) return null;
+
+  const shuffled = shuffleAnswers(raw);
+  const now = Date.now();
+
+  return {
+    ...shuffled,
+    forPlayerId,
+    tileType: "scrigno",
+    category,
+    level: "final",
+    advancesLevel: false,
+    isKeyQuestion: false,
+    isFinal: true,
+    scrignoMode: "FINAL",
+    startedAt: now,
+    durationSec: getCategoryQuestionDurationSeconds(null, false, false, true),
+    expiresAt: now + getCategoryQuestionDurationSeconds(null, false, false, true) * 1000,
+  };
+}
 
 /**
  * Avvia la partita: genera ordine casuale dei giocatori, inizializza
@@ -420,22 +510,84 @@ if (finalTile.type === "minigame") {
   }
 
   if (finalTile.type === "scrigno") {
-    // per ora resta placeholder come prima (ma almeno separato dall'evento)
-    const globalUpdate = {
-      ...baseUpdate,
-      phase: "RESOLVE_TILE",
+    const players = game.players || {};
+    const p = players[playerId];
+    if (!p) return;
+
+    // Aggiorna currentTile base
+    const baseUpdate = {
+      currentDice: null,
+      currentMove: null,
       currentTile: {
         tileId: finalTileId,
         type: finalTile.type,
-        category: finalTile.category || null,
+        category: null,
         zone: finalTile.zone,
       },
-
+      reveal: null,
     };
 
-    await update(gameRef, globalUpdate);
-    return { finalTileId, finalTile };
+    // Se NON ha 6 chiavi: domanda solo punti, poi choose_direction per uscire
+    if (!hasAllSixKeys(p)) {
+      const q = makeScrignoPointsOnlyQuestion(game, playerId);
+      if (!q) {
+        await update(gameRef, { ...baseUpdate, phase: "WAIT_ROLL" });
+        return;
+      }
+
+      await update(gameRef, {
+        ...baseUpdate,
+        phase: "QUESTION",
+        currentQuestion: q,
+        [`usedCategoryQuestionIds/${q.id}`]: true,
+      });
+      return;
+    }
+
+    // Ha 6 chiavi: gestiamo tentativi/fail e mini-sfida
+    const scrigno = game.scrigno || { attempts: {} };
+    const attempts = scrigno.attempts || {};
+    const a = attempts[playerId] || { failedFinalCount: 0 };
+
+    // Se ha già fallito almeno una finale → mini-sfida 3 domande L2 no-error
+    if (a.failedFinalCount >= 1) {
+      const q = makeScrignoChallengeQuestion(game, playerId, 1);
+      if (!q) {
+        await update(gameRef, { ...baseUpdate, phase: "WAIT_ROLL", scrigno: { attempts } });
+        return;
+      }
+
+      attempts[playerId] = a;
+
+      await update(gameRef, {
+        ...baseUpdate,
+        phase: "QUESTION",
+        currentQuestion: q,
+        scrigno: { attempts },
+        [`usedCategoryQuestionIds/${q.id}`]: true,
+      });
+      return;
+    }
+
+    // Primo accesso (mai fallita finale) → domanda finale direttamente
+    const qFinal = makeScrignoFinalQuestion(game, playerId, scrigno?.finalCategory || null);
+    if (!qFinal) {
+      await update(gameRef, { ...baseUpdate, phase: "WAIT_ROLL" });
+      return;
+    }
+
+    attempts[playerId] = a;
+
+    await update(gameRef, {
+      ...baseUpdate,
+      phase: "QUESTION",
+      currentQuestion: qFinal,
+      scrigno: { ...scrigno, attempts },
+      [`usedCategoryQuestionIds/${qFinal.id}`]: true,
+    });
+    return;
   }
+
 
   // Fallback di sicurezza
   const globalUpdate = {
@@ -893,6 +1045,124 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
   const keys = player.keys || {};
   const currentLevel = levels[q.category] ?? 0;
   const hasKey = !!keys[q.category];
+
+    // ───────────────────────────────
+  // SCRIGNO FLOW
+  // ───────────────────────────────
+  if (q.tileType === "scrigno" || q.scrignoMode) {
+    const scrigno = game.scrigno || { attempts: {} };
+    const attempts = scrigno.attempts || {};
+    const a = attempts[playerId] || { failedFinalCount: 0 };
+
+    // punti: come domande normali (L2 per challenge/exit, finale non assegna punti qui)
+    if (correct && (q.scrignoMode === "EXIT_POINTS" || q.scrignoMode === "CHALLENGE")) {
+      const add = 20; // coerente col tuo mapping attuale L2
+      playerUpdate.points = (playerUpdate.points || 0) + add;
+    }
+
+    // REVEAL sempre
+    const reveal = {
+      forPlayerId: playerId,
+      correct,
+      answerIndex,
+      correctIndex: q.correctIndex,
+      question: q,
+      createdAt: Date.now(),
+      hideAt: Date.now() + 2200,
+    };
+
+    // 1) Scrigno senza 6 chiavi: dopo reveal → choose_direction (sempre, anche se sbaglia)
+    if (q.scrignoMode === "EXIT_POINTS") {
+      reveal.turnContinues = true;
+      reveal.after = { type: "SCRIGNO_EXIT" };
+
+      updates.reveal = reveal;
+      updates.phase = "REVEAL";
+      updates.currentQuestion = null;
+      updates[playerPath] = playerUpdate;
+      updates.playerAnswerIndex = null;
+      await update(gameRef, updates);
+      return { correct };
+    }
+
+    // 2) Mini-sfida: se sbaglia → stop immediato + passa turno
+    if (q.scrignoMode === "CHALLENGE") {
+      if (!correct) {
+        // passa turno
+        const { nextIndex, nextPlayerId } = getNextTurn(game);
+        updates.currentTurnIndex = nextIndex;
+        updates.currentPlayerId = nextPlayerId;
+        updates.phase = "REVEAL";
+        updates.currentQuestion = null;
+
+        reveal.turnContinues = false;
+        reveal.after = { type: "PASS_TURN" };
+
+        updates.reveal = reveal;
+        updates[playerPath] = playerUpdate;
+        updates.scrigno = { ...scrigno, attempts: { ...attempts, [playerId]: a } };
+
+        await update(gameRef, updates);
+        return { correct };
+      }
+
+      // corretto: se non è la 3° → prossima challenge; se è 3° → finale
+      reveal.turnContinues = true;
+      if ((q.challengeIndex || 1) < 3) {
+        reveal.after = { type: "SCRIGNO_NEXT_CHALLENGE", next: (q.challengeIndex || 1) + 1 };
+      } else {
+        reveal.after = { type: "SCRIGNO_START_FINAL" };
+      }
+
+      updates.reveal = reveal;
+      updates.phase = "REVEAL";
+      updates.currentQuestion = null;
+      updates[playerPath] = playerUpdate;
+      updates.scrigno = { ...scrigno, attempts: { ...attempts, [playerId]: a } };
+
+      await update(gameRef, updates);
+      return { correct };
+    }
+
+    // 3) Finale scrigno: se giusta → vince (ENDED). Se sbaglia → failedFinalCount++ e passa turno
+    if (q.scrignoMode === "FINAL") {
+      if (correct) {
+        // chiudiamo partita
+        await update(gameRef, {
+          state: "ENDED",
+          phase: "ENDED",
+          winnerPlayerId: playerId,
+          currentQuestion: null,
+          reveal: {
+            ...reveal,
+            turnContinues: false,
+            after: { type: "GAME_END" },
+          },
+        });
+        return { correct };
+      }
+
+      // sbagliata: aumenta fail count e passa turno
+      a.failedFinalCount = (a.failedFinalCount || 0) + 1;
+      attempts[playerId] = a;
+
+      const { nextIndex, nextPlayerId } = getNextTurn(game);
+      updates.currentTurnIndex = nextIndex;
+      updates.currentPlayerId = nextPlayerId;
+
+      reveal.turnContinues = false;
+      reveal.after = { type: "PASS_TURN" };
+
+      updates.reveal = reveal;
+      updates.phase = "REVEAL";
+      updates.currentQuestion = null;
+      updates[playerPath] = playerUpdate;
+      updates.scrigno = { ...scrigno, attempts };
+
+      await update(gameRef, updates);
+      return { correct };
+    }
+  }
 
   if (correct) {
     if (q.isKeyQuestion) {
@@ -1630,6 +1900,75 @@ export async function checkAndHandleRevealAdvance(gameCode) {
 
   const now = Date.now();
   if (now < reveal.hideAt) return { handled: false, reason: "NOT_EXPIRED" };
+
+   const r = game.reveal;
+  if (r && r.hideAt && Date.now() >= r.hideAt) {
+    const after = r.after || null;
+
+    // pulizia base
+    const base = { reveal: null, playerAnswerIndex: null };
+
+    // SCRIGNO: uscita dopo domanda “solo punti”
+    if (after?.type === "SCRIGNO_EXIT") {
+      const scrignoTileId = game.currentTile?.tileId;
+      const tile = BOARD[scrignoTileId];
+      const dirs = (tile?.neighbors || []).map((tid, idx) => ({
+        index: idx,
+        label: `Esci verso ${BOARD[tid]?.category || ("tile " + tid)}`,
+        targetTileId: tid,
+      }));
+
+      await update(gameRef, {
+        ...base,
+        phase: "CHOOSE_DIRECTION",
+        currentDice: 1,
+        currentMove: {
+          fromTileId: scrignoTileId,
+          steps: 1,
+          availableDirections: dirs,
+        },
+      });
+      return { handled: true, reason: "SCRIGNO_EXIT" };
+    }
+
+    // SCRIGNO: prossima domanda mini-sfida
+    if (after?.type === "SCRIGNO_NEXT_CHALLENGE") {
+      const q2 = makeScrignoChallengeQuestion(game, r.forPlayerId, after.next);
+      if (!q2) {
+        await update(gameRef, { ...base, phase: "WAIT_ROLL" });
+        return { handled: true, reason: "SCRIGNO_CHALLENGE_FALLBACK" };
+      }
+
+      await update(gameRef, {
+        ...base,
+        phase: "QUESTION",
+        currentQuestion: q2,
+        [`usedCategoryQuestionIds/${q2.id}`]: true,
+      });
+      return { handled: true, reason: "SCRIGNO_NEXT_CHALLENGE" };
+    }
+
+    // SCRIGNO: dopo 3/3 challenge → finale
+    if (after?.type === "SCRIGNO_START_FINAL") {
+      const qF = makeScrignoFinalQuestion(game, r.forPlayerId, game.scrigno?.finalCategory || null);
+      if (!qF) {
+        await update(gameRef, { ...base, phase: "WAIT_ROLL" });
+        return { handled: true, reason: "SCRIGNO_FINAL_FALLBACK" };
+      }
+
+      await update(gameRef, {
+        ...base,
+        phase: "QUESTION",
+        currentQuestion: qF,
+        [`usedCategoryQuestionIds/${qF.id}`]: true,
+      });
+      return { handled: true, reason: "SCRIGNO_FINAL" };
+    }
+
+    // default: comportamento vecchio
+    await update(gameRef, { ...base, phase: "WAIT_ROLL" });
+    return { handled: true, reason: "REVEAL_ADVANCE_DEFAULT" };
+  } 
 
 // ── Se arriva da EVENTI, gestiamo post-reveal (duello round successivo / fine evento)
 const ev = game.currentEvent;
