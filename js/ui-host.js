@@ -3,6 +3,17 @@ import { BOARD } from "./board.js";
 
 let overlayTimerInterval = null;
 
+function formatQuestionCategoryLabel(q) {
+  if (!q) return "";
+
+  if (q.scrignoMode === "FINAL") return "SCRIGNO – DOMANDA FINALE";
+  if (q.scrignoMode === "CHALLENGE") return `SCRIGNO – MINI SFIDA (${q.challengeIndex || 1}/3)`;
+  if (q.scrignoMode === "EXIT_POINTS") return "SCRIGNO – SOLO PUNTI (POI USCITA)";
+
+  const cat = (q.category || "").toUpperCase();
+  return `${cat} ${q.isKeyQuestion ? "– DOMANDA CHIAVE" : ""}`.trim();
+}
+
 /**
  * Inizializza il tabellone nell'elemento container.
  * Per ora lo disegniamo come una semplice griglia rettangolare,
@@ -119,7 +130,7 @@ if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.r
     ? `SCRIGNO – MINI SFIDA (${q.challengeIndex || 1}/3)`
     : q.scrignoMode === "EXIT_POINTS"
     ? "SCRIGNO – SOLO PUNTI (POI USCITA)"
-    : `${q.category.toUpperCase()} ${q.isKeyQuestion ? "– DOMANDA CHIAVE" : ""}`
+    : ${formatQuestionCategoryLabel(q)}
 }
         </div>
         <div class="question-player">
@@ -217,7 +228,7 @@ if (gameState && gameState.phase && gameState.phase.startsWith("EVENT")) {
     ? `SCRIGNO – MINI SFIDA (${q.challengeIndex || 1}/3)`
     : q.scrignoMode === "EXIT_POINTS"
     ? "SCRIGNO – SOLO PUNTI (POI USCITA)"
-    : `${q.category.toUpperCase()} ${q.isKeyQuestion ? "– DOMANDA CHIAVE" : ""}`
+    : ${formatQuestionCategoryLabel(q)}
 }
         </div>
         <div class="question-player">
