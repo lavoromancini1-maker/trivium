@@ -126,7 +126,7 @@ if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.r
       </ul>
 
       <div class="question-footer">
-        <span>${r.correct ? "Turno continua." : "Turno passa."}</span>
+        <span>${r.turnContinues ? "Turno continua." : "Turno passa."}</span>
       </div>
     </div>
   `;
