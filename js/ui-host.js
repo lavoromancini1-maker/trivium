@@ -145,7 +145,7 @@ export function renderBoard(container) {
     gTiles.appendChild(tLabel);
   }
 
-  // Helper: linea
+  // Helpr: linea
   function drawLine(x1, y1, x2, y2) {
     const ln = document.createElementNS(NS, "line");
     ln.setAttribute("x1", String(x1));
