@@ -1814,74 +1814,120 @@ export async function checkAndHandleQuestionTimeout(gameCode) {
   const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
   const snap = await get(gameRef);
 
-  if (!snap.exists()) {
-    return { handled: false, reason: "NO_GAME" };
-  }
+  if (!snap.exists()) return { handled: false, reason: "NO_GAME" };
 
   const game = snap.val();
-
-  if (game.state !== "IN_PROGRESS") {
-    return { handled: false, reason: "NOT_IN_PROGRESS" };
-  }
-
-  if (game.phase !== "QUESTION") {
-    return { handled: false, reason: "NOT_IN_QUESTION_PHASE" };
-  }
+  if (game.state !== "IN_PROGRESS") return { handled: false, reason: "NOT_IN_PROGRESS" };
+  if (game.phase !== "QUESTION") return { handled: false, reason: "NOT_IN_QUESTION_PHASE" };
 
   const q = game.currentQuestion;
-  if (!q) {
-    return { handled: false, reason: "NO_QUESTION" };
-  }
+  if (!q) return { handled: false, reason: "NO_QUESTION" };
 
   const now = Date.now();
   let expiresAt = q.expiresAt;
+  if (!expiresAt && q.startedAt && q.durationSec) expiresAt = q.startedAt + q.durationSec * 1000;
+  if (!expiresAt) return { handled: false, reason: "NO_EXPIRES_AT" };
+  if (now < expiresAt) return { handled: false, reason: "NOT_EXPIRED" };
 
-  if (!expiresAt && q.startedAt && q.durationSec) {
-    expiresAt = q.startedAt + q.durationSec * 1000;
-  }
-
-  if (!expiresAt) {
-    // Nessun timer definito
-    return { handled: false, reason: "NO_EXPIRES_AT" };
-  }
-
-  if (now < expiresAt) {
-    // Non ancora scaduto
-    return { handled: false, reason: "NOT_EXPIRED" };
-  }
-
-  // A questo punto il timer è scaduto → trattiamo come risposta sbagliata
-  const players = game.players || {};
+  // timeout = risposta sbagliata senza answerIndex
   const playerId = q.forPlayerId;
+  const players = game.players || {};
   const player = players[playerId];
+  if (!player) return { handled: false, reason: "PLAYER_NOT_FOUND" };
 
-  if (!player) {
-    return { handled: false, reason: "PLAYER_NOT_FOUND" };
+  const correct = false;
+  const answerIndex = null;
+
+  const reveal = {
+    forPlayerId: playerId,
+    correct,
+    answerIndex, // null = nessuna risposta
+    correctIndex: q.correctIndex,
+    question: q,
+    createdAt: Date.now(),
+    hideAt: Date.now() + 2200,
+  };
+
+  // ───────────────────────────────
+  // SCRIGNO TIMEOUT (stesso schema di answerCategoryQuestion)
+  // ───────────────────────────────
+  if (q.tileType === "scrigno" || q.scrignoMode) {
+    const scrigno = game.scrigno || { attempts: {} };
+    const attempts = scrigno.attempts || {};
+    const a = attempts[playerId] || { failedFinalCount: 0 };
+
+    // 1) EXIT_POINTS: turno continua e poi CHOOSE_DIRECTION
+    if (q.scrignoMode === "EXIT_POINTS") {
+      reveal.turnContinues = true;
+      reveal.after = { type: "SCRIGNO_EXIT" };
+
+      await update(gameRef, {
+        currentQuestion: null,
+        phase: "REVEAL",
+        reveal,
+        playerAnswerIndex: null,
+      });
+      return { handled: true, reason: "SCRIGNO_TIMEOUT_EXIT_POINTS" };
+    }
+
+    // 2) CHALLENGE: appena sbaglia (timeout) -> stop e passa turno
+    if (q.scrignoMode === "CHALLENGE") {
+      const { nextIndex, nextPlayerId } = getNextTurn(game);
+
+      reveal.turnContinues = false;
+      reveal.after = { type: "PASS_TURN" };
+
+      await update(gameRef, {
+        currentQuestion: null,
+        phase: "REVEAL",
+        reveal,
+        scrigno: { ...scrigno, attempts: { ...attempts, [playerId]: a } },
+        currentTurnIndex: nextIndex,
+        currentPlayerId: nextPlayerId,
+        playerAnswerIndex: null,
+      });
+      return { handled: true, reason: "SCRIGNO_TIMEOUT_CHALLENGE" };
+    }
+
+    // 3) FINAL: timeout = errore finale -> failedFinalCount++ e passa turno
+    if (q.scrignoMode === "FINAL") {
+      a.failedFinalCount = (a.failedFinalCount || 0) + 1;
+      attempts[playerId] = a;
+
+      const { nextIndex, nextPlayerId } = getNextTurn(game);
+
+      reveal.turnContinues = false;
+      reveal.after = { type: "PASS_TURN" };
+
+      await update(gameRef, {
+        currentQuestion: null,
+        phase: "REVEAL",
+        reveal,
+        scrigno: { ...scrigno, attempts },
+        currentTurnIndex: nextIndex,
+        currentPlayerId: nextPlayerId,
+        playerAnswerIndex: null,
+      });
+      return { handled: true, reason: "SCRIGNO_TIMEOUT_FINAL" };
+    }
   }
 
-  const levels = player.levels || {};
-  const keys = player.keys || {};
-
-  const playerPath = `players/${playerId}`;
-  const playerUpdate = {
-    ...player,
-    levels,
-    keys,
-    points: player.points ?? 0, // niente punti aggiuntivi
-  };
-
-  const updates = {
-    [playerPath]: playerUpdate,
-    currentQuestion: null,
-  };
-
-  // Passiamo al prossimo giocatore
+  // ───────────────────────────────
+  // DOMANDA NORMALE TIMEOUT: REVEAL + passa turno
+  // ───────────────────────────────
   const { nextIndex, nextPlayerId } = getNextTurn(game);
-  updates.currentTurnIndex = nextIndex;
-  updates.currentPlayerId = nextPlayerId;
-  updates.phase = "WAIT_ROLL";
 
-  await update(gameRef, updates);
+  reveal.turnContinues = false;
+  reveal.after = { type: "PASS_TURN" };
+
+  await update(gameRef, {
+    currentQuestion: null,
+    phase: "REVEAL",
+    reveal,
+    currentTurnIndex: nextIndex,
+    currentPlayerId: nextPlayerId,
+    playerAnswerIndex: null,
+  });
 
   return { handled: true, reason: "EXPIRED_TIMEOUT" };
 }
