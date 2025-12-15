@@ -433,3 +433,76 @@ body {
 .vf-btns { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
 
 .intruder-btns { display:flex; gap:10px; justify-content:center; margin-top:10px; }
+
+/* ================================
+   HOST TV-FRIENDLY (no scroll)
+================================ */
+.page--host {
+  height: 100vh;
+  overflow: hidden;
+}
+
+#host-root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.host-header {
+  flex: 0 0 auto;
+}
+
+.page--host .host-main {
+  flex: 1 1 auto;
+  min-height: 0;          /* fondamentale per evitare overflow */
+  overflow: hidden;       /* niente scroll pagina */
+}
+
+#board-container {
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+
+#players-panel {
+  min-height: 0;
+  overflow: auto;         /* scroll SOLO qui se i players sono tanti */
+}
+
+/* ================================
+   BOARD SVG (circolare)
+================================ */
+.board-svg-wrap {
+  width: 100%;
+  height: 100%;
+  max-height: 78vh;       /* lascia aria per header/footer */
+  aspect-ratio: 1 / 1;    /* tabellone quadrato */
+}
+
+.board-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.svg-link {
+  stroke: rgba(255,255,255,0.12);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.svg-tile-id {
+  fill: rgba(255,255,255,0.90);
+  font-size: 18px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.svg-tile-label {
+  fill: rgba(255,255,255,0.92);
+  font-size: 18px;
+  font-weight: 700;
+  pointer-events: none;
+}
