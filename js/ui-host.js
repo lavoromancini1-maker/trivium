@@ -14,53 +14,205 @@ function formatQuestionCategoryLabel(q) {
   return `${cat} ${q.isKeyQuestion ? "– DOMANDA CHIAVE" : ""}`.trim();
 }
 
-/**
- * Inizializza il tabellone nell'elemento container.
- * Per ora lo disegniamo come una semplice griglia rettangolare,
- * giusto per vedere tutte le caselle e i colori.
- */
+// ===============================
+// BOARD RENDER (SVG circolare)
+// ===============================
 export function renderBoard(container) {
-  // Svuota content
   container.innerHTML = "";
 
-  // Crea wrapper
-  const boardEl = document.createElement("div");
-  boardEl.className = "board-grid";
+  // Wrapper responsivo (quadrato)
+  const wrap = document.createElement("div");
+  wrap.className = "board-svg-wrap";
 
-  BOARD.forEach((tile) => {
-    const tileEl = document.createElement("div");
-    tileEl.classList.add("tile");
+  // SVG base (viewBox quadrato)
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.classList.add("board-svg");
+  svg.setAttribute("viewBox", "0 0 1000 1000");
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
-    // Classi per tipo
-    tileEl.classList.add(`tile--${tile.type}`); // tile--category, tile--key, tile--event, tile--minigame, tile--scrigno
+  // Defs (gradient scrigno)
+  const defs = document.createElementNS(NS, "defs");
+  const grad = document.createElementNS(NS, "linearGradient");
+  grad.setAttribute("id", "scrignoGrad");
+  grad.setAttribute("x1", "0");
+  grad.setAttribute("y1", "0");
+  grad.setAttribute("x2", "1");
+  grad.setAttribute("y2", "1");
 
-    // Classi per categoria (se presente)
-    if (tile.category) {
-      tileEl.classList.add(`tile--cat-${tile.category}`);
+  const s1 = document.createElementNS(NS, "stop");
+  s1.setAttribute("offset", "0%");
+  s1.setAttribute("stop-color", "gold");
+  const s2 = document.createElementNS(NS, "stop");
+  s2.setAttribute("offset", "100%");
+  s2.setAttribute("stop-color", "#b7791f");
+
+  grad.appendChild(s1);
+  grad.appendChild(s2);
+  defs.appendChild(grad);
+  svg.appendChild(defs);
+
+  // Layer per linee (sotto) e tiles (sopra)
+  const gLines = document.createElementNS(NS, "g");
+  gLines.setAttribute("class", "board-lines");
+  const gTiles = document.createElementNS(NS, "g");
+  gTiles.setAttribute("class", "board-tiles");
+
+  svg.appendChild(gLines);
+  svg.appendChild(gTiles);
+
+  // --- Geometria ---
+  const cx = 500;
+  const cy = 500;
+
+  const ringCount = 42;          // 6 settori * 7
+  const branchLen = 5;           // per settore
+  const sectors = 6;
+
+  const ringR = 390;             // raggio anello
+  const branchStep = 62;         // distanza tra caselle stradina
+  const branchStartR = ringR - 82; // prima casella verso il centro (staccata dalla key)
+  const centerSize = 150;
+
+  const tileW = 70;
+  const tileH = 56;
+  const tileRx = 14;
+
+  const angle0 = -Math.PI / 2;   // start in alto (12 o'clock)
+  const step = (Math.PI * 2) / ringCount;
+
+  // Helper: colore casella
+  function getTileStyle(tile) {
+    // stroke in base a categoria (se presente)
+    const stroke = tile.category ? `var(--cat-${tile.category})` : "rgba(255,255,255,0.22)";
+
+    // fill in base a tipo
+    let fill = "#1f2933";
+    if (tile.type === "event") fill = "var(--color-evento)";
+    if (tile.type === "minigame") fill = "var(--color-minisfida)";
+    if (tile.type === "key") fill = "rgba(236,201,75,0.12)";
+    if (tile.type === "scrigno") fill = "url(#scrignoGrad)";
+
+    // stroke più “forte” per key/scrigno
+    const strokeW = tile.type === "key" ? 4 : tile.type === "scrigno" ? 4 : 3;
+
+    return { fill, stroke, strokeW };
+  }
+
+  // Helper: disegna una casella (rettangolo + testo)
+  function drawTile(tile, x, y, w = tileW, h = tileH) {
+    const { fill, stroke, strokeW } = getTileStyle(tile);
+
+    const rect = document.createElementNS(NS, "rect");
+    rect.setAttribute("x", String(x - w / 2));
+    rect.setAttribute("y", String(y - h / 2));
+    rect.setAttribute("width", String(w));
+    rect.setAttribute("height", String(h));
+    rect.setAttribute("rx", String(tileRx));
+    rect.setAttribute("fill", fill);
+    rect.setAttribute("stroke", stroke);
+    rect.setAttribute("stroke-width", String(strokeW));
+    rect.setAttribute("opacity", "0.98");
+    rect.setAttribute("class", `svg-tile svg-tile--${tile.type}`);
+
+    // ID (piccolo)
+    const tId = document.createElementNS(NS, "text");
+    tId.setAttribute("x", String(x));
+    tId.setAttribute("y", String(y - 6));
+    tId.setAttribute("text-anchor", "middle");
+    tId.setAttribute("class", "svg-tile-id");
+    tId.textContent = String(tile.id);
+
+    // Label (grande)
+    const tLabel = document.createElementNS(NS, "text");
+    tLabel.setAttribute("x", String(x));
+    tLabel.setAttribute("y", String(y + 14));
+    tLabel.setAttribute("text-anchor", "middle");
+    tLabel.setAttribute("class", "svg-tile-label");
+
+    let label = "";
+    if (tile.type === "category") label = tile.category || "";
+    else if (tile.type === "key") label = `CHIAVE ${tile.category || ""}`;
+    else if (tile.type === "event") label = "EVENT";
+    else if (tile.type === "minigame") label = "MINIGAME";
+    else if (tile.type === "scrigno") label = "SCRIGNO";
+    else label = tile.type;
+
+    tLabel.textContent = label;
+
+    gTiles.appendChild(rect);
+    gTiles.appendChild(tId);
+    gTiles.appendChild(tLabel);
+  }
+
+  // Helper: linea
+  function drawLine(x1, y1, x2, y2) {
+    const ln = document.createElementNS(NS, "line");
+    ln.setAttribute("x1", String(x1));
+    ln.setAttribute("y1", String(y1));
+    ln.setAttribute("x2", String(x2));
+    ln.setAttribute("y2", String(y2));
+    ln.setAttribute("class", "svg-link");
+    gLines.appendChild(ln);
+  }
+
+  // --- 1) Ring (0..41) ---
+  for (let i = 0; i < ringCount; i++) {
+    const tile = BOARD[i];
+    const a = angle0 + i * step;
+    const x = cx + ringR * Math.cos(a);
+    const y = cy + ringR * Math.sin(a);
+
+    drawTile(tile, x, y);
+
+    // linea tra questa e la prossima (per dare “anello” visivo)
+    const a2 = angle0 + ((i + 1) % ringCount) * step;
+    const x2 = cx + ringR * Math.cos(a2);
+    const y2 = cy + ringR * Math.sin(a2);
+    drawLine(x, y, x2, y2);
+  }
+
+  // --- 2) Branches (42..71): 6 stradine, una per ogni key (id 0,7,14,21,28,35) ---
+  for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
+    const keyId = sectorIndex * 7; // come in board.js
+    const keyAngle = angle0 + keyId * step;
+
+    // coordinate key sul ring
+    const kx = cx + ringR * Math.cos(keyAngle);
+    const ky = cy + ringR * Math.sin(keyAngle);
+
+    // base branch
+    const branchBase = 42 + sectorIndex * branchLen;
+
+    // linea “spina” dalla key verso il centro
+    let prevX = kx;
+    let prevY = ky;
+
+    for (let j = 0; j < branchLen; j++) {
+      const tid = branchBase + j;
+      const tile = BOARD[tid];
+
+      const r = branchStartR - j * branchStep;
+      const x = cx + r * Math.cos(keyAngle);
+      const y = cy + r * Math.sin(keyAngle);
+
+      drawLine(prevX, prevY, x, y);
+      drawTile(tile, x, y);
+
+      prevX = x;
+      prevY = y;
     }
 
-    // Testo di debug dentro la casella
-    // Esempio: "0\nGEOGRAFIA" oppure "12\nEVENTO"
-    const labelId = document.createElement("div");
-    labelId.className = "tile-id";
-    labelId.textContent = tile.id;
+    // collega ultima casella al centro (solo linea)
+    drawLine(prevX, prevY, cx, cy);
+  }
 
-    const labelType = document.createElement("div");
-    labelType.className = "tile-type";
-    labelType.textContent =
-      tile.type === "category"
-        ? tile.category
-        : tile.type === "key"
-        ? `CHIAVE\n${tile.category}`
-        : tile.type.toUpperCase();
+  // --- 3) Centro scrigno (72) ---
+  const scrigno = BOARD[72];
+  drawTile(scrigno, cx, cy, centerSize, centerSize);
 
-    tileEl.appendChild(labelId);
-    tileEl.appendChild(labelType);
-
-    boardEl.appendChild(tileEl);
-  });
-
-  container.appendChild(boardEl);
+  wrap.appendChild(svg);
+  container.appendChild(wrap);
 }
 
 /**
