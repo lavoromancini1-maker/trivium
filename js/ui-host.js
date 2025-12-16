@@ -245,53 +245,69 @@ export function renderBoard(container) {
     }
   }
 
-  // === FASE 3: DISEGNO STRADINE E CONNESSIONI ===
-  for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
-    const keyId = sectorIndex * 7;
-    const keyP = ringXY[keyId]; 
-    const branchBase = 42 + sectorIndex * branchLen;
+// === FASE 3: DISEGNO STRADINE E CONNESSIONI ===
+for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
+  const keyId = sectorIndex * 7;
+  const keyP = ringXY[keyId];
+  const branchBase = 42 + sectorIndex * branchLen;
 
-    const vx = cx - keyP.x;
-    const vy = cy - keyP.y;
-    const distTotal = Math.hypot(vx, vy);
-    const ux = vx / distTotal;
-    const uy = vy / distTotal;
+  const vx = cx - keyP.x;
+  const vy = cy - keyP.y;
+  const distTotal = Math.hypot(vx, vy) || 1;
+  const ux = vx / distTotal;
+  const uy = vy / distTotal;
 
-    const startDist = distTotal * 0.16;
-    const endDist = distTotal - scrignoRadius;
-    const stepLen = (endDist - startDist) / branchLen;
+  // distanza dal key dove iniziare la stradina (stacca un po’ dal bordo)
+  const startDist = distTotal * 0.16;
+  // distanza massima prima di “toccare” lo scrigno
+  const endDist = distTotal - scrignoRadius;
 
-    let prevX = keyP.x;
-    let prevY = keyP.y;
+  // se per qualche motivo endDist è troppo vicino, evita step negativi
+  const usable = Math.max(10, endDist - startDist);
+  const stepLen = usable / branchLen;
 
-    const firstStepX = keyP.x + (ux * startDist);
-    const firstStepY = keyP.y + (uy * startDist);
-    
-    drawLine(keyP.x, keyP.y, firstStepX, firstStepY, true);
+  // ✨ QUI il trucco per l’ovale:
+  // se lo step è piccolo, riduciamo dimensione delle caselle della stradina
+  const minW = 46; // non scendere troppo o diventano illegibili
+  const minH = 62;
 
-    prevX = firstStepX;
-    prevY = firstStepY;
+  const tileW_Path = Math.max(minW, Math.min(tileW_Std, stepLen * 0.88));
+  const tileH_Path = Math.max(minH, Math.min(tileH_Std, tileW_Path * 0.75));
 
-    for (let j = 0; j < branchLen; j++) {
-      const tid = branchBase + j;
-      const tile = BOARD[tid];
-      const currentDist = startDist + (j * stepLen); 
-      const x = keyP.x + (ux * currentDist);
-      const y = keyP.y + (uy * currentDist);
+  let prevX = keyP.x;
+  let prevY = keyP.y;
 
-      if (j > 0) { 
-          drawLine(prevX - (ux * stepLen), prevY - (uy * stepLen), x, y); 
-      }
+  // prima connessione key -> primo punto (solo linea “gold”)
+  const firstStepX = keyP.x + ux * startDist;
+  const firstStepY = keyP.y + uy * startDist;
+  drawLine(keyP.x, keyP.y, firstStepX, firstStepY, true);
 
-      // Per le stradine usiamo ancora una dimensione fissa o la stessa calcolata?
-      // Usiamo la tileW_Std calcolata per coerenza, o leggermente ridotta se preferisci
-      drawTile(tile, x, y, tileW_Std, tileH_Std, gTilesPath);
+  prevX = firstStepX;
+  prevY = firstStepY;
 
-      prevX = x;
-      prevY = y;
+  for (let j = 0; j < branchLen; j++) {
+    const tid = branchBase + j;
+    const tile = BOARD[tid];
+
+    const currentDist = startDist + j * stepLen;
+    const x = keyP.x + ux * currentDist;
+    const y = keyP.y + uy * currentDist;
+
+    // linee tra le caselle della stradina
+    if (j > 0) {
+      drawLine(prevX, prevY, x, y);
     }
-    drawLine(prevX, prevY, cx, cy);
+
+    // disegno casella della stradina (ridimensionata se serve)
+    drawTile(tile, x, y, tileW_Path, tileH_Path, gTilesPath);
+
+    prevX = x;
+    prevY = y;
   }
+
+  // ultima linea verso lo scrigno
+  drawLine(prevX, prevY, cx, cy);
+}
 
   // === FASE 4: DISEGNO CHIAVI (SOPRA TUTTO IL RESTO) ===
   for (let i = 0; i < ringCount; i++) {
