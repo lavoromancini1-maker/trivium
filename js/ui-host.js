@@ -139,7 +139,7 @@ if (tile.type === "category" && tile.category) {
 
     let label = "";
     if (tile.type === "category") label = "";
-    else if (tile.type === "key") label = `CHIAVE ${tile.category || ""}`;
+    else if (tile.type === "key") label = "🔑";
     else if (tile.type === "event") label = "EVENT";
     else if (tile.type === "minigame") label = "MINIGAME";
     else if (tile.type === "scrigno") label = "SCRIGNO";
@@ -170,7 +170,8 @@ if (tile.type === "category" && tile.category) {
     const x = cx + ringR * Math.cos(a);
     const y = cy + ringR * Math.sin(a);
 
-    drawTile(tile, x, y);
+   if (tile.type === "key") drawTile(tile, x, y, tileW * 1.12, tileH * 1.12);
+else drawTile(tile, x, y);
 
     // linea tra questa e la prossima (per dare “anello” visivo)
     const a2 = angle0 + ((i + 1) % ringCount) * step;
