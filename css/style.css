@@ -691,3 +691,77 @@ body {
     drop-shadow(0 0 18px rgba(255,215,0,0.55))
     drop-shadow(0 0 36px rgba(255,215,0,0.25));
 }
+
+/* ================================
+   HOST LAYOUT – BOARD DOMINANT
+================================ */
+
+.page--host {
+  height: 100vh;
+  overflow: hidden;
+}
+
+#host-root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* HEADER */
+.host-header {
+  flex: 0 0 auto;
+  padding: 6px 16px;
+}
+
+/* FOOTER */
+.host-footer {
+  flex: 0 0 auto;
+  height: 36px;
+  padding: 6px 16px;
+  background: rgba(0,0,0,0.35);
+}
+
+/* MAIN AREA */
+.host-main.host-layout {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 150px 1fr 150px;
+  min-height: 0;
+  padding: 8px;
+  gap: 8px;
+}
+
+/* PLAYER COLUMNS */
+.players-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  overflow: hidden;
+}
+
+/* BOARD CONTAINER */
+#board-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-panel);
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+/* BOARD WRAP: VINCOLATO ALL'ALTEZZA */
+.board-svg-wrap {
+  height: 100%;
+  width: auto;              /* 🔥 chiave: non forza la larghezza */
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+/* SVG sempre dentro */
+.board-svg {
+  height: 100%;
+  width: 100%;
+  display: block;
+}
