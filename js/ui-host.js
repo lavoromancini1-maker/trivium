@@ -123,12 +123,12 @@ if (tile.type === "category" && tile.category) {
 
 
     // ID (piccolo)
-    const tId = document.createElementNS(NS, "text");
-    tId.setAttribute("x", String(x));
-    tId.setAttribute("y", String(y - 6));
-    tId.setAttribute("text-anchor", "middle");
-    tId.setAttribute("class", "svg-tile-id");
-    tId.textContent = String(tile.id);
+    //const tId = document.createElementNS(NS, "text");
+    //tId.setAttribute("x", String(x));
+    //tId.setAttribute("y", String(y - 6));
+    //tId.setAttribute("text-anchor", "middle");
+    //tId.setAttribute("class", "svg-tile-id");
+    //tId.textContent = String(tile.id); 
 
     // Label (grande)
     const tLabel = document.createElementNS(NS, "text");
@@ -148,7 +148,7 @@ if (tile.type === "category" && tile.category) {
     tLabel.textContent = label;
 
     gTiles.appendChild(rect);
-    gTiles.appendChild(tId);
+    //gTiles.appendChild(tId);
     gTiles.appendChild(tLabel);
   }
 
