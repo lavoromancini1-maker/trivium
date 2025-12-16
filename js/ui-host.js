@@ -63,9 +63,6 @@ export function renderBoard(container) {
   svg.appendChild(gLines);
   svg.appendChild(gTiles);
 
-  gLines.setAttribute("transform", "translate(-40, -40) scale(1.08)");
-  gTiles.setAttribute("transform", "translate(-40, -40) scale(1.08)");
-
 
   const cx = VW / 2;
   const cy = VH / 2;
@@ -79,13 +76,19 @@ export function renderBoard(container) {
   const tileH = 72;
   const tileRx = 40;
 
-  // AUTO-FIT: il raggio si adatta SEMPRE al viewBox (niente caselle tagliate)
-  const pad = 55; // margine sicurezza nel viewBox
-  const maxR = Math.min(cx, cy) - pad - Math.max(tileW, tileH) / 2;
-  const ringR = maxR;
+// === OVAL SHAPE (WIDE SHOW) ===
+// sfruttiamo tutta la larghezza TV
+const pad = 40; // meno margine = board più grande
+
+const baseR = Math.min(cx, cy) - pad - Math.max(tileW, tileH) / 2;
+
+// raggio orizzontale MOLTO più grande (wide show)
+const ringRx = baseR * 1.45; // 🔥 preset WIDE SHOW
+const ringRy = baseR * 0.85; // più schiacciato verticalmente
+
 
   // Scrigno centrale (proporzionale)
-const centerSize = ringR * 0.36;     // scrigno leggermente più grande
+const centerSize = baseR * 0.36;     // scrigno leggermente più grande
 
 const scrignoRadius = (centerSize / 2) + 18; // buffer di sicurezza
 const branchEnd = ringR - scrignoRadius;     // dove vogliamo arrivare (prima dello scrigno)
@@ -175,8 +178,8 @@ const branchStep = (branchEnd - branchStart) / (branchLen - 1); // ✅ arriva qu
   for (let i = 0; i < ringCount; i++) {
     const tile = BOARD[i];
     const a = startAngle + i * step;
-    const x = cx + ringR * Math.cos(a);
-    const y = cy + ringR * Math.sin(a);
+    const x = cx + ringRx * Math.cos(a);
+    const y = cy + ringRy * Math.sin(a);
 
     ringXY[i] = { x, y };
 
