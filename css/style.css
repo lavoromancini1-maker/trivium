@@ -718,3 +718,199 @@ body {
   font-size: 12px;
   opacity: 0.75;
 }
+
+/* ================================
+   PLAYER – MOBILE FIRST
+================================ */
+
+/* evita zoom strani e migliora rendering testo su iOS */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+.page--player {
+  min-height: 100vh;
+  padding:
+    max(12px, env(safe-area-inset-top))
+    max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+  box-sizing: border-box;
+}
+
+/* contenitore principale più “app-like” */
+#player-root {
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* header compatto e leggibile */
+.player-header {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.player-header h1 {
+  margin: 0 0 6px 0;
+  font-size: 18px;
+}
+
+#player-name-display {
+  font-weight: 700;
+  opacity: 0.95;
+  margin-bottom: 6px;
+}
+
+#player-status {
+  font-size: 14px;
+  opacity: 0.85;
+  line-height: 1.25;
+}
+
+/* pannelli: trasformiamoli in “card” */
+#join-game-panel,
+#waiting-panel,
+#turn-panel,
+#player-cards-panel {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+/* form join più comodo */
+#join-game-form label {
+  display: block;
+  margin-top: 10px;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+#join-game-form input {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.25);
+  color: #fff;
+  font-size: 16px; /* evita zoom iOS su focus */
+  box-sizing: border-box;
+}
+
+/* bottoni: touch target minimo */
+.btn {
+  width: 100%;
+  padding: 14px 14px;
+  font-size: 16px;
+  border-radius: 16px;
+  box-sizing: border-box;
+}
+
+/* area turno: spazi più stretti */
+#turn-panel h2 {
+  margin: 0 0 6px 0;
+  font-size: 16px;
+}
+
+/* DADO: resa “mobile” */
+#dice-panel {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+#dice-result {
+  font-size: 15px;
+  opacity: 0.9;
+}
+
+/* RISPOSTE A/B/C/D: griglia 2x2 comoda */
+.answer-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.answer-btn {
+  min-height: 52px;
+  font-size: 18px;
+  border-radius: 16px;
+}
+
+/* DIREZIONI: griglia “mobile responsive” */
+#direction-panel > p {
+  margin: 8px 0 10px;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+#direction-buttons.dir-grid-1,
+#direction-buttons.dir-grid-2 {
+  display: grid;
+  gap: 10px;
+}
+
+/* su telefoni: sempre 2 colonne se ci sta, altrimenti 1 */
+#direction-buttons.dir-grid-2 {
+  grid-template-columns: 1fr 1fr;
+}
+#direction-buttons.dir-grid-1 {
+  grid-template-columns: 1fr;
+}
+
+/* card direzioni: più “tap-friendly” */
+.dir-card {
+  padding: 14px 12px;
+  border-radius: 16px;
+  min-height: 74px;
+}
+
+.dir-card-title {
+  font-size: 12px;
+}
+
+.dir-card-main {
+  font-size: 16px;
+}
+
+.dir-card-sub {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+/* Minigame panels: bottoni affiancati su mobile */
+.vf-btns,
+.intruder-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  justify-content: stretch;
+}
+
+#closest-input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.25);
+  color: #fff;
+  font-size: 16px; /* evita zoom iOS */
+  box-sizing: border-box;
+}
+
+/* progress: più compatto */
+.player-progress {
+  padding: 10px;
+}
+
+.pp-left {
+  min-width: 120px;
+}
