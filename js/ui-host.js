@@ -15,20 +15,26 @@ function formatQuestionCategoryLabel(q) {
 }
 
 // ===============================
-// BOARD RENDER (SVG rettangolare TV-first)
-// Mantiene ID / struttura logica invariata
+// BOARD RENDER (SVG rettangolare WIDE, TV-first)
+// - Ring 0..41 piegato su perimetro rettangolare
+// - Branch 42..71 diagonali verso lo scrigno
+// - Scrigno 72 al centro
+// - Numerazione tile ON (debug)
 // ===============================
 export function renderBoard(container) {
   container.innerHTML = "";
 
-  // Wrapper
   const wrap = document.createElement("div");
   wrap.className = "board-svg-wrap";
 
   const NS = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(NS, "svg");
   svg.classList.add("board-svg");
-  svg.setAttribute("viewBox", "0 0 1000 1000");
+
+  // ✅ ViewBox WIDE: così non diventa un quadrato schiacciato
+  const VW = 1400;
+  const VH = 900;
+  svg.setAttribute("viewBox", `0 0 ${VW} ${VH}`);
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
   // Defs (gradient scrigno)
@@ -50,7 +56,6 @@ export function renderBoard(container) {
   defs.appendChild(grad);
   svg.appendChild(defs);
 
-  // Layer
   const gLines = document.createElementNS(NS, "g");
   gLines.setAttribute("class", "board-lines");
   const gTiles = document.createElementNS(NS, "g");
@@ -58,42 +63,38 @@ export function renderBoard(container) {
   svg.appendChild(gLines);
   svg.appendChild(gTiles);
 
-  // --- Config geometria rettangolare ---
-  const cx = 500;
-  const cy = 500;
+  const cx = VW / 2;
+  const cy = VH / 2;
 
   const ringCount = 42;
   const sectors = 6;
   const branchLen = 5;
 
-  const tileW = 86;
-  const tileH = 68;
+  // ✅ Tile un filo più piccole per leggibilità + zero overlap
+  const tileW = 78;
+  const tileH = 60;
   const tileRx = 14;
 
-  // “Rettangolo” del ring: margini ampi, TV-first
-  const marginX = 95;
-  const marginY = 85;
+  // ✅ Margini “wide”: più spazio orizzontale, ring disteso
+  const marginX = 70;
+  const marginY = 70;
 
-  // Area utile del ring (dove piazziamo i centri delle caselle)
   const leftX = marginX + tileW / 2;
-  const rightX = 1000 - marginX - tileW / 2;
+  const rightX = VW - marginX - tileW / 2;
   const topY = marginY + tileH / 2;
-  const bottomY = 1000 - marginY - tileH / 2;
+  const bottomY = VH - marginY - tileH / 2;
 
-  // Center scrigno
-  const centerSize = 130; // ora possiamo farlo più grande
+  // ✅ Scrigno più grande (ora si può)
+  const centerSize = 160;
 
-  // Stradine: distanza dal ring verso centro
-  const branchStep = 62;
-  const branchInset = 95; // quanto la prima casella branch è “dentro” dal ring
+  // Branch: distanza dalla KEY verso centro
+  const branchStart = 90;
+  const branchStep = 70;
 
-  // Helper stile
   function getTileStyle(tile) {
-    const stroke = tile.category
-      ? `var(--cat-${tile.category})`
-      : "rgba(255,255,255,0.22)";
-
+    const stroke = tile.category ? `var(--cat-${tile.category})` : "rgba(255,255,255,0.22)";
     let fill = "#1f2933";
+
     if (tile.type === "event") fill = "var(--color-evento)";
     if (tile.type === "minigame") fill = "var(--color-minisfida)";
     if (tile.type === "key") fill = "rgba(236,201,75,0.12)";
@@ -104,6 +105,16 @@ export function renderBoard(container) {
 
     const strokeW = tile.type === "key" ? 4 : tile.type === "scrigno" ? 4 : 3;
     return { fill, stroke, strokeW };
+  }
+
+  function drawLine(x1, y1, x2, y2) {
+    const ln = document.createElementNS(NS, "line");
+    ln.setAttribute("x1", String(x1));
+    ln.setAttribute("y1", String(y1));
+    ln.setAttribute("x2", String(x2));
+    ln.setAttribute("y2", String(y2));
+    ln.setAttribute("class", "svg-link");
+    gLines.appendChild(ln);
   }
 
   function drawTile(tile, x, y, w = tileW, h = tileH) {
@@ -122,9 +133,18 @@ export function renderBoard(container) {
     rect.setAttribute("class", `svg-tile svg-tile--${tile.type}`);
     rect.setAttribute("id", `tile-${tile.id}`);
 
+    // ✅ NUMERO (debug) — richiesto da te
+    const tId = document.createElementNS(NS, "text");
+    tId.setAttribute("x", String(x));
+    tId.setAttribute("y", String(y - 10));
+    tId.setAttribute("text-anchor", "middle");
+    tId.setAttribute("class", "svg-tile-id");
+    tId.textContent = String(tile.id);
+
+    // Label (solo per speciali)
     const tLabel = document.createElementNS(NS, "text");
     tLabel.setAttribute("x", String(x));
-    tLabel.setAttribute("y", String(y + 14));
+    tLabel.setAttribute("y", String(y + 16));
     tLabel.setAttribute("text-anchor", "middle");
     tLabel.setAttribute("class", "svg-tile-label");
 
@@ -139,52 +159,37 @@ export function renderBoard(container) {
     tLabel.textContent = label;
 
     gTiles.appendChild(rect);
+    gTiles.appendChild(tId);
     gTiles.appendChild(tLabel);
   }
 
-  function drawLine(x1, y1, x2, y2) {
-    const ln = document.createElementNS(NS, "line");
-    ln.setAttribute("x1", String(x1));
-    ln.setAttribute("y1", String(y1));
-    ln.setAttribute("x2", String(x2));
-    ln.setAttribute("y2", String(y2));
-    ln.setAttribute("class", "svg-link");
-    gLines.appendChild(ln);
-  }
-
-  // ---- Mapping ring (0..41) su perimetro rettangolare ----
-  // Distribuzione 42 tile su 4 lati:
-  // top 11, right 10, bottom 11, left 10 = 42
-  const topN = 11;
-  const rightN = 10;
-  const bottomN = 11;
-  const leftN = 10;
+  // ✅ Distribuzione che NON sovrappone: 12+9+12+9 = 42
+  const topN = 12;
+  const rightN = 9;
+  const bottomN = 12;
+  const leftN = 9;
 
   function ringPos(i) {
-    // ritorna {x,y, side}
     if (i < topN) {
       const t = topN === 1 ? 0.5 : i / (topN - 1);
-      return { x: leftX + t * (rightX - leftX), y: topY, side: "top" };
+      return { x: leftX + t * (rightX - leftX), y: topY };
     }
     i -= topN;
     if (i < rightN) {
       const t = rightN === 1 ? 0.5 : i / (rightN - 1);
-      return { x: rightX, y: topY + t * (bottomY - topY), side: "right" };
+      return { x: rightX, y: topY + t * (bottomY - topY) };
     }
     i -= rightN;
     if (i < bottomN) {
       const t = bottomN === 1 ? 0.5 : i / (bottomN - 1);
-      // bottom va da right a left per mantenere il loop “orario”
-      return { x: rightX - t * (rightX - leftX), y: bottomY, side: "bottom" };
+      return { x: rightX - t * (rightX - leftX), y: bottomY };
     }
     i -= bottomN;
-    // left
     const t = leftN === 1 ? 0.5 : i / (leftN - 1);
-    // left va da bottom a top per chiudere il loop
-    return { x: leftX, y: bottomY - t * (bottomY - topY), side: "left" };
+    return { x: leftX, y: bottomY - t * (bottomY - topY) };
   }
 
-  // 1) Disegna ring e linee tra tile consecutive (circuito)
+  // 1) Ring tiles + collegamenti
   const ringXY = new Array(ringCount);
   for (let i = 0; i < ringCount; i++) {
     const tile = BOARD[i];
@@ -200,22 +205,19 @@ export function renderBoard(container) {
     drawLine(a.x, a.y, b.x, b.y);
   }
 
-  // 2) Branches 42..71: partono dalle stesse KEY (0,7,14,21,28,35)
-  // La direzione branch dipende dal lato su cui cade la key.
+  // 2) Branches diagonali: verso centro (cx,cy) — partono dalle KEY (0,7,14,21,28,35)
   for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
-    const keyId = sectorIndex * 7; // invariato
+    const keyId = sectorIndex * 7;
     const keyP = ringXY[keyId];
-
     const branchBase = 42 + sectorIndex * branchLen;
 
-    // direzione (dx,dy) verso centro: per lato
-    let dx = 0, dy = 0;
-    if (keyP.side === "top") { dx = 0; dy = +1; }
-    else if (keyP.side === "bottom") { dx = 0; dy = -1; }
-    else if (keyP.side === "left") { dx = +1; dy = 0; }
-    else if (keyP.side === "right") { dx = -1; dy = 0; }
+    // ✅ direzione diagonale verso centro
+    let vx = cx - keyP.x;
+    let vy = cy - keyP.y;
+    const len = Math.hypot(vx, vy) || 1;
+    const ux = vx / len;
+    const uy = vy / len;
 
-    // punto di partenza leggermente “dentro” rispetto al ring (così non si sovrappone alla key)
     let prevX = keyP.x;
     let prevY = keyP.y;
 
@@ -223,9 +225,9 @@ export function renderBoard(container) {
       const tid = branchBase + j;
       const tile = BOARD[tid];
 
-      const stepDist = branchInset + j * branchStep;
-      const x = keyP.x + dx * stepDist;
-      const y = keyP.y + dy * stepDist;
+      const dist = branchStart + j * branchStep;
+      const x = keyP.x + ux * dist;
+      const y = keyP.y + uy * dist;
 
       drawLine(prevX, prevY, x, y);
       drawTile(tile, x, y);
@@ -235,7 +237,7 @@ export function renderBoard(container) {
     }
   }
 
-  // 3) Centro scrigno (72)
+  // 3) Scrigno
   const scrigno = BOARD[72];
   drawTile(scrigno, cx, cy, centerSize, centerSize);
 
