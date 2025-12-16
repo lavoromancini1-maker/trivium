@@ -468,7 +468,7 @@ body {
 .board-svg-wrap {
   width: 100%;
   height: 100%;
-  max-height: 90vh;   /* 🔥 molto più spazio */
+  max-height: 100%;
   aspect-ratio: 1 / 1;
 }
 
@@ -660,4 +660,26 @@ body {
   height: 40px;
   padding: 8px 16px;
   background: rgba(0,0,0,0.35);
+}
+
+/* ================================
+   HOST LAYOUT: board più grande
+================================ */
+.host-layout {
+  display: grid;
+  grid-template-columns: 160px 1fr 160px; /* riduce laterali, aumenta il centro */
+  gap: 10px;
+  padding: 10px;
+  height: 100%;
+  min-height: 0;
+}
+
+#board-container {
+  height: 100%;
+  min-height: 0;
+}
+
+.players-col {
+  min-height: 0;
+  overflow: hidden;
 }
