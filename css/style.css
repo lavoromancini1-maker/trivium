@@ -432,7 +432,7 @@ body {
 
 .svg-link {
   stroke: rgba(255,255,255,0.12);
-  stroke-width: 6;
+  stroke-width: 4;
   stroke-linecap: round;
 }
 
