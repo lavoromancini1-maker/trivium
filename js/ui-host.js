@@ -198,7 +198,7 @@ if (!isBranchTile) targetGroup.appendChild(tId);
   const startRad = -Math.PI / 2;
 
   let prevP = getSquircleCoord(startRad, ringRx, ringRy);
-  samples.push({ pt: prevP, dist: 0 });
+  samples.push({ pt: prevP, accumDist: 0 });
 
   for (let i = 1; i <= sampleCount; i++) {
     const angle = startRad + (i / sampleCount) * (Math.PI * 2);
