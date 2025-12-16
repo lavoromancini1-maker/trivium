@@ -114,6 +114,8 @@ export function renderBoard(container) {
     rect.setAttribute("stroke-width", String(strokeW));
     rect.setAttribute("opacity", "0.98");
     rect.setAttribute("class", `svg-tile svg-tile--${tile.type}`);
+    rect.setAttribute("id", `tile-${tile.id}`);
+
 
     // ID (piccolo)
     const tId = document.createElementNS(NS, "text");
@@ -720,62 +722,62 @@ if (
   }
 }
 
-export function renderPlayers(gameState, container) {
-  container.innerHTML = "";
+export function renderPlayers(gameState) {
+  const top = document.getElementById("players-dock-top");
+  const right = document.getElementById("players-dock-right");
+  const bottom = document.getElementById("players-dock-bottom");
+  const left = document.getElementById("players-dock-left");
 
-  const playersObj = gameState.players || {};
-  const turnOrder = gameState.turnOrder || [];
-  const currentPlayerId = gameState.currentPlayerId || null;
+  if (!top || !right || !bottom || !left) return;
 
-  const playerEntries = Object.entries(playersObj);
+  top.innerHTML = "";
+  right.innerHTML = "";
+  bottom.innerHTML = "";
+  left.innerHTML = "";
 
-  if (playerEntries.length === 0) {
-    container.textContent = "Nessun giocatore connesso.";
-    return;
-  }
+  const playersObj = gameState?.players || {};
+  const turnOrder = gameState?.turnOrder || Object.keys(playersObj);
+  const currentPlayerId = gameState?.currentPlayerId || null;
 
-  const ul = document.createElement("ul");
-  ul.className = "players-list";
+  // Ordine di render: turnOrder, max 8
+  const ids = turnOrder.filter(id => playersObj[id]).slice(0, 8);
 
-  if (turnOrder.length > 0) {
-    for (const pid of turnOrder) {
-      const player = playersObj[pid];
-      if (!player) continue;
-      const li = document.createElement("li");
-      li.className = "players-list-item";
-      if (pid === currentPlayerId) {
-        li.classList.add("players-list-item--active");
-      }
+  // 2 per lato: top(2), right(2), bottom(2), left(2)
+  const slots = [
+    { dock: top, count: 2 },
+    { dock: right, count: 2 },
+    { dock: bottom, count: 2 },
+    { dock: left, count: 2 },
+  ];
 
-      // Generazione dell'HTML per il livello e le chiavi
-      const levelsHtml = Object.keys(player.levels).map(category => {
-        const level = player.levels[category] || 0;
-        const hasKey = player.keys[category] ? "✔️" : "❌"; // Icona chiave
-        return `
-          <div class="player-level-info">
-            <span class="category-name">${category}</span> 
-            <span class="level-bar" style="width: ${level * 25}%"></span> 
-            <span class="key-icon">${hasKey}</span>
-          </div>
-        `;
+  const CATS = ["geografia", "storia", "arte", "sport", "spettacolo", "scienza"];
+
+  let idx = 0;
+  for (const s of slots) {
+    for (let i = 0; i < s.count; i++) {
+      const pid = ids[idx++];
+      if (!pid) continue;
+
+      const p = playersObj[pid];
+      const card = document.createElement("div");
+      card.className = "player-card" + (pid === currentPlayerId ? " player-card--active" : "");
+
+      const keys = p?.keys || {};
+
+      const keysHtml = CATS.map(cat => {
+        const on = !!keys[cat];
+        return `<span class="key-dot key-dot--${cat} ${on ? "key-dot--on" : ""}"></span>`;
       }).join("");
 
-      li.innerHTML = `
-        <div class="player-name">${player.name || "Senza nome"}</div>
-        <div class="player-info">
-          <span>Punti: ${player.points ?? 0}</span><br>
-          <span>Chiavi: ${countKeys(player)}/6</span><br>
-          <span>Casella: ${formatPosition(player.position)}</span>
-        </div>
-        <div class="player-levels">
-          ${levelsHtml} <!-- Mostra i livelli e le chiavi -->
-        </div>
+      card.innerHTML = `
+        <div class="player-card__name">${p?.name || "Senza nome"}</div>
+        <div class="player-card__points">${p?.points ?? 0}</div>
+        <div class="player-card__keys">${keysHtml}</div>
       `;
-      ul.appendChild(li);
+
+      s.dock.appendChild(card);
     }
   }
-
-  container.appendChild(ul);
 }
 
 function countKeys(player) {
@@ -842,3 +844,27 @@ function renderClosestOverlay(gameState) {
   }, 250);
 }
 
+// ===============================
+// BOARD HIGHLIGHT (player positions)
+// ===============================
+export function updateBoardHighlights(gameState) {
+  // pulizia classi
+  const allRects = document.querySelectorAll("rect.svg-tile");
+  allRects.forEach(r => r.classList.remove("svg-tile--occupied", "svg-tile--active"));
+
+  if (!gameState) return;
+
+  const players = gameState.players || {};
+  const currentPlayerId = gameState.currentPlayerId || null;
+
+  for (const [pid, p] of Object.entries(players)) {
+    const pos = p?.position;
+    if (pos === undefined || pos === null) continue;
+
+    const rect = document.getElementById(`tile-${pos}`);
+    if (!rect) continue;
+
+    rect.classList.add("svg-tile--occupied");
+    if (pid === currentPlayerId) rect.classList.add("svg-tile--active");
+  }
+}
