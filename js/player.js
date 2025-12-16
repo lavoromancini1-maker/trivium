@@ -739,17 +739,6 @@ if (mg && mg.type === "SEQUENCE") {
         });
 
         lastRapidFireIndex = null;
-        answerPanel.classList.add("hidden");
-
-          const btn = document.createElement("button");
-          btn.className = "btn btn-secondary dir-btn";
-          btn.setAttribute("data-dir-index", d.index);
-          const catLabel = d.category ? ` – ${d.category}` : "";
-          btn.textContent = `${d.label}${catLabel}`;
-          directionButtons.appendChild(btn);
-        });
-
-        lastRapidFireIndex = null;
         
         answerPanel.classList.add("hidden");
       } else if (phase === "QUESTION") {
