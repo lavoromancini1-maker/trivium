@@ -690,6 +690,9 @@ if (mg && mg.type === "SEQUENCE") {
 
                 const dirs = gameState.availableDirections || [];
         directionPanel.classList.remove("hidden");
+        setTimeout(() => {
+          directionPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 50);
         directionButtons.innerHTML = "";
 
         // layout speciale se sono “molte uscite” (tipico dello scrigno)
