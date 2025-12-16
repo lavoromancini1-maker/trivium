@@ -15,16 +15,16 @@ function formatQuestionCategoryLabel(q) {
 }
 
 // ===============================
-// BOARD RENDER (SVG circolare)
+// BOARD RENDER (SVG rettangolare TV-first)
+// Mantiene ID / struttura logica invariata
 // ===============================
 export function renderBoard(container) {
   container.innerHTML = "";
 
-  // Wrapper responsivo (quadrato)
+  // Wrapper
   const wrap = document.createElement("div");
   wrap.className = "board-svg-wrap";
 
-  // SVG base (viewBox quadrato)
   const NS = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(NS, "svg");
   svg.classList.add("board-svg");
@@ -39,72 +39,73 @@ export function renderBoard(container) {
   grad.setAttribute("y1", "0");
   grad.setAttribute("x2", "1");
   grad.setAttribute("y2", "1");
-
   const s1 = document.createElementNS(NS, "stop");
   s1.setAttribute("offset", "0%");
   s1.setAttribute("stop-color", "gold");
   const s2 = document.createElementNS(NS, "stop");
   s2.setAttribute("offset", "100%");
   s2.setAttribute("stop-color", "#b7791f");
-
   grad.appendChild(s1);
   grad.appendChild(s2);
   defs.appendChild(grad);
   svg.appendChild(defs);
 
-  // Layer per linee (sotto) e tiles (sopra)
+  // Layer
   const gLines = document.createElementNS(NS, "g");
   gLines.setAttribute("class", "board-lines");
   const gTiles = document.createElementNS(NS, "g");
   gTiles.setAttribute("class", "board-tiles");
-
   svg.appendChild(gLines);
   svg.appendChild(gTiles);
 
-  // --- Geometria ---
+  // --- Config geometria rettangolare ---
   const cx = 500;
   const cy = 500;
 
-  const ringCount = 42;          // 6 settori * 7
-  const branchLen = 5;           // per settore
+  const ringCount = 42;
   const sectors = 6;
-
-  const ringR = 500;             // raggio anello
-  const branchStep = 70;         // distanza tra caselle stradina
-  const branchStartR = ringR - 110; // prima casella verso il centro (staccata dalla key)
-  const centerSize = 90;
+  const branchLen = 5;
 
   const tileW = 86;
   const tileH = 68;
   const tileRx = 14;
 
-  const angle0 = -Math.PI / 2;   // start in alto (12 o'clock)
-  const step = (Math.PI * 2) / ringCount;
+  // “Rettangolo” del ring: margini ampi, TV-first
+  const marginX = 95;
+  const marginY = 85;
 
-  // Helper: colore casella
+  // Area utile del ring (dove piazziamo i centri delle caselle)
+  const leftX = marginX + tileW / 2;
+  const rightX = 1000 - marginX - tileW / 2;
+  const topY = marginY + tileH / 2;
+  const bottomY = 1000 - marginY - tileH / 2;
+
+  // Center scrigno
+  const centerSize = 130; // ora possiamo farlo più grande
+
+  // Stradine: distanza dal ring verso centro
+  const branchStep = 62;
+  const branchInset = 95; // quanto la prima casella branch è “dentro” dal ring
+
+  // Helper stile
   function getTileStyle(tile) {
-    // stroke in base a categoria (se presente)
-    const stroke = tile.category ? `var(--cat-${tile.category})` : "rgba(255,255,255,0.22)";
+    const stroke = tile.category
+      ? `var(--cat-${tile.category})`
+      : "rgba(255,255,255,0.22)";
 
-    // fill in base a tipo
     let fill = "#1f2933";
     if (tile.type === "event") fill = "var(--color-evento)";
     if (tile.type === "minigame") fill = "var(--color-minisfida)";
     if (tile.type === "key") fill = "rgba(236,201,75,0.12)";
     if (tile.type === "scrigno") fill = "url(#scrignoGrad)";
-    // Category tiles: fill con colore categoria (non solo bordo)
-if (tile.type === "category" && tile.category) {
-  fill = `color-mix(in srgb, var(--cat-${tile.category}) 35%, #111827)`;
-}
+    if (tile.type === "category" && tile.category) {
+      fill = `color-mix(in srgb, var(--cat-${tile.category}) 35%, #111827)`;
+    }
 
-
-    // stroke più “forte” per key/scrigno
     const strokeW = tile.type === "key" ? 4 : tile.type === "scrigno" ? 4 : 3;
-
     return { fill, stroke, strokeW };
   }
 
-  // Helper: disegna una casella (rettangolo + testo)
   function drawTile(tile, x, y, w = tileW, h = tileH) {
     const { fill, stroke, strokeW } = getTileStyle(tile);
 
@@ -121,16 +122,6 @@ if (tile.type === "category" && tile.category) {
     rect.setAttribute("class", `svg-tile svg-tile--${tile.type}`);
     rect.setAttribute("id", `tile-${tile.id}`);
 
-
-    // ID (piccolo)
-    //const tId = document.createElementNS(NS, "text");
-    //tId.setAttribute("x", String(x));
-    //tId.setAttribute("y", String(y - 6));
-    //tId.setAttribute("text-anchor", "middle");
-    //tId.setAttribute("class", "svg-tile-id");
-    //tId.textContent = String(tile.id); 
-
-    // Label (grande)
     const tLabel = document.createElementNS(NS, "text");
     tLabel.setAttribute("x", String(x));
     tLabel.setAttribute("y", String(y + 14));
@@ -148,11 +139,9 @@ if (tile.type === "category" && tile.category) {
     tLabel.textContent = label;
 
     gTiles.appendChild(rect);
-    //gTiles.appendChild(tId);
     gTiles.appendChild(tLabel);
   }
 
-  // Helpr: linea
   function drawLine(x1, y1, x2, y2) {
     const ln = document.createElementNS(NS, "line");
     ln.setAttribute("x1", String(x1));
@@ -163,46 +152,80 @@ if (tile.type === "category" && tile.category) {
     gLines.appendChild(ln);
   }
 
-  // --- 1) Ring (0..41) ---
-  for (let i = 0; i < ringCount; i++) {
-    const tile = BOARD[i];
-    const a = angle0 + i * step;
-    const x = cx + ringR * Math.cos(a);
-    const y = cy + ringR * Math.sin(a);
+  // ---- Mapping ring (0..41) su perimetro rettangolare ----
+  // Distribuzione 42 tile su 4 lati:
+  // top 11, right 10, bottom 11, left 10 = 42
+  const topN = 11;
+  const rightN = 10;
+  const bottomN = 11;
+  const leftN = 10;
 
-   if (tile.type === "key") drawTile(tile, x, y, tileW * 1.12, tileH * 1.12);
-else drawTile(tile, x, y);
-
-    // linea tra questa e la prossima (per dare “anello” visivo)
-    const a2 = angle0 + ((i + 1) % ringCount) * step;
-    const x2 = cx + ringR * Math.cos(a2);
-    const y2 = cy + ringR * Math.sin(a2);
-    drawLine(x, y, x2, y2);
+  function ringPos(i) {
+    // ritorna {x,y, side}
+    if (i < topN) {
+      const t = topN === 1 ? 0.5 : i / (topN - 1);
+      return { x: leftX + t * (rightX - leftX), y: topY, side: "top" };
+    }
+    i -= topN;
+    if (i < rightN) {
+      const t = rightN === 1 ? 0.5 : i / (rightN - 1);
+      return { x: rightX, y: topY + t * (bottomY - topY), side: "right" };
+    }
+    i -= rightN;
+    if (i < bottomN) {
+      const t = bottomN === 1 ? 0.5 : i / (bottomN - 1);
+      // bottom va da right a left per mantenere il loop “orario”
+      return { x: rightX - t * (rightX - leftX), y: bottomY, side: "bottom" };
+    }
+    i -= bottomN;
+    // left
+    const t = leftN === 1 ? 0.5 : i / (leftN - 1);
+    // left va da bottom a top per chiudere il loop
+    return { x: leftX, y: bottomY - t * (bottomY - topY), side: "left" };
   }
 
-  // --- 2) Branches (42..71): 6 stradine, una per ogni key (id 0,7,14,21,28,35) ---
+  // 1) Disegna ring e linee tra tile consecutive (circuito)
+  const ringXY = new Array(ringCount);
+  for (let i = 0; i < ringCount; i++) {
+    const tile = BOARD[i];
+    const p = ringPos(i);
+    ringXY[i] = p;
+
+    if (tile.type === "key") drawTile(tile, p.x, p.y, tileW * 1.12, tileH * 1.12);
+    else drawTile(tile, p.x, p.y);
+  }
+  for (let i = 0; i < ringCount; i++) {
+    const a = ringXY[i];
+    const b = ringXY[(i + 1) % ringCount];
+    drawLine(a.x, a.y, b.x, b.y);
+  }
+
+  // 2) Branches 42..71: partono dalle stesse KEY (0,7,14,21,28,35)
+  // La direzione branch dipende dal lato su cui cade la key.
   for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
-    const keyId = sectorIndex * 7; // come in board.js
-    const keyAngle = angle0 + keyId * step;
+    const keyId = sectorIndex * 7; // invariato
+    const keyP = ringXY[keyId];
 
-    // coordinate key sul ring
-    const kx = cx + ringR * Math.cos(keyAngle);
-    const ky = cy + ringR * Math.sin(keyAngle);
-
-    // base branch
     const branchBase = 42 + sectorIndex * branchLen;
 
-    // linea “spina” dalla key verso il centro
-    let prevX = kx;
-    let prevY = ky;
+    // direzione (dx,dy) verso centro: per lato
+    let dx = 0, dy = 0;
+    if (keyP.side === "top") { dx = 0; dy = +1; }
+    else if (keyP.side === "bottom") { dx = 0; dy = -1; }
+    else if (keyP.side === "left") { dx = +1; dy = 0; }
+    else if (keyP.side === "right") { dx = -1; dy = 0; }
+
+    // punto di partenza leggermente “dentro” rispetto al ring (così non si sovrappone alla key)
+    let prevX = keyP.x;
+    let prevY = keyP.y;
 
     for (let j = 0; j < branchLen; j++) {
       const tid = branchBase + j;
       const tile = BOARD[tid];
 
-      const r = branchStartR - j * branchStep;
-      const x = cx + r * Math.cos(keyAngle);
-      const y = cy + r * Math.sin(keyAngle);
+      const stepDist = branchInset + j * branchStep;
+      const x = keyP.x + dx * stepDist;
+      const y = keyP.y + dy * stepDist;
 
       drawLine(prevX, prevY, x, y);
       drawTile(tile, x, y);
@@ -210,10 +233,9 @@ else drawTile(tile, x, y);
       prevX = x;
       prevY = y;
     }
-
   }
 
-  // --- 3) Centro scrigno (72) ---
+  // 3) Centro scrigno (72)
   const scrigno = BOARD[72];
   drawTile(scrigno, cx, cy, centerSize, centerSize);
 
