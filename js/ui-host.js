@@ -56,15 +56,16 @@ export function renderBoard(container) {
   defs.appendChild(grad);
   svg.appendChild(defs);
 
- gLines.setAttribute("transform", "scale(1.08) translate(-40, -40)");
- gTiles.setAttribute("transform", "scale(1.08) translate(-40, -40)");
-
   const gLines = document.createElementNS(NS, "g");
   gLines.setAttribute("class", "board-lines");
   const gTiles = document.createElementNS(NS, "g");
   gTiles.setAttribute("class", "board-tiles");
   svg.appendChild(gLines);
   svg.appendChild(gTiles);
+
+  gLines.setAttribute("transform", "translate(-40, -40) scale(1.08)");
+  gTiles.setAttribute("transform", "translate(-40, -40) scale(1.08)");
+
 
   const cx = VW / 2;
   const cy = VH / 2;
