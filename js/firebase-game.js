@@ -371,29 +371,41 @@ export async function rollDice(gameCode, playerId) {
   const neighbors = tile.neighbors || [];
 
   // costruiamo un array descrittivo delle direzioni
+    // costruiamo un array descrittivo delle direzioni
   const availableDirections = neighbors.map((neighborId, idx) => {
-    const t = BOARD[neighborId];
+    const neighborTile = BOARD[neighborId];
+
+    // label “umana” (come ora)
     let directionLabel;
     if (tile.zone === "ring") {
-      // per semplicità:
-      // idx 0 = sinistra, idx 1 = destra, idx 2 (se esiste) = stradina
       if (idx === 0) directionLabel = "Sinistra";
       else if (idx === 1) directionLabel = "Destra";
       else directionLabel = "Stradina";
     } else if (tile.zone === "branch") {
-      // nella stradina hai solo avanti/indietro
       directionLabel = idx === 0 ? "Indietro" : "Avanti";
     } else {
       directionLabel = "Direzione";
     }
 
+    // ✅ PREVIEW: calcolo la casella FINALE con questo dado e questa direzione
+    const previewFinalTileId = moveAlongPath(fromTileId, diceResult, idx);
+    const previewFinalTile = BOARD[previewFinalTileId];
+
     return {
       index: idx,
-      toTileId: neighborId,
-      type: t.type,
-      category: t.category || null,
-      zone: t.zone,
+      toTileId: neighborId, // neighbor “immediato” (utile comunque)
       label: directionLabel,
+
+      // info neighbor (se ti serve ancora)
+      type: neighborTile.type,
+      category: neighborTile.category || null,
+      zone: neighborTile.zone,
+
+      // ✅ info casella finale: quella che mostreremo nei bottoni
+      previewTileId: previewFinalTileId,
+      previewType: previewFinalTile.type,
+      previewCategory: previewFinalTile.category || null,
+      previewZone: previewFinalTile.zone,
     };
   });
 
