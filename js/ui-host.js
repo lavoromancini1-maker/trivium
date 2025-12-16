@@ -15,7 +15,7 @@ function formatQuestionCategoryLabel(q) {
 }
 
 // ===============================
-// BOARD RENDER (SQUIRCLE OTTIMIZZATO)
+// BOARD RENDER (SQUIRCLE OTTIMIZZATO & DYNAMIC FILL)
 // ===============================
 export function renderBoard(container) {
   container.innerHTML = "";
@@ -49,7 +49,7 @@ export function renderBoard(container) {
   `;
   defs.appendChild(grad);
 
-  // Gradiente Key (per farle brillare)
+  // Gradiente Key
   const gradKey = document.createElementNS(NS, "radialGradient");
   gradKey.setAttribute("id", "keyGrad");
   gradKey.innerHTML = `
@@ -60,12 +60,11 @@ export function renderBoard(container) {
   
   svg.appendChild(defs);
 
-  // Gruppi separati per gestire i livelli (Z-Index simulato)
-  // L'ordine qui è CRUCIALE: ciò che è aggiunto dopo sta sopra.
-  const gLines = document.createElementNS(NS, "g"); // Livello 1: Linee
-  const gTilesStandard = document.createElementNS(NS, "g"); // Livello 2: Caselle Normali
-  const gTilesPath = document.createElementNS(NS, "g"); // Livello 3: Caselle Stradine
-  const gTilesKeys = document.createElementNS(NS, "g"); // Livello 4: CHIAVI (Sopra tutto)
+  // Gruppi separati per i livelli (Z-Index)
+  const gLines = document.createElementNS(NS, "g");
+  const gTilesStandard = document.createElementNS(NS, "g");
+  const gTilesPath = document.createElementNS(NS, "g");
+  const gTilesKeys = document.createElementNS(NS, "g");
   
   svg.appendChild(gLines);
   svg.appendChild(gTilesStandard);
@@ -79,28 +78,20 @@ export function renderBoard(container) {
   const sectors = 6;
   const branchLen = 5;
 
-  // --- DIMENSIONI CASELLE AGGIUSTATE ---
-  // Rimpiccioliamo le standard per evitare accavallamenti
-  const tileW_Std = 96;  
-  const tileH_Std = 76;
-  
-  // Ingrandiamo le Chiavi per renderle dominanti
-  const tileW_Key = 130; 
-  const tileH_Key = 100;
-
   // Parametri Geometria
   const marginX = 90;
   const marginY = 70;
   
-  // Calcolo raggi disponibili
-  const ringRx = (VW / 2) - marginX - (tileW_Std / 2);
-  const ringRy = (VH / 2) - marginY - (tileH_Std / 2);
+  // Calcoliamo i raggi. Usiamo una stima di larghezza (100) solo per definire la curva.
+  // La larghezza reale delle caselle verrà ricalcolata dopo.
+  const ringRx = (VW / 2) - marginX - (100 / 2);
+  const ringRy = (VH / 2) - marginY - (76 / 2);
 
   // Scrigno e Raggi
   const centerSize = 140; 
   const scrignoRadius = (centerSize / 2) + 25;
 
-  // Helper Styles
+  // --- FUNZIONI UTILI ---
   function getTileStyle(tile) {
     const stroke = tile.category ? `var(--cat-${tile.category})` : "rgba(255,255,255,0.25)";
     let fill = "#1f2933";
@@ -109,8 +100,8 @@ export function renderBoard(container) {
     if (tile.type === "event") fill = "var(--color-evento)";
     if (tile.type === "minigame") fill = "var(--color-minisfida)";
     if (tile.type === "key") {
-       fill = "url(#keyGrad)"; // Usa il gradiente definito sopra
-       strokeW = 6; // Bordo molto spesso per le chiavi
+       fill = "url(#keyGrad)";
+       strokeW = 6;
     }
     if (tile.type === "scrigno") {
        fill = "url(#scrignoGrad)";
@@ -119,7 +110,6 @@ export function renderBoard(container) {
     if (tile.type === "category" && tile.category) {
       fill = `color-mix(in srgb, var(--cat-${tile.category}) 30%, #111827)`;
     }
-
     return { fill, stroke, strokeW };
   }
 
@@ -130,10 +120,9 @@ export function renderBoard(container) {
     ln.setAttribute("x2", String(x2));
     ln.setAttribute("y2", String(y2));
     
-    // Se è la connessione Chiave -> Strada, la facciamo speciale
     if (isKeyConnection) {
         ln.setAttribute("class", "svg-link svg-link-key");
-        ln.setAttribute("stroke", "#ecc94b"); // Color oro
+        ln.setAttribute("stroke", "#ecc94b");
         ln.setAttribute("stroke-width", "6");
         ln.setAttribute("opacity", "0.8");
     } else {
@@ -145,13 +134,12 @@ export function renderBoard(container) {
   function drawTile(tile, x, y, w, h, targetGroup) {
     const { fill, stroke, strokeW } = getTileStyle(tile);
     
-    // Rettangolo
     const rect = document.createElementNS(NS, "rect");
     rect.setAttribute("x", String(x - w / 2));
     rect.setAttribute("y", String(y - h / 2));
     rect.setAttribute("width", String(w));
     rect.setAttribute("height", String(h));
-    rect.setAttribute("rx", tile.type === 'key' ? "16" : "10"); // Chiavi più arrotondate
+    rect.setAttribute("rx", tile.type === 'key' ? "16" : "10");
     rect.setAttribute("fill", fill);
     rect.setAttribute("stroke", stroke);
     rect.setAttribute("stroke-width", String(strokeW));
@@ -161,26 +149,25 @@ export function renderBoard(container) {
     // ID
     const tId = document.createElementNS(NS, "text");
     tId.setAttribute("x", String(x));
-    tId.setAttribute("y", String(y - (h/2) + 16)); // Posizionato relativo all'altezza
+    tId.setAttribute("y", String(y - (h/2) + 16));
     tId.setAttribute("text-anchor", "middle");
     tId.setAttribute("class", "svg-tile-id");
     tId.style.fontSize = tile.type === 'key' ? "18px" : "14px";
     tId.textContent = String(tile.id);
 
-    // Icona
+    // Icona/Label
     const tLabel = document.createElementNS(NS, "text");
     tLabel.setAttribute("x", String(x));
     tLabel.setAttribute("y", String(y + 12));
     tLabel.setAttribute("text-anchor", "middle");
     tLabel.setAttribute("class", "svg-tile-label");
-    tLabel.style.fontSize = tile.type === 'key' ? "24px" : "16px"; // Icona grande per le chiavi
+    tLabel.style.fontSize = tile.type === 'key' ? "24px" : "16px";
 
     let label = "";
     if (tile.type === "key") label = "🔑";
     else if (tile.type === "event") label = "★";
     else if (tile.type === "minigame") label = "🎲";
     else if (tile.type === "scrigno") label = "🏆";
-    
     tLabel.textContent = label;
 
     targetGroup.appendChild(rect);
@@ -188,7 +175,7 @@ export function renderBoard(container) {
     targetGroup.appendChild(tLabel);
   }
 
-// === CALCOLO COORDINATE PERIMETRO (Squircle Equidistante) ===
+  // --- CALCOLO PERIMETRO E DIMENSIONI DINAMICHE ---
   const squirclePower = 0.6; 
 
   function getSquircleCoord(angle, radiusX, radiusY) {
@@ -201,8 +188,7 @@ export function renderBoard(container) {
     return { x, y };
   }
 
-  // LOGICA "CAMMINA SUL PERIMETRO" PER ELIMINARE I BUCHI
-  // 1. Campioniamo la forma con alta precisione
+  // 1. Campioniamo il perimetro per misurarlo
   const sampleCount = 2000;
   const samples = [];
   let totalPerimeter = 0;
@@ -220,13 +206,25 @@ export function renderBoard(container) {
     prevP = p;
   }
 
-  // 2. Troviamo i punti esatti equidistanti
+  // 2. CALCOLO DINAMICO LARGHEZZA CASELLE
+  // Dividiamo il perimetro totale per il numero di caselle (42)
+  const optimalWidth = totalPerimeter / ringCount;
+
+  // Definiamo le dimensioni finali
+  // Standard: larghezza ottimale - 2px di gap. Altezza fissa.
+  const tileW_Std = optimalWidth - 2; 
+  const tileH_Std = 85; 
+
+  // Chiavi: Devono essere proporzionalmente più grandi delle standard
+  const tileW_Key = tileW_Std * 1.3; 
+  const tileH_Key = 110; 
+
+  // 3. Troviamo i punti equidistanti
   const ringXY = [];
   const stepLenPerimeter = totalPerimeter / ringCount;
   
   for (let i = 0; i < ringCount; i++) {
     const targetDist = i * stepLenPerimeter;
-    // Troviamo il punto nel campione più vicino alla distanza target
     const sample = samples.find(s => s.accumDist >= targetDist) || samples[samples.length - 1];
     ringXY.push(sample.pt);
   }
@@ -239,10 +237,10 @@ export function renderBoard(container) {
   }
 
   // === FASE 2: DISEGNO CASELLE STANDARD (PERIMETRO) ===
-  // Saltiamo le chiavi in questo giro
   for (let i = 0; i < ringCount; i++) {
     const tile = BOARD[i];
     if (tile.type !== "key") {
+      // Qui usiamo la tileW_Std calcolata dinamicamente
       drawTile(tile, ringXY[i].x, ringXY[i].y, tileW_Std, tileH_Std, gTilesStandard);
     }
   }
@@ -250,58 +248,48 @@ export function renderBoard(container) {
   // === FASE 3: DISEGNO STRADINE E CONNESSIONI ===
   for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
     const keyId = sectorIndex * 7;
-    const keyP = ringXY[keyId]; // Coordinate Chiave
+    const keyP = ringXY[keyId]; 
     const branchBase = 42 + sectorIndex * branchLen;
 
-    // Vettore Chiave -> Centro
     const vx = cx - keyP.x;
     const vy = cy - keyP.y;
     const distTotal = Math.hypot(vx, vy);
     const ux = vx / distTotal;
     const uy = vy / distTotal;
 
-    // Parametri percorso
-    const startDist = distTotal * 0.16; // Inizia un po' più lontano dalla chiave per pulizia
+    const startDist = distTotal * 0.16;
     const endDist = distTotal - scrignoRadius;
     const stepLen = (endDist - startDist) / branchLen;
 
-    let prevX = keyP.x; // Iniziamo "virtualmente" dalla chiave
+    let prevX = keyP.x;
     let prevY = keyP.y;
 
-    // Coordinate primo step (per disegnare la linea speciale)
     const firstStepX = keyP.x + (ux * startDist);
     const firstStepY = keyP.y + (uy * startDist);
     
-    // Disegna la linea evidenziata dalla Chiave alla prima casella del percorso
     drawLine(keyP.x, keyP.y, firstStepX, firstStepY, true);
 
     prevX = firstStepX;
     prevY = firstStepY;
 
-    // Ciclo caselle stradina
     for (let j = 0; j < branchLen; j++) {
       const tid = branchBase + j;
       const tile = BOARD[tid];
-
-      // Ricalcolo posizione esatta per questo step
-      // Nota: j=0 è la prima casella, quindi usiamo startDist come base
       const currentDist = startDist + (j * stepLen); 
       const x = keyP.x + (ux * currentDist);
       const y = keyP.y + (uy * currentDist);
 
-      // Linea tra caselle percorso
       if (j > 0) { 
-          // Ricollego alla precedente casella del percorso
-          // (per j=0 la linea speciale è già fatta sopra)
           drawLine(prevX - (ux * stepLen), prevY - (uy * stepLen), x, y); 
       }
 
+      // Per le stradine usiamo ancora una dimensione fissa o la stessa calcolata?
+      // Usiamo la tileW_Std calcolata per coerenza, o leggermente ridotta se preferisci
       drawTile(tile, x, y, tileW_Std, tileH_Std, gTilesPath);
 
       prevX = x;
       prevY = y;
     }
-    // Ultima linea verso scrigno
     drawLine(prevX, prevY, cx, cy);
   }
 
@@ -309,16 +297,12 @@ export function renderBoard(container) {
   for (let i = 0; i < ringCount; i++) {
     const tile = BOARD[i];
     if (tile.type === "key") {
-      // Disegniamo la chiave nel gruppo gTilesKeys (z-index alto)
-      // Usiamo dimensioni Maggiorate
       drawTile(tile, ringXY[i].x, ringXY[i].y, tileW_Key, tileH_Key, gTilesKeys);
     }
   }
 
   // === FASE 5: SCRIGNO CENTRALE ===
   const scrigno = BOARD[72];
-  // Lo scrigno va sopra le stradine ma sotto le chiavi (o sopra tutto, a scelta)
-  // Mettiamolo con le chiavi per massima visibilità
   drawTile(scrigno, cx, cy, centerSize * 1.4, centerSize, gTilesKeys);
 
   wrap.appendChild(svg);
