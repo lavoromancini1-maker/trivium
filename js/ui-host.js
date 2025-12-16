@@ -71,21 +71,23 @@ export function renderBoard(container) {
   const branchLen = 5;
 
   // Tile base (coerenti con il tuo CSS attuale)
-  const tileW = 86;
-  const tileH = 68;
+  const tileW = 76;
+  const tileH = 60;
   const tileRx = 14;
 
   // AUTO-FIT: il raggio si adatta SEMPRE al viewBox (niente caselle tagliate)
-  const pad = 80; // margine sicurezza nel viewBox
+  const pad = 55; // margine sicurezza nel viewBox
   const maxR = Math.min(cx, cy) - pad - Math.max(tileW, tileH) / 2;
   const ringR = maxR;
 
   // Scrigno centrale (proporzionale)
-  const centerSize = ringR * 0.34;
+const centerSize = ringR * 0.36;     // scrigno leggermente più grande
 
-  // Branch diagonali verso centro (proporzionali e NON entrano nello scrigno)
-  const branchStart = ringR * 0.18;
-  const branchStep = ringR * 0.09;
+const scrignoRadius = (centerSize / 2) + 18; // buffer di sicurezza
+const branchEnd = ringR - scrignoRadius;     // dove vogliamo arrivare (prima dello scrigno)
+
+const branchStart = ringR * 0.22;            // stacca di più dalla key (meno caos vicino al ring)
+const branchStep = (branchEnd - branchStart) / (branchLen - 1); // ✅ arriva quasi allo scrigno
 
   function getTileStyle(tile) {
     const stroke = tile.category
