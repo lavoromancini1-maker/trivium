@@ -688,10 +688,59 @@ if (mg && mg.type === "SEQUENCE") {
         turnStatusText.textContent = `Hai tirato ${dice}. Scegli la direzione.`;
         rollDiceBtn.disabled = true;
 
-        const dirs = gameState.availableDirections || [];
+                const dirs = gameState.availableDirections || [];
         directionPanel.classList.remove("hidden");
         directionButtons.innerHTML = "";
+
+        // layout speciale se sono “molte uscite” (tipico dello scrigno)
+        const isManyExits = dirs.length >= 4;
+        directionButtons.classList.toggle("dir-grid-2", isManyExits);
+        directionButtons.classList.toggle("dir-grid-1", !isManyExits);
+
+        const emojiByCat = {
+          geografia: "🌍",
+          storia: "🏛️",
+          arte: "🎨",
+          sport: "🏅",
+          spettacolo: "🎬",
+          scienza: "🧪",
+        };
+
+        const prettyType = (t) => {
+          if (!t) return "";
+          if (t === "key") return "CHIAVE";
+          if (t === "event") return "EVENTO";
+          if (t === "minigame") return "MINIGAME";
+          if (t === "scrigno") return "SCRIGNO";
+          if (t === "category") return "CATEGORIA";
+          return t.toUpperCase();
+        };
+
         dirs.forEach((d) => {
+          const btn = document.createElement("button");
+          btn.className = "dir-card";
+          btn.setAttribute("data-dir-index", d.index);
+
+          // ✅ usiamo la preview finale se presente, altrimenti fallback a d.category
+          const cat = d.previewCategory || d.category || null;
+          const icon = cat ? (emojiByCat[cat] || "❓") : "➡️";
+
+          const title = d.label || "Direzione";
+          const line1 = cat ? `${icon} ${cat.toUpperCase()}` : `${icon} —`;
+          const line2 = `Arrivi su: ${prettyType(d.previewType || d.type)} #${d.previewTileId ?? "?"}`;
+
+          btn.innerHTML = `
+            <div class="dir-card-title">${title}</div>
+            <div class="dir-card-main">${line1}</div>
+            <div class="dir-card-sub">${line2}</div>
+          `;
+
+          directionButtons.appendChild(btn);
+        });
+
+        lastRapidFireIndex = null;
+        answerPanel.classList.add("hidden");
+
           const btn = document.createElement("button");
           btn.className = "btn btn-secondary dir-btn";
           btn.setAttribute("data-dir-index", d.index);
