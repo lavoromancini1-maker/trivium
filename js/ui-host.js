@@ -71,9 +71,9 @@ export function renderBoard(container) {
   const branchLen = 5;
 
   // Tile base (coerenti con il tuo CSS attuale)
-  const tileW = 76;
-  const tileH = 60;
-  const tileRx = 14;
+  const tileW = 92;
+  const tileH = 72;
+  const tileRx = 40;
 
   // AUTO-FIT: il raggio si adatta SEMPRE al viewBox (niente caselle tagliate)
   const pad = 55; // margine sicurezza nel viewBox
