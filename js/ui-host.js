@@ -69,7 +69,7 @@ export function renderBoard(container) {
   const branchLen = 5;           // per settore
   const sectors = 6;
 
-  const ringR = 480;             // raggio anello
+  const ringR = 500;             // raggio anello
   const branchStep = 70;         // distanza tra caselle stradina
   const branchStartR = ringR - 110; // prima casella verso il centro (staccata dalla key)
   const centerSize = 90;
