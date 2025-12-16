@@ -91,9 +91,9 @@ const ringRy = baseR * 0.85; // più schiacciato verticalmente
 const centerSize = baseR * 0.36;     // scrigno leggermente più grande
 
 const scrignoRadius = (centerSize / 2) + 18; // buffer di sicurezza
-const branchEnd = ringR - scrignoRadius;     // dove vogliamo arrivare (prima dello scrigno)
+const branchEnd = baseR - scrignoRadius;     // dove vogliamo arrivare (prima dello scrigno)
 
-const branchStart = ringR * 0.22;            // stacca di più dalla key (meno caos vicino al ring)
+const branchStart = baseR * 0.24;            // stacca di più dalla key (meno caos vicino al ring)
 const branchStep = (branchEnd - branchStart) / (branchLen - 1); // ✅ arriva quasi allo scrigno
 
   function getTileStyle(tile) {
