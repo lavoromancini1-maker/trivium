@@ -223,14 +223,31 @@ if (!isBranchTile) targetGroup.appendChild(tId);
   const tileH_Key = 110; 
 
   // 3. Troviamo i punti equidistanti
-  const ringXY = [];
-  const stepLenPerimeter = totalPerimeter / ringCount;
-  
-  for (let i = 0; i < ringCount; i++) {
-    const targetDist = i * stepLenPerimeter;
-    const sample = samples.find(s => s.accumDist >= targetDist) || samples[samples.length - 1];
-    ringXY.push(sample.pt);
-  }
+const ringXY = [];
+const stepLenPerimeter = totalPerimeter / ringCount;
+
+// puntatore nei sample: evitiamo find() e interpoliamo tra due punti
+let si = 1;
+
+for (let i = 0; i < ringCount; i++) {
+  const targetDist = i * stepLenPerimeter;
+
+  while (si < samples.length && samples[si].accumDist < targetDist) si++;
+
+  const a = samples[Math.max(0, si - 1)];
+  const b = samples[Math.min(samples.length - 1, si)];
+
+  const da = a.accumDist ?? 0;
+  const db = b.accumDist ?? da;
+
+  const span = Math.max(1e-6, db - da);
+  const t = Math.min(1, Math.max(0, (targetDist - da) / span));
+
+  const x = a.pt.x + (b.pt.x - a.pt.x) * t;
+  const y = a.pt.y + (b.pt.y - a.pt.y) * t;
+
+  ringXY.push({ x, y });
+}
 
   // === FASE 1: DISEGNO LINEE PERIMETRO ===
   for (let i = 0; i < ringCount; i++) {
