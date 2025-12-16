@@ -15,11 +15,11 @@ function formatQuestionCategoryLabel(q) {
 }
 
 // ===============================
-// BOARD RENDER (SVG rettangolare WIDE, TV-first)
-// - Ring 0..41 piegato su perimetro rettangolare
-// - Branch 42..71 diagonali verso lo scrigno
+// BOARD RENDER (SVG circolare AUTO-FIT, TV-first)
+// - Ring 0..41 (ordine invariato)
+// - Branch 42..71 partono dalle KEY (0,7,14,21,28,35) e vanno in diagonale verso centro
 // - Scrigno 72 al centro
-// - Numerazione tile ON (debug)
+// - Numerazione ON (debug) per capire l’ordine
 // ===============================
 export function renderBoard(container) {
   container.innerHTML = "";
@@ -31,9 +31,9 @@ export function renderBoard(container) {
   const svg = document.createElementNS(NS, "svg");
   svg.classList.add("board-svg");
 
-  // ✅ ViewBox WIDE: così non diventa un quadrato schiacciato
-  const VW = 1400;
-  const VH = 900;
+  // Torniamo a viewBox quadrato (circolare)
+  const VW = 1000;
+  const VH = 1000;
   svg.setAttribute("viewBox", `0 0 ${VW} ${VH}`);
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
@@ -70,31 +70,29 @@ export function renderBoard(container) {
   const sectors = 6;
   const branchLen = 5;
 
-  // ✅ Tile un filo più piccole per leggibilità + zero overlap
-  const tileW = 78;
-  const tileH = 60;
+  // Tile base (coerenti con il tuo CSS attuale)
+  const tileW = 86;
+  const tileH = 68;
   const tileRx = 14;
 
-  // ✅ Margini “wide”: più spazio orizzontale, ring disteso
-  const marginX = 70;
-  const marginY = 70;
+  // AUTO-FIT: il raggio si adatta SEMPRE al viewBox (niente caselle tagliate)
+  const pad = 80; // margine sicurezza nel viewBox
+  const maxR = Math.min(cx, cy) - pad - Math.max(tileW, tileH) / 2;
+  const ringR = maxR;
 
-  const leftX = marginX + tileW / 2;
-  const rightX = VW - marginX - tileW / 2;
-  const topY = marginY + tileH / 2;
-  const bottomY = VH - marginY - tileH / 2;
+  // Scrigno centrale (proporzionale)
+  const centerSize = ringR * 0.34;
 
-  // ✅ Scrigno più grande (ora si può)
-  const centerSize = 160;
-
-  // Branch: distanza dalla KEY verso centro
-  const branchStart = 90;
-  const branchStep = 70;
+  // Branch diagonali verso centro (proporzionali e NON entrano nello scrigno)
+  const branchStart = ringR * 0.18;
+  const branchStep = ringR * 0.09;
 
   function getTileStyle(tile) {
-    const stroke = tile.category ? `var(--cat-${tile.category})` : "rgba(255,255,255,0.22)";
-    let fill = "#1f2933";
+    const stroke = tile.category
+      ? `var(--cat-${tile.category})`
+      : "rgba(255,255,255,0.22)";
 
+    let fill = "#1f2933";
     if (tile.type === "event") fill = "var(--color-evento)";
     if (tile.type === "minigame") fill = "var(--color-minisfida)";
     if (tile.type === "key") fill = "rgba(236,201,75,0.12)";
@@ -133,7 +131,7 @@ export function renderBoard(container) {
     rect.setAttribute("class", `svg-tile svg-tile--${tile.type}`);
     rect.setAttribute("id", `tile-${tile.id}`);
 
-    // ✅ NUMERO (debug) — richiesto da te
+    // NUMERO (debug) — richiesto
     const tId = document.createElementNS(NS, "text");
     tId.setAttribute("x", String(x));
     tId.setAttribute("y", String(y - 10));
@@ -141,7 +139,7 @@ export function renderBoard(container) {
     tId.setAttribute("class", "svg-tile-id");
     tId.textContent = String(tile.id);
 
-    // Label (solo per speciali)
+    // Label (solo speciali)
     const tLabel = document.createElementNS(NS, "text");
     tLabel.setAttribute("x", String(x));
     tLabel.setAttribute("y", String(y + 16));
@@ -163,55 +161,37 @@ export function renderBoard(container) {
     gTiles.appendChild(tLabel);
   }
 
-  // ✅ Distribuzione che NON sovrappone: 12+9+12+9 = 42
-  const topN = 12;
-  const rightN = 9;
-  const bottomN = 12;
-  const leftN = 9;
-
-  function ringPos(i) {
-    if (i < topN) {
-      const t = topN === 1 ? 0.5 : i / (topN - 1);
-      return { x: leftX + t * (rightX - leftX), y: topY };
-    }
-    i -= topN;
-    if (i < rightN) {
-      const t = rightN === 1 ? 0.5 : i / (rightN - 1);
-      return { x: rightX, y: topY + t * (bottomY - topY) };
-    }
-    i -= rightN;
-    if (i < bottomN) {
-      const t = bottomN === 1 ? 0.5 : i / (bottomN - 1);
-      return { x: rightX - t * (rightX - leftX), y: bottomY };
-    }
-    i -= bottomN;
-    const t = leftN === 1 ? 0.5 : i / (leftN - 1);
-    return { x: leftX, y: bottomY - t * (bottomY - topY) };
-  }
-
-  // 1) Ring tiles + collegamenti
+  // 1) Ring tiles in cerchio (ordine invariato)
   const ringXY = new Array(ringCount);
+  const startAngle = -Math.PI / 2; // parte dall’alto
+  const step = (Math.PI * 2) / ringCount;
+
   for (let i = 0; i < ringCount; i++) {
     const tile = BOARD[i];
-    const p = ringPos(i);
-    ringXY[i] = p;
+    const a = startAngle + i * step;
+    const x = cx + ringR * Math.cos(a);
+    const y = cy + ringR * Math.sin(a);
 
-    if (tile.type === "key") drawTile(tile, p.x, p.y, tileW * 1.12, tileH * 1.12);
-    else drawTile(tile, p.x, p.y);
+    ringXY[i] = { x, y };
+
+    if (tile.type === "key") drawTile(tile, x, y, tileW * 1.12, tileH * 1.12);
+    else drawTile(tile, x, y);
   }
+
+  // collegamenti ring (circuito)
   for (let i = 0; i < ringCount; i++) {
     const a = ringXY[i];
     const b = ringXY[(i + 1) % ringCount];
     drawLine(a.x, a.y, b.x, b.y);
   }
 
-  // 2) Branches diagonali: verso centro (cx,cy) — partono dalle KEY (0,7,14,21,28,35)
+  // 2) Branch diagonali verso centro, partono dalle KEY fisse (0,7,14,21,28,35)
   for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
     const keyId = sectorIndex * 7;
     const keyP = ringXY[keyId];
     const branchBase = 42 + sectorIndex * branchLen;
 
-    // ✅ direzione diagonale verso centro
+    // direzione verso centro (diagonale “naturale”)
     let vx = cx - keyP.x;
     let vy = cy - keyP.y;
     const len = Math.hypot(vx, vy) || 1;
@@ -237,7 +217,7 @@ export function renderBoard(container) {
     }
   }
 
-  // 3) Scrigno
+  // 3) Scrigno al centro (72)
   const scrigno = BOARD[72];
   drawTile(scrigno, cx, cy, centerSize, centerSize);
 
