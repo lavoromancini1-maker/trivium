@@ -14,10 +14,8 @@ function formatQuestionCategoryLabel(q) {
   return `${cat} ${q.isKeyQuestion ? "– DOMANDA CHIAVE" : ""}`.trim();
 }
 
-// ... (codice precedente, import e formatQuestionCategoryLabel rimangono uguali)
-
 // ===============================
-// BOARD RENDER (SVG WIDE OVAL AUTO-FIT)
+// BOARD RENDER (SUPER-ELLISSE 16:9)
 // ===============================
 export function renderBoard(container) {
   container.innerHTML = "";
@@ -29,16 +27,14 @@ export function renderBoard(container) {
   const svg = document.createElementNS(NS, "svg");
   svg.classList.add("board-svg");
 
-  // 1. CAMBIAMENTO FONDAMENTALE: ViewBox panoramica (16:9 circa) invece che quadrata
-  // Questo dice all'SVG che lo spazio di disegno è rettangolare.
-  const VW = 1600; 
-  const VH = 900; 
+  // 1. VIEWBOX ESTESA (Full HD 1920x1080)
+  // Questo dà molto più spazio laterale rispetto al quadrato o al 1600x900
+  const VW = 1920; 
+  const VH = 1080; 
   svg.setAttribute("viewBox", `0 0 ${VW} ${VH}`);
-  
-  // preserveAspectRatio "slice" o "meet". Con le nuove dimensioni, "meet" va bene perché il ratio è simile allo schermo.
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
-  // Defs (gradient scrigno) - INVARIATO
+  // --- Definizioni Gradienti (Invariato) ---
   const defs = document.createElementNS(NS, "defs");
   const grad = document.createElementNS(NS, "linearGradient");
   grad.setAttribute("id", "scrignoGrad");
@@ -64,7 +60,6 @@ export function renderBoard(container) {
   svg.appendChild(gLines);
   svg.appendChild(gTiles);
 
-  // Centro della nuova ViewBox rettangolare
   const cx = VW / 2;
   const cy = VH / 2;
 
@@ -72,32 +67,24 @@ export function renderBoard(container) {
   const sectors = 6;
   const branchLen = 5;
 
-  // Dimensioni Tile (leggermente aumentate per riempire meglio visivamente)
-  const tileW = 100; // Era 92
-  const tileH = 76;  // Era 72
-  const tileRx = 12; // Radius degli angoli del rettangolino (estetico)
-
-  // 2. CALCOLO DELL'OVALE "FULL SCREEN"
-  // Invece di usare un ratio fisso, calcoliamo quanto spazio abbiamo in orizzontale e verticale.
+  // Dimensioni Tile Ottimizzate per 1920x1080
+  const tileW = 110; 
+  const tileH = 80;  
   
-  const safeMargin = 20; // Margine minimo dai bordi dello schermo
+  // 2. CALCOLO GEOMETRIA "SUPERELLISSE"
+  // Un margine di sicurezza per non toccare proprio i bordi dello schermo
+  const marginX = 80;
+  const marginY = 60;
 
-  // Raggio Orizzontale (Rx): Usa tutta la larghezza disponibile meno i margini e metà casella
-  const ringRx = (VW / 2) - safeMargin - (tileW / 2);
-  
-  // Raggio Verticale (Ry): Usa tutta l'altezza disponibile meno i margini e metà casella
-  const ringRy = (VH / 2) - safeMargin - (tileH / 2);
+  // Raggi massimi disponibili
+  const ringRx = (VW / 2) - marginX - (tileW / 2);
+  const ringRy = (VH / 2) - marginY - (tileH / 2);
 
-  // Parametri per lo Scrigno e le Stradine
-  // Lo scrigno si dimensiona in base all'altezza (dimensione più piccola) per non diventare enorme
-  const centerSize = ringRy * 0.55; 
-  const scrignoRadius = (centerSize / 2) + 15; // Buffer attorno allo scrigno per non sovrapporre l'ultima casella
+  // Scrigno centrale
+  const centerSize = 140; 
+  const scrignoRadius = (centerSize / 2) + 20;
 
-  // Da dove iniziano le stradine (vicino allo scrigno)
-  // Calcoliamo una distanza di sicurezza dal centro
-  const branchInnerRadius = scrignoRadius; 
-
-  // Funzioni Helper (INVARIATE, salvo piccoli aggiustamenti estetici)
+  // Funzioni grafiche helper (Invariate)
   function getTileStyle(tile) {
     const stroke = tile.category
       ? `var(--cat-${tile.category})`
@@ -128,35 +115,36 @@ export function renderBoard(container) {
 
   function drawTile(tile, x, y, w = tileW, h = tileH) {
     const { fill, stroke, strokeW } = getTileStyle(tile);
-
     const rect = document.createElementNS(NS, "rect");
+    
+    // Disegniamo i rettangoli centrati sulle coordinate x,y
     rect.setAttribute("x", String(x - w / 2));
     rect.setAttribute("y", String(y - h / 2));
     rect.setAttribute("width", String(w));
     rect.setAttribute("height", String(h));
-    rect.setAttribute("rx", String(8)); // Angoli leggermente arrotondati
+    rect.setAttribute("rx", "12"); // Arrotondamento angoli tile
     rect.setAttribute("fill", fill);
     rect.setAttribute("stroke", stroke);
     rect.setAttribute("stroke-width", String(strokeW));
     rect.setAttribute("class", `svg-tile svg-tile--${tile.type}`);
     rect.setAttribute("id", `tile-${tile.id}`);
 
-    // ID Casella
+    // Testo ID (piccolo in alto)
     const tId = document.createElementNS(NS, "text");
     tId.setAttribute("x", String(x));
-    tId.setAttribute("y", String(y - 12));
+    tId.setAttribute("y", String(y - 14));
     tId.setAttribute("text-anchor", "middle");
     tId.setAttribute("class", "svg-tile-id");
-    tId.style.fontSize = "16px"; // Leggermente più piccolo per pulizia
+    tId.style.fontSize = "16px"; 
     tId.textContent = String(tile.id);
 
-    // Icona/Label
+    // Icona o Label
     const tLabel = document.createElementNS(NS, "text");
     tLabel.setAttribute("x", String(x));
     tLabel.setAttribute("y", String(y + 14));
     tLabel.setAttribute("text-anchor", "middle");
     tLabel.setAttribute("class", "svg-tile-label");
-    tLabel.style.fontSize = "14px";
+    tLabel.style.fontSize = "16px";
 
     let label = "";
     if (tile.type === "key") label = "🔑";
@@ -171,24 +159,43 @@ export function renderBoard(container) {
     gTiles.appendChild(tLabel);
   }
 
-  // --- RENDERING DELL'ANELLO OVALE ---
+  // === 3. LOGICA SUPERELLISSE (SQUIRCLE) ===
+  // Questa è la magia matematica. Invece di un cerchio perfetto, 
+  // usiamo una potenza per "squadrare" gli angoli.
+  // power = 1.0 -> Cerchio/Ovale classico
+  // power = 0.1 -> Rettangolo quasi perfetto
+  // power = 0.6 -> Rettangolo morbido (Ottimo per TV)
+  const squirclePower = 0.6; 
+
+  // Helper per calcolare coordinate superellisse
+  function getSquircleCoord(angle, radiusX, radiusY) {
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    
+    // Formula superellisse: sgn(cos) * |cos|^power
+    const sgnCos = Math.sign(cosA);
+    const sgnSin = Math.sign(sinA);
+    
+    const x = cx + radiusX * sgnCos * Math.pow(Math.abs(cosA), squirclePower);
+    const y = cy + radiusY * sgnSin * Math.pow(Math.abs(sinA), squirclePower);
+    
+    return { x, y };
+  }
+
   const ringXY = new Array(ringCount);
-  const startAngle = -Math.PI / 2; 
+  const startAngle = -Math.PI / 2; // Parte dall'alto
   const step = (Math.PI * 2) / ringCount;
 
   for (let i = 0; i < ringCount; i++) {
     const tile = BOARD[i];
     const a = startAngle + i * step;
-    
-    // Matematica dell'ovale: x dipende da Rx, y dipende da Ry
-    const x = cx + ringRx * Math.cos(a);
-    const y = cy + ringRy * Math.sin(a);
 
-    ringXY[i] = { x, y };
+    // Usiamo la nuova funzione invece di cos/sin puri
+    const coords = getSquircleCoord(a, ringRx, ringRy);
+    ringXY[i] = coords;
 
-    // Disegna la casella (le Key sono un po' più grandi)
-    if (tile.type === "key") drawTile(tile, x, y, tileW * 1.2, tileH * 1.2);
-    else drawTile(tile, x, y);
+    if (tile.type === "key") drawTile(tile, coords.x, coords.y, tileW * 1.2, tileH * 1.2);
+    else drawTile(tile, coords.x, coords.y);
   }
 
   // Collegamenti Anello
@@ -198,31 +205,26 @@ export function renderBoard(container) {
     drawLine(a.x, a.y, b.x, b.y);
   }
 
-  // --- RENDERING DELLE STRADINE (Raggi) ---
-  // Partono dalle key (0, 7, 14, 21, 28, 35) e vanno verso il centro
+  // === 4. STRADINE (RAGGI) ===
   for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
     const keyId = sectorIndex * 7;
-    const keyP = ringXY[keyId];
+    const keyP = ringXY[keyId]; // Coordinate della chiave sul perimetro
     const branchBase = 42 + sectorIndex * branchLen;
 
-    // Calcoliamo il vettore dalla Key al Centro
+    // Vettore dalla Key al Centro
     const vx = cx - keyP.x;
     const vy = cy - keyP.y;
-    const distanceKeyToCenter = Math.hypot(vx, vy); // Distanza totale
-    
-    // Vettori unitari per la direzione
-    const ux = vx / distanceKeyToCenter;
-    const uy = vy / distanceKeyToCenter;
+    const distKeyCenter = Math.hypot(vx, vy);
 
-    // Definiamo dove inizia e finisce la stradina
-    // Start: Un po' staccato dalla Key verso l'interno
-    // End: Al bordo dello Scrigno
-    const distStart = distanceKeyToCenter * 0.15; // Parte al 15% del percorso verso l'interno
-    const distEnd = distanceKeyToCenter - scrignoRadius; // Finisce al bordo scrigno
-    
-    const totalPathLen = distEnd - distStart;
-    const stepLen = totalPathLen / (branchLen); 
-    // Nota: divido per branchLen per distanziarle meglio, l'ultima si collegherà visivamente allo scrigno
+    // Normalizziamo
+    const ux = vx / distKeyCenter;
+    const uy = vy / distKeyCenter;
+
+    // Definiamo inizio e fine della stradina
+    const startDist = distKeyCenter * 0.12; // Parte poco dopo la chiave
+    const endDist = distKeyCenter - scrignoRadius; // Finisce allo scrigno
+    const totalLen = endDist - startDist;
+    const stepLen = totalLen / branchLen;
 
     let prevX = keyP.x;
     let prevY = keyP.y;
@@ -231,11 +233,8 @@ export function renderBoard(container) {
       const tid = branchBase + j;
       const tile = BOARD[tid];
 
-      // Posizione lungo il raggio
-      // Usiamo una progressione lineare dalla Key verso lo Scrigno
-      // (j + 1) perché j=0 è la prima casella DOPO la key
-      const currentDist = distStart + (j * stepLen);
-      
+      // Posizione lineare verso il centro
+      const currentDist = startDist + (j * stepLen);
       const x = keyP.x + (ux * currentDist);
       const y = keyP.y + (uy * currentDist);
 
@@ -245,14 +244,13 @@ export function renderBoard(container) {
       prevX = x;
       prevY = y;
     }
-    
-    // Collega l'ultima casella della stradina allo Scrigno
-    drawLine(prevX, prevY, cx, cy); 
+    // Collega ultimo step allo scrigno
+    drawLine(prevX, prevY, cx, cy);
   }
 
-  // 3) Scrigno al centro
+  // Disegna Scrigno Centrale
   const scrigno = BOARD[72];
-  drawTile(scrigno, cx, cy, centerSize * 1.5, centerSize); // Un po' più largo che alto
+  drawTile(scrigno, cx, cy, centerSize * 1.4, centerSize);
 
   wrap.appendChild(svg);
   container.appendChild(wrap);
