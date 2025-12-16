@@ -14,12 +14,10 @@ function formatQuestionCategoryLabel(q) {
   return `${cat} ${q.isKeyQuestion ? "– DOMANDA CHIAVE" : ""}`.trim();
 }
 
+// ... (codice precedente, import e formatQuestionCategoryLabel rimangono uguali)
+
 // ===============================
-// BOARD RENDER (SVG circolare AUTO-FIT, TV-first)
-// - Ring 0..41 (ordine invariato)
-// - Branch 42..71 partono dalle KEY (0,7,14,21,28,35) e vanno in diagonale verso centro
-// - Scrigno 72 al centro
-// - Numerazione ON (debug) per capire l’ordine
+// BOARD RENDER (SVG WIDE OVAL AUTO-FIT)
 // ===============================
 export function renderBoard(container) {
   container.innerHTML = "";
@@ -31,13 +29,16 @@ export function renderBoard(container) {
   const svg = document.createElementNS(NS, "svg");
   svg.classList.add("board-svg");
 
-  // Torniamo a viewBox quadrato (circolare)
-  const VW = 1000;
-  const VH = 1000;
+  // 1. CAMBIAMENTO FONDAMENTALE: ViewBox panoramica (16:9 circa) invece che quadrata
+  // Questo dice all'SVG che lo spazio di disegno è rettangolare.
+  const VW = 1600; 
+  const VH = 900; 
   svg.setAttribute("viewBox", `0 0 ${VW} ${VH}`);
+  
+  // preserveAspectRatio "slice" o "meet". Con le nuove dimensioni, "meet" va bene perché il ratio è simile allo schermo.
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
-  // Defs (gradient scrigno)
+  // Defs (gradient scrigno) - INVARIATO
   const defs = document.createElementNS(NS, "defs");
   const grad = document.createElementNS(NS, "linearGradient");
   grad.setAttribute("id", "scrignoGrad");
@@ -63,7 +64,7 @@ export function renderBoard(container) {
   svg.appendChild(gLines);
   svg.appendChild(gTiles);
 
-
+  // Centro della nuova ViewBox rettangolare
   const cx = VW / 2;
   const cy = VH / 2;
 
@@ -71,37 +72,32 @@ export function renderBoard(container) {
   const sectors = 6;
   const branchLen = 5;
 
-  // Tile base (coerenti con il tuo CSS attuale)
-  const tileW = 92;
-  const tileH = 72;
-  const tileRx = 40;
+  // Dimensioni Tile (leggermente aumentate per riempire meglio visivamente)
+  const tileW = 100; // Era 92
+  const tileH = 76;  // Era 72
+  const tileRx = 12; // Radius degli angoli del rettangolino (estetico)
 
-// === OVAL MAX-FIT (WIDE SHOW) ===
-const pad = 28; // più piccolo = ovale più grande (senza toccare i bordi)
-
-// limiti reali del viewBox (tenendo conto delle dimensioni tile)
-const maxRx = cx - pad - (tileW / 2);
-const maxRy = cy - pad - (tileH / 2);
-
-// rapporto WIDE SHOW
-const ratio = 1.45;
+  // 2. CALCOLO DELL'OVALE "FULL SCREEN"
+  // Invece di usare un ratio fisso, calcoliamo quanto spazio abbiamo in orizzontale e verticale.
   
-// 🔥 FISSIAMO Rx al massimo possibile
-const ringRx = maxRx;
+  const safeMargin = 20; // Margine minimo dai bordi dello schermo
 
-// 🔥 Ry segue il rapporto (più schiacciato)
-const ringRy = ringRx / ratio;
+  // Raggio Orizzontale (Rx): Usa tutta la larghezza disponibile meno i margini e metà casella
+  const ringRx = (VW / 2) - safeMargin - (tileW / 2);
+  
+  // Raggio Verticale (Ry): Usa tutta l'altezza disponibile meno i margini e metà casella
+  const ringRy = (VH / 2) - safeMargin - (tileH / 2);
 
-// raggio “logico” per valori proporzionali (branch/scrigno)
-const baseR = ringRy;
+  // Parametri per lo Scrigno e le Stradine
+  // Lo scrigno si dimensiona in base all'altezza (dimensione più piccola) per non diventare enorme
+  const centerSize = ringRy * 0.55; 
+  const scrignoRadius = (centerSize / 2) + 15; // Buffer attorno allo scrigno per non sovrapporre l'ultima casella
 
+  // Da dove iniziano le stradine (vicino allo scrigno)
+  // Calcoliamo una distanza di sicurezza dal centro
+  const branchInnerRadius = scrignoRadius; 
 
-
-  // Scrigno centrale (proporzionale)
-const centerSize = baseR * 0.38;     // scrigno leggermente più grande
-const scrignoRadius = (centerSize / 2) + 10; // buffer di sicurezza
-const branchStart = baseR * 0.24; 
-
+  // Funzioni Helper (INVARIATE, salvo piccoli aggiustamenti estetici)
   function getTileStyle(tile) {
     const stroke = tile.category
       ? `var(--cat-${tile.category})`
@@ -138,37 +134,36 @@ const branchStart = baseR * 0.24;
     rect.setAttribute("y", String(y - h / 2));
     rect.setAttribute("width", String(w));
     rect.setAttribute("height", String(h));
-    rect.setAttribute("rx", String(tileRx));
+    rect.setAttribute("rx", String(8)); // Angoli leggermente arrotondati
     rect.setAttribute("fill", fill);
     rect.setAttribute("stroke", stroke);
     rect.setAttribute("stroke-width", String(strokeW));
-    rect.setAttribute("opacity", "0.98");
     rect.setAttribute("class", `svg-tile svg-tile--${tile.type}`);
     rect.setAttribute("id", `tile-${tile.id}`);
 
-    // NUMERO (debug) — richiesto
+    // ID Casella
     const tId = document.createElementNS(NS, "text");
     tId.setAttribute("x", String(x));
-    tId.setAttribute("y", String(y - 10));
+    tId.setAttribute("y", String(y - 12));
     tId.setAttribute("text-anchor", "middle");
     tId.setAttribute("class", "svg-tile-id");
+    tId.style.fontSize = "16px"; // Leggermente più piccolo per pulizia
     tId.textContent = String(tile.id);
 
-    // Label (solo speciali)
+    // Icona/Label
     const tLabel = document.createElementNS(NS, "text");
     tLabel.setAttribute("x", String(x));
-    tLabel.setAttribute("y", String(y + 16));
+    tLabel.setAttribute("y", String(y + 14));
     tLabel.setAttribute("text-anchor", "middle");
     tLabel.setAttribute("class", "svg-tile-label");
+    tLabel.style.fontSize = "14px";
 
     let label = "";
-    if (tile.type === "category") label = "";
-    else if (tile.type === "key") label = "🔑";
-    else if (tile.type === "event") label = "EVENT";
-    else if (tile.type === "minigame") label = "MINIGAME";
-    else if (tile.type === "scrigno") label = "SCRIGNO";
-    else label = tile.type;
-
+    if (tile.type === "key") label = "🔑";
+    else if (tile.type === "event") label = "★";
+    else if (tile.type === "minigame") label = "🎲";
+    else if (tile.type === "scrigno") label = "🏆";
+    
     tLabel.textContent = label;
 
     gTiles.appendChild(rect);
@@ -176,50 +171,58 @@ const branchStart = baseR * 0.24;
     gTiles.appendChild(tLabel);
   }
 
-  // 1) Ring tiles in cerchio (ordine invariato)
+  // --- RENDERING DELL'ANELLO OVALE ---
   const ringXY = new Array(ringCount);
-  const startAngle = -Math.PI / 2; // parte dall’alto
+  const startAngle = -Math.PI / 2; 
   const step = (Math.PI * 2) / ringCount;
 
   for (let i = 0; i < ringCount; i++) {
     const tile = BOARD[i];
     const a = startAngle + i * step;
+    
+    // Matematica dell'ovale: x dipende da Rx, y dipende da Ry
     const x = cx + ringRx * Math.cos(a);
     const y = cy + ringRy * Math.sin(a);
 
     ringXY[i] = { x, y };
 
-    if (tile.type === "key") drawTile(tile, x, y, tileW * 1.12, tileH * 1.12);
+    // Disegna la casella (le Key sono un po' più grandi)
+    if (tile.type === "key") drawTile(tile, x, y, tileW * 1.2, tileH * 1.2);
     else drawTile(tile, x, y);
   }
 
-  // collegamenti ring (circuito)
+  // Collegamenti Anello
   for (let i = 0; i < ringCount; i++) {
     const a = ringXY[i];
     const b = ringXY[(i + 1) % ringCount];
     drawLine(a.x, a.y, b.x, b.y);
   }
 
-  // 2) Branch diagonali verso centro, partono dalle KEY fisse (0,7,14,21,28,35)
+  // --- RENDERING DELLE STRADINE (Raggi) ---
+  // Partono dalle key (0, 7, 14, 21, 28, 35) e vanno verso il centro
   for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
     const keyId = sectorIndex * 7;
     const keyP = ringXY[keyId];
     const branchBase = 42 + sectorIndex * branchLen;
 
-    // direzione verso centro (diagonale “naturale”)
-    let vx = cx - keyP.x;
-    let vy = cy - keyP.y;
-    const len = Math.hypot(vx, vy) || 1;
-    const ux = vx / len;
-    const uy = vy / len;
-// distanza reale key->centro (dipende da dove sta sull'ovale)
-const keyToCenter = Math.hypot(cx - keyP.x, cy - keyP.y);
+    // Calcoliamo il vettore dalla Key al Centro
+    const vx = cx - keyP.x;
+    const vy = cy - keyP.y;
+    const distanceKeyToCenter = Math.hypot(vx, vy); // Distanza totale
+    
+    // Vettori unitari per la direzione
+    const ux = vx / distanceKeyToCenter;
+    const uy = vy / distanceKeyToCenter;
 
-// vogliamo che l’ultima casella branch arrivi “a filo” scrigno
-const branchEnd = keyToCenter - scrignoRadius;
-
-// step calcolato per questa stradina
-const branchStep = (branchEnd - branchStart) / (branchLen - 1);
+    // Definiamo dove inizia e finisce la stradina
+    // Start: Un po' staccato dalla Key verso l'interno
+    // End: Al bordo dello Scrigno
+    const distStart = distanceKeyToCenter * 0.15; // Parte al 15% del percorso verso l'interno
+    const distEnd = distanceKeyToCenter - scrignoRadius; // Finisce al bordo scrigno
+    
+    const totalPathLen = distEnd - distStart;
+    const stepLen = totalPathLen / (branchLen); 
+    // Nota: divido per branchLen per distanziarle meglio, l'ultima si collegherà visivamente allo scrigno
 
     let prevX = keyP.x;
     let prevY = keyP.y;
@@ -228,9 +231,13 @@ const branchStep = (branchEnd - branchStart) / (branchLen - 1);
       const tid = branchBase + j;
       const tile = BOARD[tid];
 
-      const dist = branchStart + j * branchStep;
-      const x = keyP.x + ux * dist;
-      const y = keyP.y + uy * dist;
+      // Posizione lungo il raggio
+      // Usiamo una progressione lineare dalla Key verso lo Scrigno
+      // (j + 1) perché j=0 è la prima casella DOPO la key
+      const currentDist = distStart + (j * stepLen);
+      
+      const x = keyP.x + (ux * currentDist);
+      const y = keyP.y + (uy * currentDist);
 
       drawLine(prevX, prevY, x, y);
       drawTile(tile, x, y);
@@ -238,11 +245,14 @@ const branchStep = (branchEnd - branchStart) / (branchLen - 1);
       prevX = x;
       prevY = y;
     }
+    
+    // Collega l'ultima casella della stradina allo Scrigno
+    drawLine(prevX, prevY, cx, cy); 
   }
 
-  // 3) Scrigno al centro (72)
+  // 3) Scrigno al centro
   const scrigno = BOARD[72];
-  drawTile(scrigno, cx, cy, centerSize, centerSize);
+  drawTile(scrigno, cx, cy, centerSize * 1.5, centerSize); // Un po' più largo che alto
 
   wrap.appendChild(svg);
   container.appendChild(wrap);
