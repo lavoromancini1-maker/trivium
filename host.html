@@ -23,16 +23,26 @@
 </header>
 
 
-  <main class="host-main host-stage">
-  <!-- Dock Players (8 max: 2 per lato) -->
-  <div class="players-dock players-dock--top" id="players-dock-top"></div>
-  <div class="players-dock players-dock--right" id="players-dock-right"></div>
-  <div class="players-dock players-dock--bottom" id="players-dock-bottom"></div>
-  <div class="players-dock players-dock--left" id="players-dock-left"></div>
+<main class="host-main host-layout">
 
-  <!-- Tabellone -->
-  <section id="board-container"></section>
+  <aside class="players-col players-col--left">
+    <div id="players-left"></div>
+  </aside>
+
+  <section id="board-container">
+    <!-- TABELLONE -->
+  </section>
+
+  <aside class="players-col players-col--right">
+    <div id="players-right"></div>
+  </aside>
+
 </main>
+
+<footer class="host-footer">
+  <div id="game-message"></div>
+</footer>
+
 
     <div id="overlay" class="overlay hidden">
       <div id="overlay-content"></div>
