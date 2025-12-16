@@ -547,7 +547,7 @@ body {
 #board-container .board-svg-wrap {
   width: 100%;
   height: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: auto;
 }
 
 #board-container svg {
@@ -645,7 +645,7 @@ body {
   height: 100%;
   width: auto;              /* 🔥 chiave: non forza la larghezza */
   max-width: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: auto;
 }
 
 /* SVG sempre dentro */
