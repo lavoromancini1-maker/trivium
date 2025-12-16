@@ -69,13 +69,13 @@ export function renderBoard(container) {
   const branchLen = 5;           // per settore
   const sectors = 6;
 
-  const ringR = 440;             // raggio anello
-  const branchStep = 72;         // distanza tra caselle stradina
-  const branchStartR = ringR - 90; // prima casella verso il centro (staccata dalla key)
-  const centerSize = 120;
+  const ringR = 480;             // raggio anello
+  const branchStep = 70;         // distanza tra caselle stradina
+  const branchStartR = ringR - 110; // prima casella verso il centro (staccata dalla key)
+  const centerSize = 90;
 
-  const tileW = 78;
-  const tileH = 62;
+  const tileW = 86;
+  const tileH = 68;
   const tileRx = 14;
 
   const angle0 = -Math.PI / 2;   // start in alto (12 o'clock)
@@ -92,6 +92,11 @@ export function renderBoard(container) {
     if (tile.type === "minigame") fill = "var(--color-minisfida)";
     if (tile.type === "key") fill = "rgba(236,201,75,0.12)";
     if (tile.type === "scrigno") fill = "url(#scrignoGrad)";
+    // Category tiles: fill con colore categoria (non solo bordo)
+if (tile.type === "category" && tile.category) {
+  fill = `color-mix(in srgb, var(--cat-${tile.category}) 35%, #111827)`;
+}
+
 
     // stroke più “forte” per key/scrigno
     const strokeW = tile.type === "key" ? 4 : tile.type === "scrigno" ? 4 : 3;
@@ -133,7 +138,7 @@ export function renderBoard(container) {
     tLabel.setAttribute("class", "svg-tile-label");
 
     let label = "";
-    if (tile.type === "category") label = tile.category || "";
+    if (tile.type === "category") label = "";
     else if (tile.type === "key") label = `CHIAVE ${tile.category || ""}`;
     else if (tile.type === "event") label = "EVENT";
     else if (tile.type === "minigame") label = "MINIGAME";
@@ -205,8 +210,6 @@ export function renderBoard(container) {
       prevY = y;
     }
 
-    // collega ultima casella al centro (solo linea)
-    drawLine(prevX, prevY, cx, cy);
   }
 
   // --- 3) Centro scrigno (72) ---
@@ -723,61 +726,46 @@ if (
 }
 
 export function renderPlayers(gameState) {
-  const top = document.getElementById("players-dock-top");
-  const right = document.getElementById("players-dock-right");
-  const bottom = document.getElementById("players-dock-bottom");
-  const left = document.getElementById("players-dock-left");
+  const leftCol = document.getElementById("players-left");
+  const rightCol = document.getElementById("players-right");
 
-  if (!top || !right || !bottom || !left) return;
+  if (!leftCol || !rightCol) return;
 
-  top.innerHTML = "";
-  right.innerHTML = "";
-  bottom.innerHTML = "";
-  left.innerHTML = "";
+  leftCol.innerHTML = "";
+  rightCol.innerHTML = "";
 
   const playersObj = gameState?.players || {};
   const turnOrder = gameState?.turnOrder || Object.keys(playersObj);
   const currentPlayerId = gameState?.currentPlayerId || null;
 
-  // Ordine di render: turnOrder, max 8
   const ids = turnOrder.filter(id => playersObj[id]).slice(0, 8);
-
-  // 2 per lato: top(2), right(2), bottom(2), left(2)
-  const slots = [
-    { dock: top, count: 2 },
-    { dock: right, count: 2 },
-    { dock: bottom, count: 2 },
-    { dock: left, count: 2 },
-  ];
 
   const CATS = ["geografia", "storia", "arte", "sport", "spettacolo", "scienza"];
 
-  let idx = 0;
-  for (const s of slots) {
-    for (let i = 0; i < s.count; i++) {
-      const pid = ids[idx++];
-      if (!pid) continue;
+  ids.forEach((pid, index) => {
+    const p = playersObj[pid];
 
-      const p = playersObj[pid];
-      const card = document.createElement("div");
-      card.className = "player-card" + (pid === currentPlayerId ? " player-card--active" : "");
+    const card = document.createElement("div");
+    card.className =
+      "player-card" + (pid === currentPlayerId ? " player-card--active" : "");
 
-      const keys = p?.keys || {};
+    const keys = p?.keys || {};
 
-      const keysHtml = CATS.map(cat => {
-        const on = !!keys[cat];
-        return `<span class="key-dot key-dot--${cat} ${on ? "key-dot--on" : ""}"></span>`;
-      }).join("");
+    const keysHtml = CATS.map(cat => {
+      const on = !!keys[cat];
+      return `<span class="key-dot key-dot--${cat} ${on ? "key-dot--on" : ""}"></span>`;
+    }).join("");
 
-      card.innerHTML = `
-        <div class="player-card__name">${p?.name || "Senza nome"}</div>
-        <div class="player-card__points">${p?.points ?? 0}</div>
-        <div class="player-card__keys">${keysHtml}</div>
-      `;
+    card.innerHTML = `
+      <div class="player-card__name">${p?.name || "Player"}</div>
+      <div class="player-card__points">${p?.points ?? 0} pts</div>
+      <div class="player-card__keys">${keysHtml}</div>
+    `;
 
-      s.dock.appendChild(card);
-    }
-  }
+    // primi 4 a sinistra, altri a destra
+    if (index < 4) leftCol.appendChild(card);
+    else rightCol.appendChild(card);
+  });
 }
 
 function countKeys(player) {
