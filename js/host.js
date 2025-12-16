@@ -1,4 +1,4 @@
-import { renderBoard, renderQuestionOverlay, renderPlayers } from "./ui-host.js";
+import { renderBoard, renderQuestionOverlay, renderPlayers, updateBoardHighlights } from "./ui-host.js";
 import {
   createGame,
   listenGame,
@@ -20,7 +20,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const createGameBtn = document.getElementById("create-game-btn");
   const startGameBtn = document.getElementById("start-game-btn");
   const gameCodeDisplay = document.getElementById("game-code-display");
-  const playersListEl = document.getElementById("players-list");
   const messageTextEl = document.getElementById("message-text");
 
   if (!boardContainer) {
@@ -55,9 +54,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         currentGameState = gameState;
 
-        renderPlayers(gameState, playersListEl);
+        renderPlayers(gameState);
+        updateBoardHighlights(gameState);
         renderGameMessage(gameState, messageTextEl);
         renderQuestionOverlay(gameState);
+
       });
 
       // avvia il controllo periodico dei timeout
