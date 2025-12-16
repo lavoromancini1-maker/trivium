@@ -9,9 +9,9 @@
 <body class="page--host">
   <div id="host-root">
 <header class="host-header">
-  <h1>Trivium – Host</h1>
-  <h1 class="host-title">Trivium – Host</h1>
+  <h1 class="host-title">TRIVIUM</h1>
   <div id="game-setup">
+
     <button id="create-game-btn" class="btn btn-primary">
       Crea nuova partita
     </button>
@@ -23,16 +23,16 @@
 </header>
 
 
-    <main class="host-main">
-      <section id="board-container">
-        <!-- Tabellone -->
-      </section>
+  <main class="host-main host-stage">
+  <!-- Dock Players (8 max: 2 per lato) -->
+  <div class="players-dock players-dock--top" id="players-dock-top"></div>
+  <div class="players-dock players-dock--right" id="players-dock-right"></div>
+  <div class="players-dock players-dock--bottom" id="players-dock-bottom"></div>
+  <div class="players-dock players-dock--left" id="players-dock-left"></div>
 
-      <section id="players-panel">
-        <h2>Giocatori</h2>
-        <div id="players-list"></div> <!-- Lista dei giocatori -->
-      </section>
-    </main>
+  <!-- Tabellone -->
+  <section id="board-container"></section>
+</main>
 
     <div id="overlay" class="overlay hidden">
       <div id="overlay-content"></div>
