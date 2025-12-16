@@ -672,3 +672,49 @@ body {
   height: 100% !important;
   display: block;
 }
+
+/* --- Direction UI (player) --- */
+#direction-buttons.dir-grid-1 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+#direction-buttons.dir-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.dir-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+  border-radius: 14px;
+  padding: 12px 12px;
+  cursor: pointer;
+}
+
+.dir-card:active {
+  transform: scale(0.99);
+}
+
+.dir-card-title {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-bottom: 6px;
+  letter-spacing: 0.4px;
+}
+
+.dir-card-main {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.dir-card-sub {
+  font-size: 12px;
+  opacity: 0.75;
+}
