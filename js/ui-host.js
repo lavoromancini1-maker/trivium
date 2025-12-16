@@ -266,9 +266,16 @@ for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
   const ux = vx / distTotal;
   const uy = vy / distTotal;
 
-  const startDist = distTotal * 0.16;
-  const endDist = distTotal - scrignoRadius;
-  const usable = Math.max(10, endDist - startDist);
+const isShortBranch = (sectorIndex === 0 || sectorIndex === 3);
+
+// startDist più alto = la stradina parte più "dentro" (non passa sotto la chiave)
+const startDist = distTotal * (isShortBranch ? 0.24 : 0.16);
+
+// endDist più vicino allo scrigno = ultima casella più attaccata al centro
+const endDist = distTotal - scrignoRadius * (isShortBranch ? 0.55 : 1.0);
+
+const usable = Math.max(10, endDist - startDist);
+
 
   // raccogli tutta la catena branch: branch -> branch -> ... -> (scrigno neighbor)
   const chain = [];
@@ -290,8 +297,8 @@ for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
   const len = chain.length || 1;
   const stepLen = usable / len;
 
-  const tileW_Path = tileW_Std * 0.95;
-  const tileH_Path = tileH_Std * 0.88;
+  const tileW_Path = tileW_Std * (isShortBranch ? 1.02 : 0.95);
+  const tileH_Path = tileH_Std * (isShortBranch ? 0.94 : 0.88);
 
   let prevX = keyP.x;
   let prevY = keyP.y;
