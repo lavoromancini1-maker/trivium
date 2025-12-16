@@ -139,7 +139,8 @@ export function renderBoard(container) {
     rect.setAttribute("y", String(y - h / 2));
     rect.setAttribute("width", String(w));
     rect.setAttribute("height", String(h));
-    rect.setAttribute("rx", tile.type === 'key' ? "16" : "10");
+    const isBranchTile = tile.id >= 42 && tile.id <= 71; // le 30 caselle delle stradine
+    rect.setAttribute("rx", tile.type === "key" ? "16" : (isBranchTile ? String(Math.floor(h / 2)) : "10"));
     rect.setAttribute("fill", fill);
     rect.setAttribute("stroke", stroke);
     rect.setAttribute("stroke-width", String(strokeW));
@@ -170,9 +171,12 @@ export function renderBoard(container) {
     else if (tile.type === "scrigno") label = "🏆";
     tLabel.textContent = label;
 
+
     targetGroup.appendChild(rect);
-    targetGroup.appendChild(tId);
+if (!isBranchTile) targetGroup.appendChild(tId);
+
     targetGroup.appendChild(tLabel);
+
   }
 
   // --- CALCOLO PERIMETRO E DIMENSIONI DINAMICHE ---
@@ -245,7 +249,7 @@ export function renderBoard(container) {
     }
   }
 
-// === FASE 3: DISEGNO STRADINE E CONNESSIONI ===
+// === FASE 3: DISEGNO STRADINE E CONNESSIONI (VENTAGLIO) ===
 for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
   const keyId = sectorIndex * 7;
   const keyP = ringXY[keyId];
@@ -257,27 +261,27 @@ for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
   const ux = vx / distTotal;
   const uy = vy / distTotal;
 
-  // distanza dal key dove iniziare la stradina (stacca un po’ dal bordo)
+  // perpendicolare al raggio (per “aprire” a ventaglio)
+  const px = -uy;
+  const py = ux;
+
   const startDist = distTotal * 0.16;
-  // distanza massima prima di “toccare” lo scrigno
   const endDist = distTotal - scrignoRadius;
 
-  // se per qualche motivo endDist è troppo vicino, evita step negativi
   const usable = Math.max(10, endDist - startDist);
   const stepLen = usable / branchLen;
 
-  // ✨ QUI il trucco per l’ovale:
-  // se lo step è piccolo, riduciamo dimensione delle caselle della stradina
-  const minW = 46; // non scendere troppo o diventano illegibili
-  const minH = 62;
+  // dimensione stradine: quasi standard, un filo più compatte ma MAI microscopiche
+  const tileW_Path = tileW_Std * 0.92;
+  const tileH_Path = tileH_Std * 0.82;
 
-  const tileW_Path = Math.max(minW, Math.min(tileW_Std, stepLen * 0.88));
-  const tileH_Path = Math.max(minH, Math.min(tileH_Std, tileW_Path * 0.75));
+  // ampiezza ventaglio (se vuoi più “curva”, alza a 80-90)
+  const fanMax = 75;
 
   let prevX = keyP.x;
   let prevY = keyP.y;
 
-  // prima connessione key -> primo punto (solo linea “gold”)
+  // connessione key -> punto di start (linea gold)
   const firstStepX = keyP.x + ux * startDist;
   const firstStepY = keyP.y + uy * startDist;
   drawLine(keyP.x, keyP.y, firstStepX, firstStepY, true);
@@ -290,15 +294,18 @@ for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
     const tile = BOARD[tid];
 
     const currentDist = startDist + j * stepLen;
-    const x = keyP.x + ux * currentDist;
-    const y = keyP.y + uy * currentDist;
 
-    // linee tra le caselle della stradina
-    if (j > 0) {
-      drawLine(prevX, prevY, x, y);
-    }
+    // t va da -1 a +1
+    const t = (j / (branchLen - 1)) * 2 - 1;
 
-    // disegno casella della stradina (ridimensionata se serve)
+    // offset laterale “morbido”: più largo agli estremi, meno al centro
+    const side = t * fanMax * (0.55 + 0.45 * Math.abs(t));
+
+    const x = keyP.x + ux * currentDist + px * side;
+    const y = keyP.y + uy * currentDist + py * side;
+
+    if (j > 0) drawLine(prevX, prevY, x, y);
+
     drawTile(tile, x, y, tileW_Path, tileH_Path, gTilesPath);
 
     prevX = x;
@@ -308,6 +315,7 @@ for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
   // ultima linea verso lo scrigno
   drawLine(prevX, prevY, cx, cy);
 }
+
 
   // === FASE 4: DISEGNO CHIAVI (SOPRA TUTTO IL RESTO) ===
   for (let i = 0; i < ringCount; i++) {
