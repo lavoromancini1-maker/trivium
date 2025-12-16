@@ -188,8 +188,8 @@ export function renderBoard(container) {
     targetGroup.appendChild(tLabel);
   }
 
-  // === CALCOLO COORDINATE PERIMETRO (Squircle) ===
-  const squirclePower = 0.6; // Manteniamo questo valore, piaceva.
+// === CALCOLO COORDINATE PERIMETRO (Squircle Equidistante) ===
+  const squirclePower = 0.6; 
 
   function getSquircleCoord(angle, radiusX, radiusY) {
     const cosA = Math.cos(angle);
@@ -201,13 +201,34 @@ export function renderBoard(container) {
     return { x, y };
   }
 
-  // Calcoliamo PRIMA tutte le posizioni
-  const ringXY = [];
-  const startAngle = -Math.PI / 2; 
-  const step = (Math.PI * 2) / ringCount;
+  // LOGICA "CAMMINA SUL PERIMETRO" PER ELIMINARE I BUCHI
+  // 1. Campioniamo la forma con alta precisione
+  const sampleCount = 2000;
+  const samples = [];
+  let totalPerimeter = 0;
+  const startRad = -Math.PI / 2;
 
+  let prevP = getSquircleCoord(startRad, ringRx, ringRy);
+  samples.push({ pt: prevP, dist: 0 });
+
+  for (let i = 1; i <= sampleCount; i++) {
+    const angle = startRad + (i / sampleCount) * (Math.PI * 2);
+    const p = getSquircleCoord(angle, ringRx, ringRy);
+    const dist = Math.hypot(p.x - prevP.x, p.y - prevP.y);
+    totalPerimeter += dist;
+    samples.push({ pt: p, accumDist: totalPerimeter });
+    prevP = p;
+  }
+
+  // 2. Troviamo i punti esatti equidistanti
+  const ringXY = [];
+  const stepLenPerimeter = totalPerimeter / ringCount;
+  
   for (let i = 0; i < ringCount; i++) {
-    ringXY.push(getSquircleCoord(startAngle + i * step, ringRx, ringRy));
+    const targetDist = i * stepLenPerimeter;
+    // Troviamo il punto nel campione più vicino alla distanza target
+    const sample = samples.find(s => s.accumDist >= targetDist) || samples[samples.length - 1];
+    ringXY.push(sample.pt);
   }
 
   // === FASE 1: DISEGNO LINEE PERIMETRO ===
