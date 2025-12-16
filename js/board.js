@@ -31,7 +31,7 @@ const SCRIGNO_ID = RING_TILES + BRANCH_TILES; // 42 + 30 = 72
 
 export const BOARD = buildBoard();
 
-export const START_TILE_ID = 0; // per ora tutti partono dalla casella key del primo settore
+export const START_TILE_ID = SCRIGNO_ID; // tutti partono dal centro (scrigno)
 
 
 function buildBoard() {
