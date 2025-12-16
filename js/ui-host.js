@@ -76,7 +76,6 @@ export function renderBoard(container) {
 
   const ringCount = 42;
   const sectors = 6;
-  const branchLen = 5;
 
   // Parametri Geometria
   const marginX = 90;
@@ -139,7 +138,7 @@ export function renderBoard(container) {
     rect.setAttribute("y", String(y - h / 2));
     rect.setAttribute("width", String(w));
     rect.setAttribute("height", String(h));
-    const isBranchTile = tile.id >= 42 && tile.id <= 71; // le 30 caselle delle stradine
+    const isBranchTile = tile.zone === "branch";
     rect.setAttribute("rx", tile.type === "key" ? "16" : (isBranchTile ? String(Math.floor(h / 2)) : "10"));
     rect.setAttribute("fill", fill);
     rect.setAttribute("stroke", stroke);
@@ -249,11 +248,17 @@ if (!isBranchTile) targetGroup.appendChild(tId);
     }
   }
 
-// === FASE 3: DISEGNO STRADINE E CONNESSIONI (VENTAGLIO) ===
+// === FASE 3: DISEGNO STRADINE E CONNESSIONI (NEIGHBORS-BASED) ===
+const scrignoTile = BOARD.find(t => t.type === "scrigno");
+const SCRIGNO_ID = scrignoTile?.id;
+
 for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
   const keyId = sectorIndex * 7;
   const keyP = ringXY[keyId];
-  const branchBase = 42 + sectorIndex * branchLen;
+
+  // trova il primo tile di branch collegato alla key
+  const firstBranchId = (BOARD[keyId]?.neighbors || []).find(nid => BOARD[nid]?.zone === "branch");
+  if (firstBranchId == null) continue;
 
   const vx = cx - keyP.x;
   const vy = cy - keyP.y;
@@ -261,26 +266,32 @@ for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
   const ux = vx / distTotal;
   const uy = vy / distTotal;
 
-  // perpendicolare al raggio (serve SOLO per le 2 stradine problematiche)
-  const px = -uy;
-  const py = ux;
-
   const startDist = distTotal * 0.16;
   const endDist = distTotal - scrignoRadius;
-
   const usable = Math.max(10, endDist - startDist);
-  const stepLen = usable / branchLen;
 
-  // dimensioni: lasciale quasi standard (non microscopiche)
+  // raccogli tutta la catena branch: branch -> branch -> ... -> (scrigno neighbor)
+  const chain = [];
+  let prev = keyId;
+  let cur = firstBranchId;
+
+  // sicurezza anti-loop
+  for (let guard = 0; guard < 12; guard++) {
+    if (!BOARD[cur] || BOARD[cur].zone !== "branch") break;
+    chain.push(cur);
+
+    const next = (BOARD[cur].neighbors || []).find(nid => nid !== prev && (BOARD[nid]?.zone === "branch" || nid === SCRIGNO_ID));
+    if (next == null || next === SCRIGNO_ID) break;
+
+    prev = cur;
+    cur = next;
+  }
+
+  const len = chain.length || 1;
+  const stepLen = usable / len;
+
   const tileW_Path = tileW_Std * 0.95;
   const tileH_Path = tileH_Std * 0.88;
-
-  // SOLO queste due stradine: da chiave 0 e chiave 21
-  // keyId = sectorIndex*7 => 0 => sectorIndex 0 ; 21 => sectorIndex 3
-  const isProblemBranch = (sectorIndex === 0 || sectorIndex === 3);
-
-  // quanto “spostare” di lato SOLO sulle 2 problematiche (regolabile)
-  const bendMax = 95;
 
   let prevX = keyP.x;
   let prevY = keyP.y;
@@ -293,24 +304,13 @@ for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
   prevX = firstStepX;
   prevY = firstStepY;
 
-  for (let j = 0; j < branchLen; j++) {
-    const tid = branchBase + j;
+  for (let j = 0; j < chain.length; j++) {
+    const tid = chain[j];
     const tile = BOARD[tid];
 
     const currentDist = startDist + j * stepLen;
-
-    // default: stradina DRITTA (come ti piaceva prima)
-    let side = 0;
-
-    // SOLO per 0 e 21: prime 2 caselle dritte, ultime 3 “a gomito soft”
-    if (isProblemBranch && j >= 2) {
-      // j=2..4 => t=0..1
-      const t = (j - 2) / (branchLen - 1 - 2);
-      side = (t * t) * bendMax; // crescita morbida, niente storto subito
-    }
-
-    const x = keyP.x + ux * currentDist + px * side;
-    const y = keyP.y + uy * currentDist + py * side;
+    const x = keyP.x + ux * currentDist;
+    const y = keyP.y + uy * currentDist;
 
     if (j > 0) drawLine(prevX, prevY, x, y);
 
@@ -335,8 +335,10 @@ for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
   }
 
   // === FASE 5: SCRIGNO CENTRALE ===
-  const scrigno = BOARD[72];
+  const scrigno = BOARD.find(t => t.type === "scrigno");
+if (scrigno) {
   drawTile(scrigno, cx, cy, centerSize * 1.4, centerSize, gTilesKeys);
+}
 
   wrap.appendChild(svg);
   container.appendChild(wrap);
