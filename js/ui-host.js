@@ -76,25 +76,31 @@ export function renderBoard(container) {
   const tileH = 72;
   const tileRx = 40;
 
-// === OVAL SHAPE (WIDE SHOW) ===
-// sfruttiamo tutta la larghezza TV
-const pad = 40; // meno margine = board più grande
+// === OVAL MAX-FIT (WIDE SHOW) ===
+const pad = 18; // più piccolo = ovale più grande (senza toccare i bordi)
 
-const baseR = Math.min(cx, cy) - pad - Math.max(tileW, tileH) / 2;
+// limiti reali del viewBox (tenendo conto delle dimensioni tile)
+const ringRxMax = cx - pad - (tileW / 2);
+const ringRyMax = cy - pad - (tileH / 2);
 
-// raggio orizzontale MOLTO più grande (wide show)
-const ringRx = baseR * 1.45; // 🔥 preset WIDE SHOW
-const ringRy = baseR * 0.85; // più schiacciato verticalmente
+// rapporto WIDE SHOW
+const ratio = 1.45;
+
+// vogliamo toccare quasi su/giù => Ry al massimo
+const ringRy = ringRyMax;
+
+// Rx segue il ratio ma non può superare il limite orizzontale
+const ringRx = Math.min(ringRy * ratio, ringRxMax);
+
+// raggio “logico” per valori proporzionali (branch/scrigno)
+const baseR = ringRy;
+
 
 
   // Scrigno centrale (proporzionale)
-const centerSize = baseR * 0.36;     // scrigno leggermente più grande
-
-const scrignoRadius = (centerSize / 2) + 18; // buffer di sicurezza
-const branchEnd = baseR - scrignoRadius;     // dove vogliamo arrivare (prima dello scrigno)
-
-const branchStart = baseR * 0.24;            // stacca di più dalla key (meno caos vicino al ring)
-const branchStep = (branchEnd - branchStart) / (branchLen - 1); // ✅ arriva quasi allo scrigno
+const centerSize = baseR * 0.38;     // scrigno leggermente più grande
+const scrignoRadius = (centerSize / 2) + 10; // buffer di sicurezza
+const branchStart = baseR * 0.24; 
 
   function getTileStyle(tile) {
     const stroke = tile.category
@@ -206,6 +212,14 @@ const branchStep = (branchEnd - branchStart) / (branchLen - 1); // ✅ arriva qu
     const len = Math.hypot(vx, vy) || 1;
     const ux = vx / len;
     const uy = vy / len;
+// distanza reale key->centro (dipende da dove sta sull'ovale)
+const keyToCenter = Math.hypot(cx - keyP.x, cy - keyP.y);
+
+// vogliamo che l’ultima casella branch arrivi “a filo” scrigno
+const branchEnd = keyToCenter - scrignoRadius;
+
+// step calcolato per questa stradina
+const branchStep = (branchEnd - branchStart) / (branchLen - 1);
 
     let prevX = keyP.x;
     let prevY = keyP.y;
