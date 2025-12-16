@@ -261,7 +261,7 @@ for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
   const ux = vx / distTotal;
   const uy = vy / distTotal;
 
-  // perpendicolare al raggio (per “aprire” a ventaglio)
+  // perpendicolare al raggio (serve SOLO per le 2 stradine problematiche)
   const px = -uy;
   const py = ux;
 
@@ -271,12 +271,16 @@ for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
   const usable = Math.max(10, endDist - startDist);
   const stepLen = usable / branchLen;
 
-  // dimensione stradine: quasi standard, un filo più compatte ma MAI microscopiche
-  const tileW_Path = tileW_Std * 0.92;
-  const tileH_Path = tileH_Std * 0.82;
+  // dimensioni: lasciale quasi standard (non microscopiche)
+  const tileW_Path = tileW_Std * 0.95;
+  const tileH_Path = tileH_Std * 0.88;
 
-  // ampiezza ventaglio (se vuoi più “curva”, alza a 80-90)
-  const fanMax = 75;
+  // SOLO queste due stradine: da chiave 0 e chiave 21
+  // keyId = sectorIndex*7 => 0 => sectorIndex 0 ; 21 => sectorIndex 3
+  const isProblemBranch = (sectorIndex === 0 || sectorIndex === 3);
+
+  // quanto “spostare” di lato SOLO sulle 2 problematiche (regolabile)
+  const bendMax = 95;
 
   let prevX = keyP.x;
   let prevY = keyP.y;
@@ -295,11 +299,15 @@ for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
 
     const currentDist = startDist + j * stepLen;
 
-    // t va da -1 a +1
-    const t = (j / (branchLen - 1)) * 2 - 1;
+    // default: stradina DRITTA (come ti piaceva prima)
+    let side = 0;
 
-    // offset laterale “morbido”: più largo agli estremi, meno al centro
-    const side = t * fanMax * (0.55 + 0.45 * Math.abs(t));
+    // SOLO per 0 e 21: prime 2 caselle dritte, ultime 3 “a gomito soft”
+    if (isProblemBranch && j >= 2) {
+      // j=2..4 => t=0..1
+      const t = (j - 2) / (branchLen - 1 - 2);
+      side = (t * t) * bendMax; // crescita morbida, niente storto subito
+    }
 
     const x = keyP.x + ux * currentDist + px * side;
     const y = keyP.y + uy * currentDist + py * side;
@@ -315,6 +323,7 @@ for (let sectorIndex = 0; sectorIndex < sectors; sectorIndex++) {
   // ultima linea verso lo scrigno
   drawLine(prevX, prevY, cx, cy);
 }
+
 
 
   // === FASE 4: DISEGNO CHIAVI (SOPRA TUTTO IL RESTO) ===
