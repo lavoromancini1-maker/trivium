@@ -642,10 +642,10 @@ body {
 
 /* BOARD WRAP: VINCOLATO ALL'ALTEZZA */
 .board-svg-wrap {
+  width: 100%;
   height: 100%;
-  width: auto;              /* 🔥 chiave: non forza la larghezza */
   max-width: 100%;
-  aspect-ratio: auto;
+  max-height: 100%;
 }
 
 /* SVG sempre dentro */
