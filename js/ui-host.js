@@ -69,13 +69,13 @@ export function renderBoard(container) {
   const branchLen = 5;           // per settore
   const sectors = 6;
 
-  const ringR = 390;             // raggio anello
-  const branchStep = 62;         // distanza tra caselle stradina
-  const branchStartR = ringR - 82; // prima casella verso il centro (staccata dalla key)
-  const centerSize = 150;
+  const ringR = 440;             // raggio anello
+  const branchStep = 72;         // distanza tra caselle stradina
+  const branchStartR = ringR - 90; // prima casella verso il centro (staccata dalla key)
+  const centerSize = 120;
 
-  const tileW = 70;
-  const tileH = 56;
+  const tileW = 78;
+  const tileH = 62;
   const tileRx = 14;
 
   const angle0 = -Math.PI / 2;   // start in alto (12 o'clock)
