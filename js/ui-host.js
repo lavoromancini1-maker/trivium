@@ -77,20 +77,20 @@ export function renderBoard(container) {
   const tileRx = 40;
 
 // === OVAL MAX-FIT (WIDE SHOW) ===
-const pad = 18; // più piccolo = ovale più grande (senza toccare i bordi)
+const pad = 28; // più piccolo = ovale più grande (senza toccare i bordi)
 
 // limiti reali del viewBox (tenendo conto delle dimensioni tile)
-const ringRxMax = cx - pad - (tileW / 2);
-const ringRyMax = cy - pad - (tileH / 2);
+const maxRx = cx - pad - (tileW / 2);
+const maxRy = cy - pad - (tileH / 2);
 
 // rapporto WIDE SHOW
 const ratio = 1.45;
+  
+// 🔥 FISSIAMO Rx al massimo possibile
+const ringRx = maxRx;
 
-// vogliamo toccare quasi su/giù => Ry al massimo
-const ringRy = ringRyMax;
-
-// Rx segue il ratio ma non può superare il limite orizzontale
-const ringRx = Math.min(ringRy * ratio, ringRxMax);
+// 🔥 Ry segue il rapporto (più schiacciato)
+const ringRy = ringRx / ratio;
 
 // raggio “logico” per valori proporzionali (branch/scrigno)
 const baseR = ringRy;
