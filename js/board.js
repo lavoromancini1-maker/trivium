@@ -14,9 +14,22 @@ export const SECTOR_ORDER = [...CATEGORIES];
 const SECTORS = 6;
 const TILES_PER_SECTOR_RING = 7; // 1 key + 6 intermedie
 const RING_TILES = SECTORS * TILES_PER_SECTOR_RING; // 42
-const BRANCH_LENGTH = 5; // 5 caselle di stradina per ogni chiave
-const BRANCH_TILES = SECTORS * BRANCH_LENGTH; // 30
-const SCRIGNO_ID = RING_TILES + BRANCH_TILES; // 42 + 30 = 72
+
+// ✅ Stradine a lunghezza variabile per settore:
+// settore 0 -> keyId 0  -> 3 caselle
+// settore 3 -> keyId 21 -> 3 caselle
+// altri -> 5 caselle
+const BRANCH_LENGTHS_BY_SECTOR = {
+  0: 3,
+  1: 5,
+  2: 5,
+  3: 3,
+  4: 5,
+  5: 5,
+};
+
+const BRANCH_TILES = Object.values(BRANCH_LENGTHS_BY_SECTOR).reduce((sum, v) => sum + v, 0);
+const SCRIGNO_ID = RING_TILES + BRANCH_TILES;
 
 /**
  * Struttura di una casella:
@@ -30,9 +43,7 @@ const SCRIGNO_ID = RING_TILES + BRANCH_TILES; // 42 + 30 = 72
  */
 
 export const BOARD = buildBoard();
-
 export const START_TILE_ID = SCRIGNO_ID; // tutti partono dal centro (scrigno)
-
 
 function buildBoard() {
   const tiles = [];
@@ -47,13 +58,8 @@ function buildBoard() {
     // Altre 5 categorie diverse dalla chiave
     const otherCategories = CATEGORIES.filter((c) => c !== keyCategory);
 
-    // Per le 4 caselle categoria sull’anello,
-    // prendiamo le prime 4 "otherCategories" (tutte diverse fra loro).
+    // Per le 4 caselle categoria sull’anello
     const ringCategories = otherCategories.slice(0, 4);
-
-    // Pattern delle 7 caselle del settore sull’anello (solo per la parte "type" e "local role"):
-    // [ Key, Cat1, Event, Cat2, Cat3, Minigame, Cat4 ]
-    // NB: la categoria della key è keyCategory; le altre category si assegnano più sotto.
 
     // 1) Chiave
     tiles.push({
@@ -61,7 +67,7 @@ function buildBoard() {
       type: "key",
       category: keyCategory,
       zone: "ring",
-      neighbors: [], // riempite dopo
+      neighbors: [],
     });
 
     // 2) Casella categoria 1
@@ -126,19 +132,24 @@ function buildBoard() {
     tiles[id].neighbors.push(prevId, nextId);
   }
 
-  // 3) Costruzione stradine (30 caselle)
-  //    Ogni settore ha una stradina che parte dalla sua casella chiave.
+  // 3) Costruzione stradine (lunghezza variabile)
+  //    IDs sequenziali a partire da 42
+  let nextBranchId = RING_TILES; // 42
+
   for (let sectorIndex = 0; sectorIndex < SECTORS; sectorIndex++) {
     const keyTileId = sectorIndex * TILES_PER_SECTOR_RING; // la key è sempre la prima nel settore
-    const branchBaseId = RING_TILES + sectorIndex * BRANCH_LENGTH;
+    const len = BRANCH_LENGTHS_BY_SECTOR[sectorIndex];
 
     const keyCategory = SECTOR_ORDER[sectorIndex];
-    // 5 categorie TUTTE diverse dalla key e anche tra loro
-    const branchCategories = CATEGORIES.filter((c) => c !== keyCategory);
+    const branchCategories = CATEGORIES.filter((c) => c !== keyCategory); // 5 categorie disponibili
 
-    for (let i = 0; i < BRANCH_LENGTH; i++) {
-      const tileId = branchBaseId + i;
-      const tileCategory = branchCategories[i]; // 5 caselle, 5 categorie diverse
+    let prevId = keyTileId;
+    let firstBranchId = null;
+    let lastBranchId = null;
+
+    for (let i = 0; i < len; i++) {
+      const tileId = nextBranchId++;
+      const tileCategory = branchCategories[i]; // prende le prime len categorie (tutte diverse dalla key)
 
       tiles.push({
         id: tileId,
@@ -147,29 +158,19 @@ function buildBoard() {
         zone: "branch",
         neighbors: [],
       });
+
+      // collega catena: prev <-> tileId
+      tiles[prevId].neighbors.push(tileId);
+      tiles[tileId].neighbors.push(prevId);
+
+      if (i === 0) firstBranchId = tileId;
+      lastBranchId = tileId;
+
+      prevId = tileId;
     }
 
-    // Collego la key alla prima casella della stradina
-    const firstBranchId = branchBaseId;
-    tiles[keyTileId].neighbors.push(firstBranchId);
-    tiles[firstBranchId].neighbors.push(keyTileId);
-
-    // Collego le caselle interne della stradina
-    for (let i = 0; i < BRANCH_LENGTH; i++) {
-      const tileId = branchBaseId + i;
-
-      // collega alla precedente se non è la prima
-      if (i > 0) {
-        const prevId = tileId - 1;
-        tiles[tileId].neighbors.push(prevId);
-      }
-
-      // collega alla successiva se non è l’ultima
-      if (i < BRANCH_LENGTH - 1) {
-        const nextId = tileId + 1;
-        tiles[tileId].neighbors.push(nextId);
-      }
-    }
+    // (Nota: firstBranchId/lastBranchId esistono sempre perché len >= 1)
+    // collegamento finale allo scrigno fatto dopo aver creato lo scrigno (step 4)
   }
 
   // 4) Casella Scrigno centrale
@@ -181,12 +182,31 @@ function buildBoard() {
     neighbors: [],
   });
 
-  // Collego la fine di ogni stradina allo Scrigno
+  // 5) Collego la fine di ogni stradina allo Scrigno
+  //    Devo ricostruire dove finiscono le stradine: lo faccio ripercorrendo i neighbors dalla key
   for (let sectorIndex = 0; sectorIndex < SECTORS; sectorIndex++) {
-    const branchBaseId = RING_TILES + sectorIndex * BRANCH_LENGTH;
-    const lastBranchId = branchBaseId + BRANCH_LENGTH - 1; // ultimo della stradina
+    const keyTileId = sectorIndex * TILES_PER_SECTOR_RING;
+    const len = BRANCH_LENGTHS_BY_SECTOR[sectorIndex];
 
-    // collega ultimo della stradina allo scrigno
+    // primo branch = terzo neighbor della key (oltre ai due dell’anello) -> lo troviamo cercando neighbor con zone branch
+    const keyNeighbors = tiles[keyTileId].neighbors;
+    const firstBranchId = keyNeighbors.find((nid) => tiles[nid]?.zone === "branch");
+
+    if (firstBranchId == null) continue;
+
+    // percorri la catena len-1 volte per arrivare all’ultimo
+    let current = firstBranchId;
+    let prev = keyTileId;
+
+    for (let step = 1; step < len; step++) {
+      const next = tiles[current].neighbors.find((nid) => nid !== prev && tiles[nid]?.zone === "branch");
+      prev = current;
+      current = next;
+    }
+
+    const lastBranchId = current;
+
+    // collega ultimo <-> scrigno
     tiles[lastBranchId].neighbors.push(SCRIGNO_ID);
     tiles[SCRIGNO_ID].neighbors.push(lastBranchId);
   }
