@@ -559,13 +559,13 @@ function renderCardsDock(gameState) {
   const phase = gameState?.phase;
   const q = gameState?.currentQuestion;
 
-  // regola: Tempo extra solo su domande normali categoria/livello (no key, no scrigno)
-  const isNormalQuestion =
-    phase === "QUESTION" &&
-    q &&
-    typeof q.level === "number" &&
-    !q.isKeyQuestion &&
-    !(q.tileType === "scrigno" || q.scrignoMode);
+ const isNormalQuestion =
+  phase === "QUESTION" &&
+  q &&
+  typeof q.level === "number" &&
+  !q.isKeyQuestion &&
+  !(q.tileType === "scrigno" || q.scrignoMode) &&
+  !gameState.reveal;
 
   const isMyTurn = gameState?.currentPlayerId === myId;
 
@@ -598,16 +598,23 @@ if (cardId === CARD_IDS.EXTRA_TIME) {
   }
 
 } else if (cardId === CARD_IDS.ALT_QUESTION) {
-  canUse = isMyTurn && isNormalQuestion;
-  if (!isMyTurn) reason = "Puoi usare carte solo nel tuo turno.";
-  else if (!isNormalQuestion)
-    reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+  const usedCard = gameState?.turnContext?.usedCard;
+  if (usedCard) {
+    canUse = false;
+    reason = "Hai già usato una carta in questo turno.";
+  } else {
+    canUse = isMyTurn && isNormalQuestion;
+    if (!isMyTurn) reason = "Puoi usare carte solo nel tuo turno.";
+    else if (!isNormalQuestion)
+      reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+  }
+}
 
 } else {
   canUse = false;
   reason = "Questa carta sarà attivata nei prossimi step.";
 }
-
+  
     const slot = document.createElement("div");
     slot.className = "card-slot" + (canUse ? "" : " disabled");
     slot.innerHTML = `
@@ -716,6 +723,21 @@ function handleGameUpdate(
     const activePlayerId = gameState.currentPlayerId;
     const players = gameState.players || {};
     const currentQuestion = gameState.currentQuestion || null;
+  if (
+  currentQuestion &&
+  currentQuestion.forPlayerId === currentPlayerId &&
+  currentQuestion.startedAt &&
+  currentQuestion.startedAt !== window.__lastQuestionStartedAt
+) {
+  window.__lastQuestionStartedAt = currentQuestion.startedAt;
+
+  // riabilita risposte
+  Array.from(answerButtons.querySelectorAll("button")).forEach((b) => {
+    b.disabled = false;
+    b.classList.remove("fifty-removed");
+  });
+}
+
     const phase = gameState.phase;
 
     const myId = currentPlayerId;
