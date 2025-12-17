@@ -1180,8 +1180,8 @@ html {
   text-align: center;
 }
 
-/* lascia spazio al dock */
-body {
+/* lascia spazio al dock SOLO quando è visibile */
+body.has-cards-dock {
   padding-bottom: 92px;
 }
 
