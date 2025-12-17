@@ -2873,3 +2873,16 @@ if (!raw) return game;
   if (!tx.committed) throw new Error("Impossibile usare Domanda Alternativa (riprovare).");
   return { ok: true };
 }
+
+export async function isGameActive(gameCode) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+  if (!snap.exists()) return false;
+
+  const game = snap.val();
+  // attiva = non terminata
+  if (game?.state === "ENDED") return false;
+  if (game?.phase === "ENDED") return false;
+
+  return true;
+}
