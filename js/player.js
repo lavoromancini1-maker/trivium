@@ -570,6 +570,8 @@ function renderCardsDock(gameState) {
 
   const phase = gameState?.phase;
   const q = gameState?.currentQuestion;
+  const isMyQuestionNow = phase === "QUESTION" && q && q.forPlayerId === myId;
+  const usedCardThisQuestion = !!q?.cardUsedBy?.[myId]; // il backend lo scriverà
 
  const isNormalQuestion =
   phase === "QUESTION" &&
@@ -589,41 +591,40 @@ function renderCardsDock(gameState) {
     let reason = "";
 
 if (cardId === CARD_IDS.EXTRA_TIME) {
-  canUse = isMyTurn && isNormalQuestion;
-  if (!isMyTurn) {
-    reason = "Puoi usare carte solo nel tuo turno.";
-  } else if (!isNormalQuestion) {
-    reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
-  }
+  canUse = isMyQuestionNow && isNormalQuestion && !usedCardThisQuestion;
+
+  if (usedCardThisQuestion) reason = "Hai già usato una carta su questa domanda.";
+  else if (!isMyQuestionNow) reason = "Puoi usare carte solo durante la tua domanda.";
+  else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
 
 } else if (cardId === CARD_IDS.FIFTY_FIFTY) {
-  canUse = isMyTurn && isNormalQuestion;
+  canUse = isMyQuestionNow && isNormalQuestion && !usedCardThisQuestion;
+
+  if (usedCardThisQuestion) {
+    canUse = false;
+    reason = "Hai già usato una carta su questa domanda.";
+  }
 
   const removed = gameState?.currentQuestion?.aids?.fifty?.[myId]?.removed;
   if (removed && removed.length) {
     canUse = false;
     reason = "Hai già usato 50/50 su questa domanda.";
   } else {
-    if (!isMyTurn) {
-      reason = "Puoi usare carte solo nel tuo turno.";
-    } else if (!isNormalQuestion) {
-      reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
-    }
+    if (!isMyQuestionNow) reason = "Puoi usare carte solo durante la tua domanda.";
+    else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
   }
 
 } else if (cardId === CARD_IDS.ALT_QUESTION) {
-  const usedCard = gameState?.turnContext?.usedCard;
-  if (usedCard) {
-    canUse = false;
-    reason = "Hai già usato una carta in questo turno.";
-  } else {
-    canUse = isMyTurn && isNormalQuestion;
-    if (!isMyTurn) {
-      reason = "Puoi usare carte solo nel tuo turno.";
-    } else if (!isNormalQuestion) {
-      reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
-    }
-  }
+  canUse = isMyQuestionNow && isNormalQuestion && !usedCardThisQuestion;
+
+  if (usedCardThisQuestion) reason = "Hai già usato una carta su questa domanda.";
+  else if (!isMyQuestionNow) reason = "Puoi usare carte solo durante la tua domanda.";
+  else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+
+} else {
+  canUse = false;
+  reason = "Questa carta sarà attivata nei prossimi step.";
+}
 
 } else {
   canUse = false;
@@ -1127,6 +1128,25 @@ if (mg && mg.type === "SEQUENCE") {
           Array.from(answerButtons.querySelectorAll("button")).forEach(
             (b) => (b.disabled = false)
           );
+          // --- 50/50 UI: oscura 2 risposte PER ME durante la domanda ---
+const removed = gameState?.currentQuestion?.aids?.fifty?.[myId]?.removed;
+const answerBtns = Array.from(answerButtons.querySelectorAll("button[data-answer-index]"));
+
+// reset base
+answerBtns.forEach((b) => {
+  b.classList.remove("fifty-removed");
+});
+
+// applica removed se presente
+if (Array.isArray(removed) && removed.length) {
+  answerBtns.forEach((b) => {
+    const idx = parseInt(b.getAttribute("data-answer-index"), 10);
+    if (removed.includes(idx)) {
+      b.classList.add("fifty-removed");
+      b.disabled = true;
+    }
+  });
+}
         } else {
           turnStatusText.textContent = "Attendi la domanda...";
           answerPanel.classList.add("hidden");
@@ -1142,26 +1162,6 @@ if (mg && mg.type === "SEQUENCE") {
       rollDiceBtn.disabled = true;
       directionPanel.classList.add("hidden");
       answerPanel.classList.add("hidden");
-
-      // --- 50/50 UI: oscura 2 risposte per questo player
-const removed = gameState?.currentQuestion?.aids?.fifty?.[myId]?.removed;
-const answerBtns = Array.from(answerButtons.querySelectorAll("button[data-answer-index]"));
-
-// reset base (mostra tutto)
-answerBtns.forEach((b) => {
-  b.classList.remove("fifty-removed");
-});
-
-// applica removed se presente
-if (Array.isArray(removed) && removed.length) {
-  answerBtns.forEach((b) => {
-    const idx = parseInt(b.getAttribute("data-answer-index"), 10);
-    if (removed.includes(idx)) {
-      b.classList.add("fifty-removed");
-      b.disabled = true;
-    }
-  });
-}
 
       const activePlayer = players[activePlayerId];
       if (activePlayer) {
