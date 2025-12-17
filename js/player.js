@@ -16,7 +16,8 @@ import {
   answerSequenceMinigame,
   useCard,
   resolveCardOffer,
-  grantRandomCard
+  grantRandomCard,
+  useCardAlternativeQuestion
 } from "./firebase-game.js";
 
 import { CARD_IDS, getCardDef } from "./cards.js";
@@ -515,7 +516,11 @@ async function tryUseSelectedCard() {
 
   try {
     if (cardUseBtn) cardUseBtn.disabled = true;
-    await useCard(currentGameCode, currentPlayerId, selectedCardId, {});
+    if (selectedCardId === CARD_IDS.ALT_QUESTION) {
+  await useCardAlternativeQuestion(currentGameCode, currentPlayerId);
+} else {
+  await useCard(currentGameCode, currentPlayerId, selectedCardId, {});
+}
     closeCardSheet();
   } catch (e) {
     // usa il testo status già esistente
@@ -533,11 +538,15 @@ function renderCardsDock(gameState) {
   const me = gameState?.players?.[myId];
   const myCards = Array.isArray(me?.cards) ? me.cards.slice(0, 3) : [];
 
-  // Se non ho carte: nascondi dock e togli lo spazio sotto
+  // Se non ho carte: MOSTRA dock con 3 slot vuoti (UX mobile)
   if (myCards.length === 0) {
-    cardsDock.classList.add("hidden");
-    cardsSlots.innerHTML = "";
-    document.body.classList.remove("has-cards-dock");
+    cardsDock.classList.remove("hidden");
+    document.body.classList.add("has-cards-dock");
+    cardsSlots.innerHTML = `
+      <div class="card-slot empty"><div class="card-icon">+</div><div class="card-label">Vuoto</div></div>
+      <div class="card-slot empty"><div class="card-icon">+</div><div class="card-label">Vuoto</div></div>
+      <div class="card-slot empty"><div class="card-icon">+</div><div class="card-label">Vuoto</div></div>
+    `;
     return;
   }
 
@@ -572,19 +581,28 @@ function renderCardsDock(gameState) {
 if (cardId === CARD_IDS.EXTRA_TIME) {
   canUse = isMyTurn && isNormalQuestion;
   if (!isMyTurn) reason = "Puoi usare carte solo nel tuo turno.";
-  else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+  else if (!isNormalQuestion)
+    reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+
 } else if (cardId === CARD_IDS.FIFTY_FIFTY) {
   canUse = isMyTurn && isNormalQuestion;
 
-  // se già usato su questa domanda, disabilita
   const removed = gameState?.currentQuestion?.aids?.fifty?.[myId]?.removed;
   if (removed && removed.length) {
     canUse = false;
     reason = "Hai già usato 50/50 su questa domanda.";
   } else {
     if (!isMyTurn) reason = "Puoi usare carte solo nel tuo turno.";
-    else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+    else if (!isNormalQuestion)
+      reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
   }
+
+} else if (cardId === CARD_IDS.ALT_QUESTION) {
+  canUse = isMyTurn && isNormalQuestion;
+  if (!isMyTurn) reason = "Puoi usare carte solo nel tuo turno.";
+  else if (!isNormalQuestion)
+    reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+
 } else {
   canUse = false;
   reason = "Questa carta sarà attivata nei prossimi step.";
