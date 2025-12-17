@@ -83,13 +83,24 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
 
-        currentGameState = gameState;
+currentGameState = gameState;
 
-        // aggiorna UI (funziona anche se gameView è nascosto)
-        renderPlayers(gameState);
-        updateBoardHighlights(gameState);
-        renderGameMessage(gameState, messageTextEl);
-        renderQuestionOverlay(gameState);
+// ✅ Se la partita è partita, l’host deve uscire dalla Hall AUTOMATICAMENTE
+if (gameState.state === "IN_PROGRESS") {
+  showGame();
+
+  // render board solo la prima volta
+  if (!boardRendered) {
+    renderBoard(boardContainer);
+    boardRendered = true;
+  }
+}
+
+// aggiorna UI (anche se stai ancora in Hall, non fa danni)
+renderPlayers(gameState);
+updateBoardHighlights(gameState);
+renderGameMessage(gameState, messageTextEl);
+renderQuestionOverlay(gameState);
       });
 
       // timeout checks
@@ -129,12 +140,24 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       startGameBtn.textContent = "Partita avviata";
-    } catch (err) {
-      console.error(err);
-      alert(err.message || "Errore nell'avvio della partita.");
-      startGameBtn.disabled = false;
-      startGameBtn.textContent = "Avvia partita";
+   } catch (err) {
+  console.error(err);
+
+  // ✅ Se la partita è già partita, non blocchiamo l’host in Hall
+  if (currentGameState && currentGameState.state === "IN_PROGRESS") {
+    showGame();
+    if (!boardRendered) {
+      renderBoard(boardContainer);
+      boardRendered = true;
     }
+    startGameBtn.textContent = "Partita avviata";
+    return;
+  }
+
+  alert(err.message || "Errore nell'avvio della partita.");
+  startGameBtn.disabled = false;
+  startGameBtn.textContent = "Avvia partita";
+}
   });
 
   function showHall() {
