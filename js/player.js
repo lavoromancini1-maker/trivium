@@ -1,5 +1,6 @@
 import {
   joinGame,
+  rejoinGame,
   gameExists,
   listenGame,
   rollDice,
@@ -66,6 +67,82 @@ document.addEventListener("DOMContentLoaded", () => {
   const waitingPanel = document.getElementById("waiting-panel");
   const playerNameDisplay = document.getElementById("player-name-display");
   const playerProgressEl = document.getElementById("player-progress");
+
+  // --- STEP 8: auto-rejoin da localStorage ---
+const LS_GAME = "trivium_game_code";
+const LS_PID  = "trivium_player_id";
+const LS_NAME = "trivium_player_name";
+
+// prefill nome se salvato
+try {
+  const savedName = localStorage.getItem(LS_NAME);
+  if (savedName && playerNameInput && !playerNameInput.value) {
+    playerNameInput.value = savedName;
+  }
+} catch (_) {}
+
+async function startListening(gameCode, playerId, playerName) {
+  currentGameCode = gameCode;
+  currentPlayerId = playerId;
+  window.currentPlayerId = playerId;
+
+  if (playerNameDisplay) playerNameDisplay.textContent = `Giocatore: ${playerName || ""}`;
+
+  joinPanel.classList.add("hidden");
+  waitingPanel.classList.remove("hidden");
+
+  if (unsubscribeGame) unsubscribeGame();
+  unsubscribeGame = listenGame(gameCode, (gameState) => {
+    latestGameState = gameState;
+
+    handleGameUpdate(gameState, {
+      waitingPanel,
+      turnPanel,
+      turnStatusText,
+      rollDiceBtn,
+      diceResultEl,
+      directionPanel,
+      directionButtons,
+      answerPanel,
+      answerButtons,
+      playerProgressEl,
+    });
+  });
+}
+
+async function tryAutoRejoin() {
+  let savedGame = null, savedPid = null, savedName = "";
+  try {
+    savedGame = localStorage.getItem(LS_GAME);
+    savedPid  = localStorage.getItem(LS_PID);
+    savedName = localStorage.getItem(LS_NAME) || "";
+  } catch (_) {}
+
+  // se ho già un game code nel link, quello vince (ma NON posso “indovinare” il playerId)
+  // quindi auto-rejoin solo se ho anche playerId salvato.
+  if (!savedGame || !savedPid) return false;
+
+  try {
+    const exists = await gameExists(savedGame);
+    if (!exists) throw new Error("Partita non trovata");
+
+    await rejoinGame(savedGame, savedPid);
+    await startListening(savedGame, savedPid, savedName);
+
+    return true;
+  } catch (e) {
+    // pulizia se non valido
+    try {
+      localStorage.removeItem(LS_GAME);
+      localStorage.removeItem(LS_PID);
+    } catch (_) {}
+    return false;
+  }
+}
+
+// prova subito al load
+tryAutoRejoin();
+
 
   const turnPanel = document.getElementById("turn-panel");
   const turnStatusText = document.getElementById("turn-status-text");
@@ -193,12 +270,10 @@ intrB?.addEventListener("click", () => sendIntruder(1));
 intrC?.addEventListener("click", () => sendIntruder(2));
 intrD?.addEventListener("click", () => sendIntruder(3));
   
-  // precompila codice se c'è ?game=XXXX
-  const params = new URLSearchParams(window.location.search);
-  const gameFromUrl = params.get("game");
-  if (gameFromUrl) {
-    gameCodeInput.value = gameFromUrl;
-  }
+const params = new URLSearchParams(window.location.search);
+const gameFromUrl = params.get("gameCode") || params.get("game"); // fallback vecchio
+if (gameFromUrl) gameCodeInput.value = gameFromUrl;
+
 
   // JOIN PARTITA
   joinForm.addEventListener("submit", async (e) => {
@@ -225,6 +300,11 @@ intrD?.addEventListener("click", () => sendIntruder(3));
       }
 
       const { playerId } = await joinGame(gameCode, playerName);
+      try {
+  localStorage.setItem(LS_GAME, gameCode);
+  localStorage.setItem(LS_PID, playerId);
+  localStorage.setItem(LS_NAME, playerName);
+} catch (_) {}
 
       currentGameCode = gameCode;
       currentPlayerId = playerId;
