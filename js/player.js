@@ -503,12 +503,16 @@ function renderCardsDock(gameState) {
   const me = gameState?.players?.[myId];
   const myCards = Array.isArray(me?.cards) ? me.cards.slice(0, 3) : [];
 
-  // mostra dock solo se ho carte
+  // Se non ho carte: nascondi dock e togli lo spazio sotto
   if (myCards.length === 0) {
     cardsDock.classList.add("hidden");
     cardsSlots.innerHTML = "";
+    document.body.classList.remove("has-cards-dock");
     return;
   }
+
+  // Se ho carte: mostra dock e aggiungi lo spazio sotto
+  document.body.classList.add("has-cards-dock");
 
   cardsDock.classList.remove("hidden");
   cardsSlots.innerHTML = "";
