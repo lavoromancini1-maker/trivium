@@ -144,6 +144,31 @@ export async function joinGame(gameCode, playerName) {
   return { playerId };
 }
 
+export async function rejoinGame(gameCode, playerId) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+
+  if (!snap.exists()) {
+    throw new Error("Partita non trovata");
+  }
+
+  const playerRef = ref(db, `${GAMES_PATH}/${gameCode}/players/${playerId}`);
+  const pSnap = await get(playerRef);
+
+  if (!pSnap.exists()) {
+    throw new Error("Giocatore non trovato (forse era di un'altra partita).");
+  }
+
+  // segna riconnesso (utile anche per UI futura)
+  await update(playerRef, {
+    isConnected: true,
+    lastSeenAt: Date.now(),
+  });
+
+  return { playerId, rejoined: true };
+}
+
+
 export function listenGame(gameCode, callback) {
   const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
   const unsubscribe = onValue(gameRef, (snapshot) => {
