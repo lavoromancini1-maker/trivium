@@ -99,6 +99,11 @@ if (cardOfferAcceptBtn) {
   });
 }
 
+document.addEventListener("keydown", async (e) => {
+  if (e.key === "t") {
+    await grantRandomCard(currentGameCode, currentPlayerId, "TEST_KEY_T");
+  }
+});
 
   // --- STEP 8: auto-rejoin da localStorage ---
 const LS_GAME = "trivium_game_code";
