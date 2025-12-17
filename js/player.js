@@ -2,6 +2,7 @@ import {
   joinGame,
   rejoinGame,
   gameExists,
+  isGameActive,
   listenGame,
   rollDice,
   chooseDirection,
@@ -160,15 +161,26 @@ async function tryAutoRejoin() {
   // quindi auto-rejoin solo se ho anche playerId salvato.
   if (!savedGame || !savedPid) return false;
 
-  try {
-    const exists = await gameExists(savedGame);
-    if (!exists) throw new Error("Partita non trovata");
+ try {
+  const exists = await gameExists(savedGame);
+  if (!exists) throw new Error("Partita non trovata");
 
-    await rejoinGame(savedGame, savedPid);
-    await startListening(savedGame, savedPid, savedName);
+  // ✅ CONTROLLO FONDAMENTALE: partita ancora attiva?
+  const active = await isGameActive(savedGame);
+  if (!active) {
+    // partita chiusa → reset sessione locale
+    try {
+      localStorage.removeItem(LS_GAME);
+      localStorage.removeItem(LS_PID);
+    } catch (_) {}
+    return false; // NON rientrare
+  }
 
-    return true;
-  } catch (e) {
+  await rejoinGame(savedGame, savedPid);
+  await startListening(savedGame, savedPid, savedName);
+
+  return true;
+} catch (e) {
     // pulizia se non valido
     try {
       localStorage.removeItem(LS_GAME);
