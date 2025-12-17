@@ -395,10 +395,10 @@ export async function useCard(gameCode, playerId, cardId, payload = {}) {
 
   if ((player.points ?? 0) < cost) throw new Error("Punti insufficienti.");
 
-  // Per ora implementiamo SOLO: TEMPO EXTRA
-  if (cardId !== CARD_IDS.EXTRA_TIME) {
-    throw new Error("Questa carta non è ancora implementata.");
-  }
+// Implementate: EXTRA_TIME + FIFTY_FIFTY
+if (![CARD_IDS.EXTRA_TIME, CARD_IDS.FIFTY_FIFTY].includes(cardId)) {
+  throw new Error("Questa carta non è ancora implementata.");
+}
 
   // Validazione specifica EXTRA_TIME
   const q = game.currentQuestion;
@@ -428,21 +428,54 @@ export async function useCard(gameCode, playerId, cardId, payload = {}) {
     const curPoints = curPlayer.points ?? 0;
     if (curPoints < cost) return current;
 
-    // Applica effetto: +10 secondi
-    const newExpiresAt = curQ.expiresAt + 10_000;
+    // --------------------------
+    // Applica effetto carta
+    // --------------------------
+    let newQuestion = { ...curQ };
 
-    // Rimuovi 1 occorrenza della carta
-    const idx = curCards.indexOf(cardId);
-    curCards.splice(idx, 1);
+    if (cardId === CARD_IDS.EXTRA_TIME) {
+      newQuestion.expiresAt = curQ.expiresAt + 10_000;
+    }
 
-    // Scritture
-    curPlayer.points = curPoints - cost;
-    curPlayer.cards = curCards;
+    if (cardId === CARD_IDS.FIFTY_FIFTY) {
+      // 50/50 solo su domande normali categoria/livello
+      const isNormal =
+        typeof curQ.level === "number" &&
+        !curQ.isKeyQuestion &&
+        !(curQ.tileType === "scrigno" || curQ.scrignoMode);
 
-    current.currentQuestion = {
-      ...curQ,
-      expiresAt: newExpiresAt,
-    };
+      if (!isNormal) return current;
+
+      const correctIndex = curQ.correctIndex;
+      if (typeof correctIndex !== "number") return current;
+
+      const aids = curQ.aids || {};
+      const fifty = aids.fifty || {};
+
+      // se già usato 50/50 su questa domanda da questo player, non rifarlo
+      if (fifty[playerId]) return current;
+
+      const wrong = [0, 1, 2, 3].filter((i) => i !== correctIndex);
+      if (wrong.length < 2) return current;
+
+      // scegli 2 indici sbagliati random
+      for (let i = wrong.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [wrong[i], wrong[j]] = [wrong[j], wrong[i]];
+      }
+      const removed = wrong.slice(0, 2);
+
+      newQuestion.aids = {
+        ...aids,
+        fifty: {
+          ...fifty,
+          [playerId]: { removed, at: Date.now() },
+        },
+      };
+    }
+
+    // Scritture domanda aggiornata
+    current.currentQuestion = newQuestion;
 
     current.turnContext = {
       ...(current.turnContext || {}),
