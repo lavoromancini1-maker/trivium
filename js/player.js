@@ -18,7 +18,6 @@ import {
   useCard,
   resolveCardOffer,
   grantRandomCard,
-  useCardAlternativeQuestion
 } from "./firebase-game.js";
 
 import { CARD_IDS, getCardDef } from "./cards.js";
