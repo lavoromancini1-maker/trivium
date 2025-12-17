@@ -10,6 +10,7 @@ import {
   getRandomSequenceQuestion,
 } from "./questions.js";
 
+import { CARD_IDS, CARD_COSTS, canUseCardNow, normalizeCards } from "./cards.js";
 
 import { db } from "./firebase-config.js";
 
@@ -355,6 +356,114 @@ export async function startGame(gameCode) {
   await update(gameRef, updateData);
 
   return { turnOrder };
+}
+
+// =======================================
+// CARDS - USE (server-side, atomico)
+// =======================================
+export async function useCard(gameCode, playerId, cardId, payload = {}) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+
+  if (!snap.exists()) throw new Error("Partita non trovata");
+
+  const game = snap.val();
+
+  if (game.state !== "IN_PROGRESS") throw new Error("La partita non è in corso.");
+  if (game.currentPlayerId !== playerId) throw new Error("Non è il tuo turno.");
+
+  const players = game.players || {};
+  const player = players[playerId];
+  if (!player) throw new Error("Giocatore non trovato.");
+
+  const cards = normalizeCards(player.cards);
+  if (!cards.includes(cardId)) throw new Error("Non possiedi questa carta.");
+
+  // regola UNA carta per turno
+  const usedCard = !!game.turnContext?.usedCard;
+  if (usedCard) throw new Error("Hai già usato una carta in questo turno.");
+
+  // regole fase/limitazioni globali (no key/scrigno/minigame/duello ecc.)
+  const can = canUseCardNow(game, player, cardId);
+  if (!can.ok) {
+    // messaggio semplice (poi possiamo mapparlo meglio lato UI)
+    throw new Error("Non puoi usare questa carta ora.");
+  }
+
+  const cost = CARD_COSTS[cardId] ?? null;
+  if (typeof cost !== "number") throw new Error("Costo carta non valido.");
+
+  if ((player.points ?? 0) < cost) throw new Error("Punti insufficienti.");
+
+  // Per ora implementiamo SOLO: TEMPO EXTRA
+  if (cardId !== CARD_IDS.EXTRA_TIME) {
+    throw new Error("Questa carta non è ancora implementata.");
+  }
+
+  // Validazione specifica EXTRA_TIME
+  const q = game.currentQuestion;
+  if (!q || typeof q.expiresAt !== "number") {
+    throw new Error("Nessuna domanda attiva su cui usare Tempo extra.");
+  }
+
+  // Transazione atomica: aggiorna expiresAt, scala punti, rimuove carta, segna usedCard
+  const result = await runTransaction(gameRef, (current) => {
+    if (!current) return current;
+
+    if (current.state !== "IN_PROGRESS") return current;
+    if (current.currentPlayerId !== playerId) return current;
+
+    const curPlayer = current.players?.[playerId];
+    if (!curPlayer) return current;
+
+    const curCards = normalizeCards(curPlayer.cards);
+    if (!curCards.includes(cardId)) return current;
+
+    const alreadyUsed = !!current.turnContext?.usedCard;
+    if (alreadyUsed) return current;
+
+    const curQ = current.currentQuestion;
+    if (!curQ || typeof curQ.expiresAt !== "number") return current;
+
+    const curPoints = curPlayer.points ?? 0;
+    if (curPoints < cost) return current;
+
+    // Applica effetto: +10 secondi
+    const newExpiresAt = curQ.expiresAt + 10_000;
+
+    // Rimuovi 1 occorrenza della carta
+    const idx = curCards.indexOf(cardId);
+    curCards.splice(idx, 1);
+
+    // Scritture
+    curPlayer.points = curPoints - cost;
+    curPlayer.cards = curCards;
+
+    current.currentQuestion = {
+      ...curQ,
+      expiresAt: newExpiresAt,
+    };
+
+    current.turnContext = {
+      ...(current.turnContext || {}),
+      usedCard: true,
+    };
+
+    current.lastCardUsed = {
+      playerId,
+      cardId,
+      at: Date.now(),
+    };
+
+    return current;
+  });
+
+  if (!result.committed) {
+    // se non ha committato, qualcosa è cambiato (turno/fase/punti) tra read e write
+    throw new Error("Impossibile usare la carta in questo momento. Riprova.");
+  }
+
+  return { ok: true, cardId };
 }
 
 export async function rollDice(gameCode, playerId) {
