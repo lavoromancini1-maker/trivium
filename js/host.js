@@ -85,8 +85,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
 currentGameState = gameState;
 
-// ✅ Se la partita è partita, l’host deve uscire dalla Hall AUTOMATICAMENTE
-if (gameState.state === "IN_PROGRESS") {
+// ✅ Se la partita è partita (o conclusa), l’host deve uscire dalla Hall AUTOMATICAMENTE
+const shouldShowGame = gameState.state === "IN_PROGRESS" || gameState.state === "ENDED";
+if (shouldShowGame) {
   showGame();
 
   // render board solo la prima volta
