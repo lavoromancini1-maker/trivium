@@ -14,7 +14,9 @@ import {
   answerVFFlashMinigame,
   answerIntruderMinigame,
   answerSequenceMinigame,
-  useCard
+  useCard,
+  resolveCardOffer,
+  grantRandomCard
 } from "./firebase-game.js";
 
 import { CARD_IDS, getCardDef } from "./cards.js";
@@ -41,8 +43,11 @@ let lastSequenceQuestionId = null;
 let cardsDock = null, cardsSlots = null;
 let cardSheet = null, cardSheetBackdrop = null, cardSheetClose = null;
 let cardSheetTitle = null, cardSheetDesc = null, cardUseBtn = null;
-
 let selectedCardId = null;
+
+let cardOfferEl, cardOfferCardEl, cardOfferFullEl, cardOfferDiscardListEl;
+let cardOfferDeclineBtn, cardOfferAcceptBtn;
+let selectedDiscardId = null;
 
 async function sendVF(choice) {
   if (!currentGameCode || !currentPlayerId) return;
@@ -74,6 +79,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const waitingPanel = document.getElementById("waiting-panel");
   const playerNameDisplay = document.getElementById("player-name-display");
   const playerProgressEl = document.getElementById("player-progress");
+  cardOfferEl = document.getElementById("card-offer");
+cardOfferCardEl = document.getElementById("card-offer-card");
+cardOfferFullEl = document.getElementById("card-offer-full");
+cardOfferDiscardListEl = document.getElementById("card-offer-discard-list");
+cardOfferDeclineBtn = document.getElementById("card-offer-decline");
+cardOfferAcceptBtn = document.getElementById("card-offer-accept");
+
+if (cardOfferDeclineBtn) {
+  cardOfferDeclineBtn.addEventListener("click", async () => {
+    await resolveCardOffer(currentGameCode, currentPlayerId, "DECLINE");
+    hideCardOffer();
+  });
+}
+if (cardOfferAcceptBtn) {
+  cardOfferAcceptBtn.addEventListener("click", async () => {
+    await resolveCardOffer(currentGameCode, currentPlayerId, "ACCEPT", selectedDiscardId);
+    hideCardOffer();
+  });
+}
+
 
   // --- STEP 8: auto-rejoin da localStorage ---
 const LS_GAME = "trivium_game_code";
@@ -572,6 +597,62 @@ if (cardId === CARD_IDS.EXTRA_TIME) {
   });
 }
 
+function hideCardOffer() {
+  selectedDiscardId = null;
+  if (cardOfferEl) cardOfferEl.classList.add("hidden");
+}
+
+function showCardOffer(gameState) {
+  const offer = gameState?.pendingCardOffer;
+  if (!offer) return;
+
+  // solo per me
+  if (offer.playerId !== currentPlayerId) return;
+
+  const me = gameState?.players?.[currentPlayerId];
+  const myCards = Array.isArray(me?.cards) ? me.cards.slice(0, 3) : [];
+
+  const defNew = getCardDef(offer.cardId);
+  if (!defNew) return;
+
+  if (cardOfferCardEl) {
+    cardOfferCardEl.textContent = `${defNew.icon} ${defNew.title}`;
+  }
+
+  // se pieno: mostra lista scarto
+  const isFull = myCards.length >= 3;
+
+  if (cardOfferFullEl) {
+    cardOfferFullEl.classList.toggle("hidden", !isFull);
+  }
+
+  if (cardOfferDiscardListEl) {
+    cardOfferDiscardListEl.innerHTML = "";
+    if (isFull) {
+      myCards.forEach((cid) => {
+        const d = getCardDef(cid);
+        if (!d) return;
+        const chip = document.createElement("div");
+        chip.className = "card-offer-chip";
+        chip.textContent = `${d.icon} ${d.title}`;
+        chip.addEventListener("click", () => {
+          selectedDiscardId = cid;
+          Array.from(cardOfferDiscardListEl.querySelectorAll(".card-offer-chip")).forEach(el => el.classList.remove("selected"));
+          chip.classList.add("selected");
+        });
+        cardOfferDiscardListEl.appendChild(chip);
+      });
+    }
+  }
+
+  // se pieno e non ho scelto scarto → disabilita PRENDI
+  if (cardOfferAcceptBtn) {
+    cardOfferAcceptBtn.disabled = isFull && !selectedDiscardId;
+  }
+
+  if (cardOfferEl) cardOfferEl.classList.remove("hidden");
+}
+
 function handleGameUpdate(
   gameState,
   {
@@ -611,6 +692,8 @@ function handleGameUpdate(
     const isMyTurn = myId && activePlayerId === myId;
 
     renderCardsDock(gameState);
+
+    showCardOffer(gameState);
 
 // --- RESET UI minigame "Closest" se non siamo in MINIGAME/CLOSEST ---
 const mg = gameState.minigame;
