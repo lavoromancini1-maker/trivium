@@ -244,7 +244,7 @@ function setupTimeoutInterval() {
  */
 function renderQrInto(targetEl, gameCode) {
   const base = window.location.origin + window.location.pathname.replace(/host\.html$/i, "");
-  const playerUrl = `${base}player.html?game=${encodeURIComponent(gameCode)}`;
+  const playerUrl = `${base}player.html?gameCode=${encodeURIComponent(gameCode)}`;
 
   // QR image (220x220)
   const qrImgUrl =
