@@ -38,6 +38,12 @@ let sequencePanel, sequencePrompt, sequenceItems, sequenceResetBtn, sequenceSubm
 let sequenceSelection = []; // array di indici scelti
 let lastSequenceQuestionId = null;
 
+let cardsDock = null, cardsSlots = null;
+let cardSheet = null, cardSheetBackdrop = null, cardSheetClose = null;
+let cardSheetTitle = null, cardSheetDesc = null, cardUseBtn = null;
+
+let selectedCardId = null;
+
 async function sendVF(choice) {
   if (!currentGameCode || !currentPlayerId) return;
   if (!vfHint || !vfTrueBtn || !vfFalseBtn) return;
@@ -81,12 +87,6 @@ try {
     playerNameInput.value = savedName;
   }
 } catch (_) {}
-
-let cardsDock, cardsSlots;
-let cardSheet, cardSheetBackdrop, cardSheetClose;
-let cardSheetTitle, cardSheetDesc, cardUseBtn;
-
-let selectedCardId = null;  
 
 async function startListening(gameCode, playerId, playerName) {
   currentGameCode = gameCode;
