@@ -576,13 +576,13 @@ function renderCardsDock(gameState) {
     let canUse = false;
     let reason = "";
 
-    // Per questo step abilitiamo davvero SOLO EXTRA_TIME
-// Abilitate: EXTRA_TIME e FIFTY_FIFTY
 if (cardId === CARD_IDS.EXTRA_TIME) {
   canUse = isMyTurn && isNormalQuestion;
-  if (!isMyTurn) reason = "Puoi usare carte solo nel tuo turno.";
-  else if (!isNormalQuestion)
+  if (!isMyTurn) {
+    reason = "Puoi usare carte solo nel tuo turno.";
+  } else if (!isNormalQuestion) {
     reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+  }
 
 } else if (cardId === CARD_IDS.FIFTY_FIFTY) {
   canUse = isMyTurn && isNormalQuestion;
@@ -592,9 +592,11 @@ if (cardId === CARD_IDS.EXTRA_TIME) {
     canUse = false;
     reason = "Hai già usato 50/50 su questa domanda.";
   } else {
-    if (!isMyTurn) reason = "Puoi usare carte solo nel tuo turno.";
-    else if (!isNormalQuestion)
+    if (!isMyTurn) {
+      reason = "Puoi usare carte solo nel tuo turno.";
+    } else if (!isNormalQuestion) {
       reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+    }
   }
 
 } else if (cardId === CARD_IDS.ALT_QUESTION) {
@@ -604,11 +606,12 @@ if (cardId === CARD_IDS.EXTRA_TIME) {
     reason = "Hai già usato una carta in questo turno.";
   } else {
     canUse = isMyTurn && isNormalQuestion;
-    if (!isMyTurn) reason = "Puoi usare carte solo nel tuo turno.";
-    else if (!isNormalQuestion)
+    if (!isMyTurn) {
+      reason = "Puoi usare carte solo nel tuo turno.";
+    } else if (!isNormalQuestion) {
       reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+    }
   }
-}
 
 } else {
   canUse = false;
