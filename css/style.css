@@ -916,7 +916,7 @@ html {
 }
 
 /* =========================
-   HOST HALL
+   HOST HALL (pre-game)
    ========================= */
 
 .host-hall {
@@ -951,6 +951,10 @@ html {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.hall-actions .btn {
+  width: auto; /* i tuoi .btn sono full-width per player, qui li facciamo “desktop” */
 }
 
 .hall-join {
@@ -1009,6 +1013,3 @@ html {
   min-height: 20px;
   opacity: 0.9;
 }
-
-/* helper */
-.hidden { display: none !important; }
