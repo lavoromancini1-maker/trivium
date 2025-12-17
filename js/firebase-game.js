@@ -400,12 +400,6 @@ if (![CARD_IDS.EXTRA_TIME, CARD_IDS.FIFTY_FIFTY].includes(cardId)) {
   throw new Error("Questa carta non è ancora implementata.");
 }
 
-  // Validazione specifica EXTRA_TIME
-  const q = game.currentQuestion;
-  if (!q || typeof q.expiresAt !== "number") {
-    throw new Error("Nessuna domanda attiva su cui usare Tempo extra.");
-  }
-
   // Transazione atomica: aggiorna expiresAt, scala punti, rimuove carta, segna usedCard
   const result = await runTransaction(gameRef, (current) => {
     if (!current) return current;
@@ -423,7 +417,7 @@ if (![CARD_IDS.EXTRA_TIME, CARD_IDS.FIFTY_FIFTY].includes(cardId)) {
     if (alreadyUsed) return current;
 
     const curQ = current.currentQuestion;
-    if (!curQ || typeof curQ.expiresAt !== "number") return current;
+    if (!curQ) return current;
 
     const curPoints = curPlayer.points ?? 0;
     if (curPoints < cost) return current;
@@ -434,8 +428,9 @@ if (![CARD_IDS.EXTRA_TIME, CARD_IDS.FIFTY_FIFTY].includes(cardId)) {
     let newQuestion = { ...curQ };
 
     if (cardId === CARD_IDS.EXTRA_TIME) {
-      newQuestion.expiresAt = curQ.expiresAt + 10_000;
-    }
+  if (typeof curQ.expiresAt !== "number") return current;
+  newQuestion.expiresAt = curQ.expiresAt + 10_000;
+}
 
     if (cardId === CARD_IDS.FIFTY_FIFTY) {
       // 50/50 solo su domande normali categoria/livello
