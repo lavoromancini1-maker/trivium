@@ -336,78 +336,32 @@ export async function rollDice(gameCode, playerId) {
   const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
   const snap = await get(gameRef);
 
-  if (!snap.exists()) {
-    throw new Error("Partita non trovata");
-  }
+  if (!snap.exists()) throw new Error("Partita non trovata");
 
   const game = snap.val();
 
-  if (game.state !== "IN_PROGRESS") {
-    throw new Error("La partita non è in corso.");
-  }
-
-  if (game.currentPlayerId !== playerId) {
-    throw new Error("Non è il tuo turno.");
-  }
-
-  if (game.phase !== "WAIT_ROLL") {
-    throw new Error("Non puoi tirare il dado in questa fase.");
-  }
+  if (game.state !== "IN_PROGRESS") throw new Error("La partita non è in corso.");
+  if (game.currentPlayerId !== playerId) throw new Error("Non è il tuo turno.");
+  if (game.phase !== "WAIT_ROLL") throw new Error("Non puoi tirare il dado in questa fase.");
 
   const players = game.players || {};
   const currentPlayer = players[playerId];
-
-  if (!currentPlayer) {
-    throw new Error("Giocatore non trovato.");
-  }
+  if (!currentPlayer) throw new Error("Giocatore non trovato.");
 
   const fromTileId = currentPlayer.position ?? START_TILE_ID;
-  const tile = BOARD[fromTileId];
+  if (!BOARD[fromTileId]) throw new Error(`Casella di partenza non valida: ${fromTileId}`);
 
   // tiro del dado 1-6
   const diceResult = Math.floor(1 + Math.random() * 6);
 
-  // calcoliamo le direzioni disponibili dalla casella corrente
-  const neighbors = tile.neighbors || [];
+  // ✅ NUOVO: calcoliamo tutte le destinazioni possibili in EXACT diceResult passi,
+  // scegliendo ai bivi lungo il percorso (ring/chiavi/stradine/scrigno).
+  const availableDirections = computeMoveOptionsAllPaths(fromTileId, diceResult);
 
-  // costruiamo un array descrittivo delle direzioni
-    // costruiamo un array descrittivo delle direzioni
-  const availableDirections = neighbors.map((neighborId, idx) => {
-    const neighborTile = BOARD[neighborId];
-
-    // label “umana” (come ora)
-    let directionLabel;
-    if (tile.zone === "ring") {
-      if (idx === 0) directionLabel = "Sinistra";
-      else if (idx === 1) directionLabel = "Destra";
-      else directionLabel = "Stradina";
-    } else if (tile.zone === "branch") {
-      directionLabel = idx === 0 ? "Indietro" : "Avanti";
-    } else {
-      directionLabel = "Direzione";
-    }
-
-    // ✅ PREVIEW: calcolo la casella FINALE con questo dado e questa direzione
-    const previewFinalTileId = moveAlongPath(fromTileId, diceResult, idx);
-    const previewFinalTile = BOARD[previewFinalTileId];
-
-    return {
-      index: idx,
-      toTileId: neighborId, // neighbor “immediato” (utile comunque)
-      label: directionLabel,
-
-      // info neighbor (se ti serve ancora)
-      type: neighborTile.type,
-      category: neighborTile.category || null,
-      zone: neighborTile.zone,
-
-      // ✅ info casella finale: quella che mostreremo nei bottoni
-      previewTileId: previewFinalTileId,
-      previewType: previewFinalTile.type,
-      previewCategory: previewFinalTile.category || null,
-      previewZone: previewFinalTile.zone,
-    };
-  });
+  // safety: se per qualche motivo non esistono mosse (non dovrebbe mai succedere se il board è connesso)
+  if (!availableDirections.length) {
+    throw new Error("Nessuna mossa disponibile: controlla i neighbors nel board.");
+  }
 
   const updateData = {
     phase: "CHOOSE_DIRECTION",
@@ -422,6 +376,57 @@ export async function rollDice(gameCode, playerId) {
   await update(gameRef, updateData);
 
   return { diceResult, availableDirections };
+}
+
+function computeMoveOptionsAllPaths(fromTileId, steps) {
+  // evita esplosione di loop sul ring: non permettiamo di ripassare
+  // sulla stessa casella nello stesso movimento (simple path).
+  const resultsByTile = new Map();
+
+  function dfs(currentId, remaining, visited, path) {
+    if (remaining === 0) {
+      // destinazione finale
+      if (!resultsByTile.has(currentId)) {
+        resultsByTile.set(currentId, { finalTileId: currentId, path: [...path] });
+      }
+      return;
+    }
+
+    const tile = BOARD[currentId];
+    const neighbors = tile?.neighbors || [];
+    for (const nextId of neighbors) {
+      if (visited.has(nextId)) continue; // blocca loop
+      visited.add(nextId);
+      path.push(nextId);
+      dfs(nextId, remaining - 1, visited, path);
+      path.pop();
+      visited.delete(nextId);
+    }
+  }
+
+  const visited = new Set([fromTileId]);
+  dfs(fromTileId, steps, visited, [fromTileId]);
+
+  // trasformiamo in array “availableDirections” (anche se ora sono destinazioni)
+  const arr = Array.from(resultsByTile.values());
+
+  return arr.map((opt, i) => {
+    const t = BOARD[opt.finalTileId] || {};
+    return {
+      index: i,
+      label: `Opzione ${i + 1}`,
+      // preview per UI player + pulsazione host
+      previewTileId: opt.finalTileId,
+      previewType: t.type || null,
+      previewCategory: t.category || null,
+
+      // dato “vero” che useremo in chooseDirection
+      finalTileId: opt.finalTileId,
+
+      // opzionale (utile se in futuro vuoi mostrare il percorso)
+      path: opt.path,
+    };
+  });
 }
 
 export async function chooseDirection(gameCode, playerId, directionIndex) {
@@ -461,7 +466,14 @@ export async function chooseDirection(gameCode, playerId, directionIndex) {
   const dice = currentMove.dice;
 
   // calcoliamo la casella finale
-  const finalTileId = moveAlongPath(fromTileId, dice, directionIndex);
+  const dirs = game.availableDirections || [];
+const chosen = dirs.find(d => d.index === directionIndex) || dirs[directionIndex];
+
+if (!chosen || chosen.finalTileId === undefined || chosen.finalTileId === null) {
+  throw new Error("Direzione/destinazione non valida.");
+}
+
+const finalTileId = chosen.finalTileId;
   const finalTile = BOARD[finalTileId];
 
   // Aggiorniamo la posizione del giocatore
