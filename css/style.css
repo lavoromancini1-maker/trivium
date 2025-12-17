@@ -1260,3 +1260,10 @@ body.has-cards-dock {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* 50/50: risposte eliminate */
+.fifty-removed {
+  opacity: 0.25;
+  filter: grayscale(1);
+  pointer-events: none;
+}
