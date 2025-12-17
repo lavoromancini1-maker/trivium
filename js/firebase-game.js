@@ -471,6 +471,10 @@ if (![CARD_IDS.EXTRA_TIME, CARD_IDS.FIFTY_FIFTY].includes(cardId)) {
 
     // Scritture domanda aggiornata
     current.currentQuestion = newQuestion;
+    curPlayer.points = curPoints - cost;
+    curPlayer.cards = curCards.filter((c) => c !== cardId);
+    current.players[playerId] = curPlayer;
+
 
     current.turnContext = {
       ...(current.turnContext || {}),
@@ -551,6 +555,35 @@ export async function grantRandomCard(gameCode, playerId, source = "EVENT_OR_MIN
 
   if (!res.committed) throw new Error("Impossibile assegnare la carta (riprovare).");
   return { ok: true };
+}
+
+// === CARD DROP (by ref) ===
+// come grantRandomCard, ma usa direttamente gameRef (utile dentro finalize minigame/event)
+async function grantRandomCardByRef(gameRef, playerId, source = "EVENT_OR_MINIGAME") {
+  const res = await runTransaction(gameRef, (current) => {
+    if (!current) return current;
+    if (current.state !== "IN_PROGRESS") return current;
+
+    // se c’è già un’offerta pendente, non ne creiamo un’altra
+    if (current.pendingCardOffer) return current;
+
+    const p = current.players?.[playerId];
+    if (!p) return current;
+
+    const cardId = pickRandomCardId();
+    if (!cardId) return current;
+
+    grantCardOrOffer(current, playerId, cardId, source);
+    return current;
+  });
+
+  return !!res.committed;
+}
+
+async function maybeDropCardByRef(gameRef, playerId, chance, source) {
+  if (!playerId) return false;
+  if (Math.random() > chance) return false;
+  return await grantRandomCardByRef(gameRef, playerId, source);
 }
 
 // Player decide: rifiuta, oppure accetta e (se necessario) scarta una carta
@@ -1701,6 +1734,11 @@ async function finalizeSequenceMinigame(gameRef, game) {
   }
 
   await update(gameRef, updates);
+    // === DROP CARTA (MINIGAME) ===
+  // 30% ai vincitori (se più di uno, tentiamo per ciascuno)
+  for (const w of winners) {
+    await maybeDropCardByRef(gameRef, w, 0.30, "MINIGAME_SEQUENCE_WIN");
+  }
 }
 
 export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
@@ -1758,8 +1796,10 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
         // finito pack: chiudi minigioco
         game.phase = "WAIT_ROLL";
         game.minigame = null;
+        game.lastVFFlashWinners = mg.winners || {};
       }
 
+      game.lastMinigameType = "VF_FLASH";
       game.players = players;
       game.minigame = mg;
       return game;
@@ -1776,7 +1816,10 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
         mg.answeredThis = {};
         mg.eliminatedThis = {};
         mg.currentWinnerId = null;
+
       } else {
+        game.lastMinigameType = "VF_FLASH";
+        game.lastVFFlashWinners = mg.winners || {};
         game.phase = "WAIT_ROLL";
         game.minigame = null;
       }
@@ -1785,6 +1828,23 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
     game.minigame = mg;
     return game;
   });
+
+  if (tx.committed) {
+  const after = tx.snapshot.val();
+  if (after?.lastMinigameType === "VF_FLASH") {
+    const winMap = after?.lastVFFlashWinners || {};
+    const entries = Object.entries(winMap);
+    if (entries.length) {
+      entries.sort((a,b) => (b[1]||0) - (a[1]||0));
+      const bestScore = entries[0][1] || 0;
+      const bestIds = entries.filter(([_,s]) => (s||0) === bestScore).map(([id]) => id);
+
+      for (const w of bestIds) {
+        await maybeDropCardByRef(gameRef, w, 0.25, "MINIGAME_VF_FLASH_WIN");
+      }
+    }
+  }
+}
 
   // Risposta al client (non perfetta al 100% in tutte le edge-case, ma sufficiente per UI)
   if (!tx.committed) return { ok: false };
@@ -1798,11 +1858,10 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
   // Quindi ritorniamo "ok" e lato UI mostri "Inviato" / "Attendi".
   return { ok: true };
 }
-
 export async function answerIntruderMinigame(gameCode, playerId, chosenIndex) {
   const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
 
-  await runTransaction(gameRef, (game) => {
+  const tx = await runTransaction(gameRef, (game) => {
     if (!game) return game;
     if (game.state !== "IN_PROGRESS") return game;
     if (game.phase !== "MINIGAME") return game;
@@ -1831,9 +1890,13 @@ export async function answerIntruderMinigame(gameCode, playerId, chosenIndex) {
     const correct = idx === mg.intruderIndex;
 
     if (correct) {
-      // primo corretto vince e prende +20 (POINTS_CONFIG)
+      // primo corretto vince e prende +20
       mg.currentWinnerId = playerId;
       players[playerId].points = (players[playerId].points || 0) + 20;
+
+      // salva info per drop post-transaction
+      game.lastMinigameWinnerId = playerId;
+      game.lastMinigameType = "INTRUDER";
 
       // chiudi minigame subito
       game.phase = "WAIT_ROLL";
@@ -1845,6 +1908,7 @@ export async function answerIntruderMinigame(gameCode, playerId, chosenIndex) {
     // se tutti hanno tentato e nessuno ha vinto -> chiudi minigame
     const allTried = playerIds.length > 0 && playerIds.every((pid) => mg.answeredThis[pid]);
     if (allTried) {
+      game.lastMinigameType = "INTRUDER"; // utile per log/telemetria
       game.phase = "WAIT_ROLL";
       game.minigame = null;
     } else {
@@ -1854,8 +1918,16 @@ export async function answerIntruderMinigame(gameCode, playerId, chosenIndex) {
     return game;
   });
 
+  if (tx.committed) {
+    const after = tx.snapshot.val();
+    if (after?.lastMinigameType === "INTRUDER" && after?.lastMinigameWinnerId) {
+      await maybeDropCardByRef(gameRef, after.lastMinigameWinnerId, 0.30, "MINIGAME_INTRUDER_WIN");
+    }
+  }
+
   return { ok: true };
 }
+
 
 export async function checkAndHandleMinigameTimeout(gameCode) {
   const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
@@ -1911,6 +1983,9 @@ if (mg.type !== "CLOSEST") {
   }
 
   await update(gameRef, updates);
+  if (winnerId) {
+  await maybeDropCardByRef(gameRef, winnerId, 0.30, "MINIGAME_CLOSEST_WIN");
+}
   return { handled: true, winnerId };
 }
 
@@ -2043,10 +2118,15 @@ export async function checkAndHandleRapidFireTimeout(gameCode) {
 
   updates.rapidFire = null;
   updates.phase = "WAIT_ROLL";
-
-
   await update(gameRef, updates);
-
+  // === DROP CARTA (MINIGAME: RAPID_FIRE) ===
+// 40% al primo, 15% al secondo (se esiste)
+for (const pid of firstGroup) {
+  await maybeDropCardByRef(gameRef, pid, 0.40, "MINIGAME_RAPID_FIRE_FIRST");
+}
+for (const pid of secondGroup) {
+  await maybeDropCardByRef(gameRef, pid, 0.15, "MINIGAME_RAPID_FIRE_SECOND");
+}
   return { handled: true, reason: "FINISHED" };
 }
 
@@ -2351,6 +2431,18 @@ export async function checkAndHandleRevealAdvance(gameCode) {
     updates.currentPlayerId = nextPlayerId;
 
     await update(gameRef, updates);
+        // === DROP CARTA (EVENTO: DUELLO) ===
+    // Probabilità: 35% al vincitore, 20% ciascuno se pareggio
+    if (owner && opp && pOwner && pOpp) {
+      if (sOwner > sOpp) {
+        await maybeDropCardByRef(gameRef, owner, 0.35, "EVENT_DUEL_WIN");
+      } else if (sOpp > sOwner) {
+        await maybeDropCardByRef(gameRef, opp, 0.35, "EVENT_DUEL_WIN");
+      } else {
+        await maybeDropCardByRef(gameRef, owner, 0.20, "EVENT_DUEL_TIE");
+        await maybeDropCardByRef(gameRef, opp, 0.20, "EVENT_DUEL_TIE");
+      }
+    }
     return { handled: true, reason: "DUEL_FINISHED" };
   }
 
@@ -2361,6 +2453,10 @@ export async function checkAndHandleRevealAdvance(gameCode) {
       currentQuestion: null,
       currentEvent: null,
     });
+        // === DROP CARTA (EVENTO generico: BOOM / RISK ecc.) ===
+    // ownerPlayerId è di solito chi ha attivato l’evento
+    const ownerId = ev?.ownerPlayerId;
+    await maybeDropCardByRef(gameRef, ownerId, 0.25, "EVENT_GENERIC");
     return { handled: true, reason: "EVENT_FINISHED" };
   }
 
@@ -2689,4 +2785,78 @@ export async function answerEventQuestion(gameCode, playerId, answerIndex) {
       },
     });
   }
+}
+
+export async function useCardAlternativeQuestion(gameCode, playerId) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+
+  const tx = await runTransaction(gameRef, (game) => {
+    if (!game) return game;
+    if (game.state !== "IN_PROGRESS") return game;
+    if (game.currentPlayerId !== playerId) return game;
+    if (game.phase !== "QUESTION") return game;
+
+    const q = game.currentQuestion;
+    if (!q) return game;
+
+    // vietata su key/scrigno/minigame
+    const isNormal =
+      typeof q.level === "number" &&
+      !q.isKeyQuestion &&
+      q.tileType !== "scrigno" &&
+      !q.scrignoMode;
+
+    if (!isNormal) return game;
+
+    // UNA carta per turno
+    if (game.turnContext?.usedCard) return game;
+
+    const me = game.players?.[playerId];
+    if (!me) return game;
+
+    // deve avere la carta
+    const cards = normalizeCards(me.cards);
+    if (!cards.includes(CARD_IDS.ALT_QUESTION)) return game;
+
+    // costo punti (40)
+    const cost = 40; // da POINTS_CONFIG :contentReference[oaicite:10]{index=10}
+    const pts = me.points || 0;
+    if (pts < cost) return game;
+
+    // estrai nuova domanda stessa category & level (evita ripetizioni)
+    const usedIds = Object.keys(game.usedCategoryQuestionIds || {});
+    const raw = getRandomCategoryQuestion(q.category, q.level, usedIds);
+    if (!raw) return game;
+
+    const shuffled = shuffleAnswers(raw.answers, raw.correctIndex);
+    const startedAt = Date.now();
+    const expiresAt = startedAt + (q.durationSec || 15) * 1000;
+
+    game.usedCategoryQuestionIds = game.usedCategoryQuestionIds || {};
+    game.usedCategoryQuestionIds[raw.id] = true;
+
+    game.currentQuestion = {
+      ...q,
+      id: raw.id,
+      text: raw.text,
+      answers: shuffled.answers,
+      correctIndex: shuffled.correctIndex,
+      startedAt,
+      expiresAt,
+      // reset aiuti per domanda nuova
+      aids: {},
+    };
+
+    // scala punti + scarta carta
+    me.points = pts - cost;
+    me.cards = cards.filter((c) => c !== CARD_IDS.ALT_QUESTION);
+
+    game.turnContext = { ...(game.turnContext || {}), usedCard: true };
+    game.lastCardUsed = { playerId, cardId: CARD_IDS.ALT_QUESTION, at: Date.now() };
+
+    return game;
+  });
+
+  if (!tx.committed) throw new Error("Impossibile usare Domanda Alternativa (riprovare).");
+  return { ok: true };
 }
