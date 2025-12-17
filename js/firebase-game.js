@@ -2823,10 +2823,23 @@ export async function useCardAlternativeQuestion(gameCode, playerId) {
     const pts = me.points || 0;
     if (pts < cost) return game;
 
-    // estrai nuova domanda stessa category & level (evita ripetizioni)
-    const usedIds = Object.keys(game.usedCategoryQuestionIds || {});
-    const raw = getRandomCategoryQuestion(q.category, q.level, usedIds);
-    if (!raw) return game;
+const usedIds = Object.keys(game.usedCategoryQuestionIds || {});
+
+// ✅ IMPORTANTISSIMO: escludi anche la domanda attuale, sempre
+if (q.id) usedIds.push(q.id);
+if (q.questionId) usedIds.push(q.questionId); // nel caso tu usi questo nome altrove
+
+let raw = getRandomCategoryQuestion(q.category, q.level, usedIds);
+
+// fallback: se non trova nulla perché sono finite, riprova senza usedIds ma sempre escludendo quella corrente
+if (!raw) {
+  const onlyExcludeCurrent = [];
+  if (q.id) onlyExcludeCurrent.push(q.id);
+  if (q.questionId) onlyExcludeCurrent.push(q.questionId);
+  raw = getRandomCategoryQuestion(q.category, q.level, onlyExcludeCurrent);
+}
+
+if (!raw) return game;
 
     const shuffled = shuffleAnswers(raw.answers, raw.correctIndex);
     const startedAt = Date.now();
