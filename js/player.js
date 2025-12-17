@@ -14,9 +14,10 @@ import {
   answerVFFlashMinigame,
   answerIntruderMinigame,
   answerSequenceMinigame,
+  useCard
 } from "./firebase-game.js";
 
-
+import { CARD_IDS, getCardDef } from "./cards.js";
 
 let currentGameCode = null;
 let currentPlayerId = null;
@@ -80,6 +81,12 @@ try {
     playerNameInput.value = savedName;
   }
 } catch (_) {}
+
+let cardsDock, cardsSlots;
+let cardSheet, cardSheetBackdrop, cardSheetClose;
+let cardSheetTitle, cardSheetDesc, cardUseBtn;
+
+let selectedCardId = null;  
 
 async function startListening(gameCode, playerId, playerName) {
   currentGameCode = gameCode;
@@ -150,6 +157,25 @@ tryAutoRejoin();
   const diceResultEl = document.getElementById("dice-result");
   const directionPanel = document.getElementById("direction-panel");
   const directionButtons = document.getElementById("direction-buttons");
+  cardsDock = document.getElementById("cards-dock");
+cardsSlots = document.getElementById("cards-slots");
+
+cardSheet = document.getElementById("card-sheet");
+cardSheetBackdrop = document.getElementById("card-sheet-backdrop");
+cardSheetClose = document.getElementById("card-sheet-close");
+cardSheetTitle = document.getElementById("card-sheet-title");
+cardSheetDesc = document.getElementById("card-sheet-desc");
+cardUseBtn = document.getElementById("card-use-btn");
+if (cardUseBtn) {
+  cardUseBtn.addEventListener("click", () => tryUseSelectedCard());
+}  
+
+if (cardSheetBackdrop) {
+  cardSheetBackdrop.addEventListener("click", () => closeCardSheet());
+}
+if (cardSheetClose) {
+  cardSheetClose.addEventListener("click", () => closeCardSheet());
+}
 
   const answerPanel = document.getElementById("answer-panel");
   const answerButtons = document.getElementById("answer-buttons");
@@ -432,9 +458,103 @@ if (latestGameState && latestGameState.phase === "RAPID_FIRE") {
   });
 });
 
-/**
- * Gestisce l'aggiornamento dello stato della partita lato giocatore.
- */
+function openCardSheet(cardId, canUse, reasonText = "") {
+  selectedCardId = cardId;
+
+  const def = getCardDef(cardId);
+  if (!def) return;
+
+  if (cardSheetTitle) cardSheetTitle.textContent = `${def.icon} ${def.title} (-${def.cost} pt)`;
+  if (cardSheetDesc) cardSheetDesc.textContent = def.short + (reasonText ? `\n\n${reasonText}` : "");
+
+  if (cardUseBtn) {
+    cardUseBtn.disabled = !canUse;
+  }
+
+  if (cardSheet) cardSheet.classList.remove("hidden");
+}
+
+function closeCardSheet() {
+  selectedCardId = null;
+  if (cardSheet) cardSheet.classList.add("hidden");
+}
+
+async function tryUseSelectedCard() {
+  if (!selectedCardId) return;
+  if (!currentGameCode || !currentPlayerId) return;
+
+  try {
+    if (cardUseBtn) cardUseBtn.disabled = true;
+    await useCard(currentGameCode, currentPlayerId, selectedCardId, {});
+    closeCardSheet();
+  } catch (e) {
+    // usa il testo status già esistente
+    const msg = (e && e.message) ? e.message : "Errore nell’uso della carta.";
+    const el = document.getElementById("turn-status-text");
+    if (el) el.textContent = msg;
+    if (cardUseBtn) cardUseBtn.disabled = false;
+  }
+}
+
+function renderCardsDock(gameState) {
+  if (!cardsDock || !cardsSlots) return;
+
+  const myId = currentPlayerId;
+  const me = gameState?.players?.[myId];
+  const myCards = Array.isArray(me?.cards) ? me.cards.slice(0, 3) : [];
+
+  // mostra dock solo se ho carte
+  if (myCards.length === 0) {
+    cardsDock.classList.add("hidden");
+    cardsSlots.innerHTML = "";
+    return;
+  }
+
+  cardsDock.classList.remove("hidden");
+  cardsSlots.innerHTML = "";
+
+  const phase = gameState?.phase;
+  const q = gameState?.currentQuestion;
+
+  // regola: Tempo extra solo su domande normali categoria/livello (no key, no scrigno)
+  const isNormalQuestion =
+    phase === "QUESTION" &&
+    q &&
+    typeof q.level === "number" &&
+    !q.isKeyQuestion &&
+    !(q.tileType === "scrigno" || q.scrignoMode);
+
+  const isMyTurn = gameState?.currentPlayerId === myId;
+
+  myCards.forEach((cardId) => {
+    const def = getCardDef(cardId);
+    if (!def) return;
+
+    let canUse = false;
+    let reason = "";
+
+    // Per questo step abilitiamo davvero SOLO EXTRA_TIME
+    if (cardId === CARD_IDS.EXTRA_TIME) {
+      canUse = isMyTurn && isNormalQuestion;
+      if (!isMyTurn) reason = "Puoi usare carte solo nel tuo turno.";
+      else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+    } else {
+      canUse = false;
+      reason = "Questa carta sarà attivata nei prossimi step.";
+    }
+
+    const slot = document.createElement("div");
+    slot.className = "card-slot" + (canUse ? "" : " disabled");
+    slot.innerHTML = `
+      <div class="card-icon">${def.icon}</div>
+      <div class="card-label">${def.title}</div>
+    `;
+
+    slot.addEventListener("click", () => openCardSheet(cardId, canUse, reason));
+    cardsSlots.appendChild(slot);
+  });
+}
+
 function handleGameUpdate(
   gameState,
   {
@@ -472,6 +592,8 @@ function handleGameUpdate(
 
     const myId = currentPlayerId;
     const isMyTurn = myId && activePlayerId === myId;
+
+    renderCardsDock(gameState);
 
 // --- RESET UI minigame "Closest" se non siamo in MINIGAME/CLOSEST ---
 const mg = gameState.minigame;
