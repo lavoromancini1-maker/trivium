@@ -538,14 +538,27 @@ function renderCardsDock(gameState) {
     let reason = "";
 
     // Per questo step abilitiamo davvero SOLO EXTRA_TIME
-    if (cardId === CARD_IDS.EXTRA_TIME) {
-      canUse = isMyTurn && isNormalQuestion;
-      if (!isMyTurn) reason = "Puoi usare carte solo nel tuo turno.";
-      else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
-    } else {
-      canUse = false;
-      reason = "Questa carta sarà attivata nei prossimi step.";
-    }
+// Abilitate: EXTRA_TIME e FIFTY_FIFTY
+if (cardId === CARD_IDS.EXTRA_TIME) {
+  canUse = isMyTurn && isNormalQuestion;
+  if (!isMyTurn) reason = "Puoi usare carte solo nel tuo turno.";
+  else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+} else if (cardId === CARD_IDS.FIFTY_FIFTY) {
+  canUse = isMyTurn && isNormalQuestion;
+
+  // se già usato su questa domanda, disabilita
+  const removed = gameState?.currentQuestion?.aids?.fifty?.[myId]?.removed;
+  if (removed && removed.length) {
+    canUse = false;
+    reason = "Hai già usato 50/50 su questa domanda.";
+  } else {
+    if (!isMyTurn) reason = "Puoi usare carte solo nel tuo turno.";
+    else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+  }
+} else {
+  canUse = false;
+  reason = "Questa carta sarà attivata nei prossimi step.";
+}
 
     const slot = document.createElement("div");
     slot.className = "card-slot" + (canUse ? "" : " disabled");
@@ -979,6 +992,26 @@ if (mg && mg.type === "SEQUENCE") {
       rollDiceBtn.disabled = true;
       directionPanel.classList.add("hidden");
       answerPanel.classList.add("hidden");
+
+      // --- 50/50 UI: oscura 2 risposte per questo player
+const removed = gameState?.currentQuestion?.aids?.fifty?.[myId]?.removed;
+const answerBtns = Array.from(answerButtons.querySelectorAll("button[data-answer-index]"));
+
+// reset base (mostra tutto)
+answerBtns.forEach((b) => {
+  b.classList.remove("fifty-removed");
+});
+
+// applica removed se presente
+if (Array.isArray(removed) && removed.length) {
+  answerBtns.forEach((b) => {
+    const idx = parseInt(b.getAttribute("data-answer-index"), 10);
+    if (removed.includes(idx)) {
+      b.classList.add("fifty-removed");
+      b.disabled = true;
+    }
+  });
+}
 
       const activePlayer = players[activePlayerId];
       if (activePlayer) {
