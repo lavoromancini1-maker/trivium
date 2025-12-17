@@ -207,6 +207,10 @@ intrD?.addEventListener("click", () => sendIntruder(3));
 
     const gameCode = gameCodeInput.value.trim();
     const playerName = playerNameInput.value.trim();
+        try {
+      localStorage.setItem("trivium_player_name", playerName);
+    } catch (_) {}
+
 
     if (!gameCode || !playerName) {
       joinErrorEl.textContent = "Inserisci codice partita e nome.";
