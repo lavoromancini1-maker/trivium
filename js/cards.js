@@ -171,6 +171,9 @@ export function isCardGloballyBlocked(game, cardId) {
 
   // Domande scrigno
   const q = game.currentQuestion;
+    // Domanda finale (scrigno finale)
+  const isFinalQuestion = !!(q && q.isFinal);
+  if (isFinalQuestion) return true;
   const isScrignoQuestion = !!(q && (q.tileType === "scrigno" || q.scrignoMode));
   if (isScrignoQuestion) return true;
 
