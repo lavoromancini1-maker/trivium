@@ -39,6 +39,18 @@ export const CARD_COSTS = {
   [CARD_IDS.SHIELD]: 50,
 };
 
+export const CARD_DROP_POOL = [
+  CARD_IDS.EXTRA_TIME,
+  CARD_IDS.FIFTY_FIFTY,
+  CARD_IDS.ALT_QUESTION,
+  CARD_IDS.JUMP_PLUS_ONE,
+  CARD_IDS.SAVE,
+  CARD_IDS.SHIELD,
+  CARD_IDS.CHANGE_CATEGORY,
+  // TELEPORT è forte e rara: per ora la lasciamo fuori dalla pool drop
+  // (si può ottenere magari solo da eventi speciali più avanti)
+];
+
 // Definizione “UI-friendly” (icona/label/testo breve)
 export const CARD_DEFS = {
   [CARD_IDS.TELEPORT_CATEGORY]: {
