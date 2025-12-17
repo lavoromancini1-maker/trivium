@@ -587,46 +587,41 @@ function renderCardsDock(gameState) {
     let canUse = false;
     let reason = "";
 
-if (cardId === CARD_IDS.EXTRA_TIME) {
-  canUse = isMyQuestionNow && isNormalQuestion && !usedCardThisQuestion;
+    if (cardId === CARD_IDS.EXTRA_TIME) {
+      canUse = isMyQuestionNow && isNormalQuestion && !usedCardThisQuestion;
 
-  if (usedCardThisQuestion) reason = "Hai già usato una carta su questa domanda.";
-  else if (!isMyQuestionNow) reason = "Puoi usare carte solo durante la tua domanda.";
-  else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+      if (usedCardThisQuestion) reason = "Hai già usato una carta su questa domanda.";
+      else if (!isMyQuestionNow) reason = "Puoi usare carte solo durante la tua domanda.";
+      else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
 
-} else if (cardId === CARD_IDS.FIFTY_FIFTY) {
-  canUse = isMyQuestionNow && isNormalQuestion && !usedCardThisQuestion;
+    } else if (cardId === CARD_IDS.FIFTY_FIFTY) {
+      canUse = isMyQuestionNow && isNormalQuestion && !usedCardThisQuestion;
 
-  if (usedCardThisQuestion) {
-    canUse = false;
-    reason = "Hai già usato una carta su questa domanda.";
-  }
+      if (usedCardThisQuestion) {
+        canUse = false;
+        reason = "Hai già usato una carta su questa domanda.";
+      }
 
-  const removed = gameState?.currentQuestion?.aids?.fifty?.[myId]?.removed;
-  if (removed && removed.length) {
-    canUse = false;
-    reason = "Hai già usato 50/50 su questa domanda.";
-  } else {
-    if (!isMyQuestionNow) reason = "Puoi usare carte solo durante la tua domanda.";
-    else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
-  }
+      const removed = gameState?.currentQuestion?.aids?.fifty?.[myId]?.removed;
+      if (removed && removed.length) {
+        canUse = false;
+        reason = "Hai già usato 50/50 su questa domanda.";
+      } else {
+        if (!isMyQuestionNow) reason = "Puoi usare carte solo durante la tua domanda.";
+        else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+      }
 
-} else if (cardId === CARD_IDS.ALT_QUESTION) {
-  canUse = isMyQuestionNow && isNormalQuestion && !usedCardThisQuestion;
+    } else if (cardId === CARD_IDS.ALT_QUESTION) {
+      canUse = isMyQuestionNow && isNormalQuestion && !usedCardThisQuestion;
 
-  if (usedCardThisQuestion) reason = "Hai già usato una carta su questa domanda.";
-  else if (!isMyQuestionNow) reason = "Puoi usare carte solo durante la tua domanda.";
-  else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
+      if (usedCardThisQuestion) reason = "Hai già usato una carta su questa domanda.";
+      else if (!isMyQuestionNow) reason = "Puoi usare carte solo durante la tua domanda.";
+      else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
 
-} else {
-  canUse = false;
-  reason = "Questa carta sarà attivata nei prossimi step.";
-}
-
-} else {
-  canUse = false;
-  reason = "Questa carta sarà attivata nei prossimi step.";
-}
+    } else {
+      canUse = false;
+      reason = "Questa carta sarà attivata nei prossimi step.";
+    }
   
     const slot = document.createElement("div");
     slot.className = "card-slot" + (canUse ? "" : " disabled");
