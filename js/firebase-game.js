@@ -10,7 +10,7 @@ import {
   getRandomSequenceQuestion,
 } from "./questions.js";
 
-import { CARD_IDS, CARD_COSTS, canUseCardNow, normalizeCards } from "./cards.js";
+import { CARD_IDS, CARD_COSTS, CARD_DROP_POOL, canUseCardNow, normalizeCards } from "./cards.js";
 
 import { db } from "./firebase-config.js";
 
@@ -497,6 +497,118 @@ if (![CARD_IDS.EXTRA_TIME, CARD_IDS.FIFTY_FIFTY].includes(cardId)) {
   }
 
   return { ok: true, cardId };
+}
+
+// =======================================
+// CARDS - DROP (ottenimento carte)
+// =======================================
+
+// Pesca random dalla pool (uniforme; poi possiamo pesare le rare)
+function pickRandomCardId() {
+  const pool = Array.isArray(CARD_DROP_POOL) ? CARD_DROP_POOL : [];
+  if (pool.length === 0) return null;
+  const idx = Math.floor(Math.random() * pool.length);
+  return pool[idx];
+}
+
+// Prova ad aggiungere la carta: se inventario < 3 la assegna subito,
+// altrimenti crea pendingCardOffer (il player dovrà scegliere scarto/rifiuto)
+function grantCardOrOffer(current, playerId, cardId, source = "UNKNOWN") {
+  const p = current.players?.[playerId];
+  if (!p) return;
+
+  const cards = normalizeCards(p.cards);
+  if (cards.length < 3) {
+    p.cards = [...cards, cardId];
+    current.lastCardGranted = { playerId, cardId, source, at: Date.now() };
+    return;
+  }
+
+  // se c'è già un'offerta in corso, non crearne un'altra (evita bug)
+  if (current.pendingCardOffer) return;
+
+  current.pendingCardOffer = {
+    playerId,
+    cardId,
+    source,
+    createdAt: Date.now(),
+  };
+}
+
+// Export: chiamala quando un evento/minigioco assegna una carta
+export async function grantRandomCard(gameCode, playerId, source = "EVENT_OR_MINIGAME") {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+
+  const res = await runTransaction(gameRef, (current) => {
+    if (!current) return current;
+    if (current.state !== "IN_PROGRESS") return current;
+
+    // blocca se offerta già presente
+    if (current.pendingCardOffer) return current;
+
+    // pesca la carta
+    const cardId = pickRandomCardId();
+    if (!cardId) return current;
+
+    grantCardOrOffer(current, playerId, cardId, source);
+    return current;
+  });
+
+  if (!res.committed) throw new Error("Impossibile assegnare la carta (riprovare).");
+  return { ok: true };
+}
+
+// Player decide: rifiuta, oppure accetta e (se necessario) scarta una carta
+export async function resolveCardOffer(gameCode, playerId, action, discardCardId = null) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+
+  const res = await runTransaction(gameRef, (current) => {
+    if (!current) return current;
+    const offer = current.pendingCardOffer;
+    if (!offer) return current;
+    if (offer.playerId !== playerId) return current;
+
+    const p = current.players?.[playerId];
+    if (!p) return current;
+
+    const cards = normalizeCards(p.cards);
+
+    if (action === "DECLINE") {
+      current.pendingCardOffer = null;
+      current.lastCardOfferResolved = { playerId, action, at: Date.now() };
+      return current;
+    }
+
+    if (action === "ACCEPT") {
+      // se ho già spazio, aggiungo e chiudo
+      if (cards.length < 3) {
+        p.cards = [...cards, offer.cardId];
+        current.pendingCardOffer = null;
+        current.lastCardGranted = { playerId, cardId: offer.cardId, source: offer.source, at: Date.now() };
+        return current;
+      }
+
+      // se sono pieno, devo scartare 1 carta valida
+      if (!discardCardId) return current;
+      if (!cards.includes(discardCardId)) return current;
+
+      const idx = cards.indexOf(discardCardId);
+      cards.splice(idx, 1); // scarto 1
+      cards.push(offer.cardId); // aggiungo nuova
+
+      p.cards = cards;
+
+      current.pendingCardOffer = null;
+      current.lastCardGranted = { playerId, cardId: offer.cardId, source: offer.source, at: Date.now() };
+      current.lastCardDiscarded = { playerId, cardId: discardCardId, at: Date.now() };
+      return current;
+    }
+
+    return current;
+  });
+
+  if (!res.committed) throw new Error("Impossibile risolvere l’offerta carta.");
+  return { ok: true };
 }
 
 export async function rollDice(gameCode, playerId) {
