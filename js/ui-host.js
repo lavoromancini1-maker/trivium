@@ -981,13 +981,19 @@ function renderClosestOverlay(gameState) {
 }
 
 // ===============================
-// BOARD HIGHLIGHT (player positions + pulsazione direzioni)
+// BOARD HIGHLIGHT (player positions + spotlight direzioni)
 // ===============================
 export function updateBoardHighlights(gameState) {
-  // pulizia classi
   const allRects = document.querySelectorAll("rect.svg-tile");
+
+  // reset classi
   allRects.forEach(r =>
-    r.classList.remove("svg-tile--occupied", "svg-tile--active", "svg-tile--pulse")
+    r.classList.remove(
+      "svg-tile--occupied",
+      "svg-tile--active",
+      "svg-tile--pulse",
+      "svg-tile--dim"
+    )
   );
 
   if (!gameState) return;
@@ -1007,17 +1013,39 @@ export function updateBoardHighlights(gameState) {
     if (pid === currentPlayerId) rect.classList.add("svg-tile--active");
   }
 
-  // 2) se siamo in CHOOSE_DIRECTION, pulsa le caselle opzione (preview finale)
+  // 2) spotlight: in CHOOSE_DIRECTION pulsa SOLO opzioni e attenua il resto
   if (gameState.phase === "CHOOSE_DIRECTION") {
     const dirs = gameState.availableDirections || [];
-    dirs.forEach((d) => {
-      const tid = d?.previewTileId;
-      if (tid === undefined || tid === null) return;
+    const optionIds = new Set(
+      dirs
+        .map(d => d?.previewTileId)
+        .filter(v => v !== undefined && v !== null)
+    );
 
+    // attenua TUTTE le caselle che non sono opzioni
+    allRects.forEach((rect) => {
+      const id = rect.id || "";
+      const tid = Number(id.replace("tile-", ""));
+      if (!Number.isFinite(tid)) return;
+
+      if (!optionIds.has(tid)) rect.classList.add("svg-tile--dim");
+    });
+
+    // pulsa SOLO le opzioni (e non attenuarle)
+    optionIds.forEach((tid) => {
       const rect = document.getElementById(`tile-${tid}`);
       if (!rect) return;
-
+      rect.classList.remove("svg-tile--dim");
       rect.classList.add("svg-tile--pulse");
     });
+
+    // mantieni sempre visibili i player (se non sono opzioni)
+    for (const p of Object.values(players)) {
+      const pos = p?.position;
+      if (pos === undefined || pos === null) continue;
+      const rect = document.getElementById(`tile-${pos}`);
+      if (!rect) continue;
+      rect.classList.remove("svg-tile--dim");
+    }
   }
 }
