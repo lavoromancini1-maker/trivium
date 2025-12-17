@@ -605,6 +605,13 @@ if (cardId === CARD_IDS.EXTRA_TIME) {
 function hideCardOffer() {
   selectedDiscardId = null;
   if (cardOfferEl) cardOfferEl.classList.add("hidden");
+  if (cardOfferDiscardListEl) cardOfferDiscardListEl.innerHTML = "";
+  updateOfferAcceptState(false);
+}
+
+function updateOfferAcceptState(isFull) {
+  if (!cardOfferAcceptBtn) return;
+  cardOfferAcceptBtn.disabled = !!isFull && !selectedDiscardId;
 }
 
 function showCardOffer(gameState) {
@@ -626,6 +633,7 @@ function showCardOffer(gameState) {
 
   // se pieno: mostra lista scarto
   const isFull = myCards.length >= 3;
+    if (!isFull) selectedDiscardId = null;
 
   if (cardOfferFullEl) {
     cardOfferFullEl.classList.toggle("hidden", !isFull);
@@ -644,16 +652,15 @@ function showCardOffer(gameState) {
           selectedDiscardId = cid;
           Array.from(cardOfferDiscardListEl.querySelectorAll(".card-offer-chip")).forEach(el => el.classList.remove("selected"));
           chip.classList.add("selected");
+          updateOfferAcceptState(true);
         });
         cardOfferDiscardListEl.appendChild(chip);
       });
     }
   }
 
-  // se pieno e non ho scelto scarto → disabilita PRENDI
-  if (cardOfferAcceptBtn) {
-    cardOfferAcceptBtn.disabled = isFull && !selectedDiscardId;
-  }
+   // aggiorna sempre lo stato del bottone PRENDI in base a isFull + selectedDiscardId
+  updateOfferAcceptState(isFull);
 
   if (cardOfferEl) cardOfferEl.classList.remove("hidden");
 }
