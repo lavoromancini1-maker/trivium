@@ -1,60 +1,83 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Trivium – Host</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="css/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="css/style.css" />
 </head>
+
 <body class="page--host">
   <div id="host-root">
-<header class="host-header">
-  <h1 class="host-title">TRIVIUM</h1>
-  <div id="game-setup">
 
-    <button id="create-game-btn" class="btn btn-primary">
-      Crea nuova partita
-    </button>
-    <button id="start-game-btn" class="btn btn-secondary" disabled>
-      Avvia partita
-    </button>
-    <div id="game-code-display"></div>
-  </div>
-</header>
+    <!-- =========================
+         HALL (prima della partita)
+         ========================= -->
+    <main id="host-hall" class="host-hall">
+      <div class="hall-card">
+        <div class="hall-top">
+          <!-- Niente scritta TRIVIUM gigante -->
+          <div class="hall-brand">
+            <!-- opzionale: metti un logo se ce l’hai -->
+            <!-- <img src="assets/logo.svg" alt="Trivium" class="hall-logo"> -->
+            <div class="hall-title">Host</div>
+            <div class="hall-subtitle">Crea una partita e fai entrare i giocatori</div>
+          </div>
+        </div>
 
+        <div class="hall-actions">
+          <button id="create-game-btn" class="btn btn-primary">Crea nuova partita</button>
+          <button id="start-game-btn" class="btn btn-secondary" disabled>Avvia partita</button>
+        </div>
 
-<main class="host-main host-layout">
+        <div class="hall-join">
+          <div class="hall-code">
+            <div class="hall-label">Codice partita</div>
+            <div id="game-code-display" class="hall-code-box">— — — — — —</div>
+            <div class="hall-hint">I player entrano da <strong>player.html</strong> inserendo il codice.</div>
+          </div>
 
-  <aside class="players-col players-col--left">
-    <div id="players-left"></div>
-  </aside>
+          <div class="hall-qr">
+            <div class="hall-label">QR Code</div>
+            <div id="qr-wrap" class="qr-wrap">
+              <div id="qr-code" class="qr-code"></div>
+              <div class="qr-hint">Scansiona per aprire la pagina player con il codice già compilato.</div>
+            </div>
+          </div>
+        </div>
 
-  <section id="board-container">
-    <!-- TABELLONE -->
-  </section>
+        <div id="game-message" class="hall-message"></div>
+      </div>
+    </main>
 
-  <aside class="players-col players-col--right">
-    <div id="players-right"></div>
-  </aside>
+    <!-- =========================
+         GAME VIEW (tabellone)
+         ========================= -->
+    <div id="host-game" class="host-game hidden">
+      <main class="host-main host-layout">
+        <aside class="players-col players-col--left">
+          <div id="players-left"></div>
+        </aside>
 
-</main>
+        <section id="board-container"></section>
 
-<footer class="host-footer">
-  <div id="game-message"></div>
-</footer>
+        <aside class="players-col players-col--right">
+          <div id="players-right"></div>
+        </aside>
+      </main>
 
+      <div id="overlay" class="overlay hidden">
+        <div id="overlay-content"></div>
+      </div>
 
-    <div id="overlay" class="overlay hidden">
-      <div id="overlay-content"></div>
+      <footer id="message-bar" class="message-bar">
+        <span id="message-text">In attesa...</span>
+      </footer>
     </div>
 
-    <footer id="message-bar" class="message-bar">
-      <span id="message-text">Crea una partita per iniziare.</span>
-    </footer>
   </div>
 
   <!-- Scripts -->
   <script type="module" src="js/host.js"></script>
 </body>
 </html>
-
