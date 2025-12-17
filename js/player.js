@@ -528,11 +528,8 @@ async function tryUseSelectedCard() {
 
   try {
     if (cardUseBtn) cardUseBtn.disabled = true;
-    if (selectedCardId === CARD_IDS.ALT_QUESTION) {
-  await useCardAlternativeQuestion(currentGameCode, currentPlayerId);
-} else {
-  await useCard(currentGameCode, currentPlayerId, selectedCardId, {});
-}
+await useCard(currentGameCode, currentPlayerId, selectedCardId, {});
+
     closeCardSheet();
   } catch (e) {
     // usa il testo status già esistente
