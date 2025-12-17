@@ -981,18 +981,21 @@ function renderClosestOverlay(gameState) {
 }
 
 // ===============================
-// BOARD HIGHLIGHT (player positions)
+// BOARD HIGHLIGHT (player positions + pulsazione direzioni)
 // ===============================
 export function updateBoardHighlights(gameState) {
   // pulizia classi
   const allRects = document.querySelectorAll("rect.svg-tile");
-  allRects.forEach(r => r.classList.remove("svg-tile--occupied", "svg-tile--active"));
+  allRects.forEach(r =>
+    r.classList.remove("svg-tile--occupied", "svg-tile--active", "svg-tile--pulse")
+  );
 
   if (!gameState) return;
 
   const players = gameState.players || {};
   const currentPlayerId = gameState.currentPlayerId || null;
 
+  // 1) evidenzia posizioni player
   for (const [pid, p] of Object.entries(players)) {
     const pos = p?.position;
     if (pos === undefined || pos === null) continue;
@@ -1002,5 +1005,19 @@ export function updateBoardHighlights(gameState) {
 
     rect.classList.add("svg-tile--occupied");
     if (pid === currentPlayerId) rect.classList.add("svg-tile--active");
+  }
+
+  // 2) se siamo in CHOOSE_DIRECTION, pulsa le caselle opzione (preview finale)
+  if (gameState.phase === "CHOOSE_DIRECTION") {
+    const dirs = gameState.availableDirections || [];
+    dirs.forEach((d) => {
+      const tid = d?.previewTileId;
+      if (tid === undefined || tid === null) return;
+
+      const rect = document.getElementById(`tile-${tid}`);
+      if (!rect) return;
+
+      rect.classList.add("svg-tile--pulse");
+    });
   }
 }
