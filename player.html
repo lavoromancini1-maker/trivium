@@ -158,5 +158,26 @@
   </main>
 
   <script type="module" src="js/player.js"></script>
+
+ <!-- CARDS DOCK (mobile) -->
+<div id="cards-dock" class="cards-dock hidden">
+  <div class="cards-dock-title">Carte</div>
+  <div id="cards-slots" class="cards-slots"></div>
+</div>
+
+<!-- Bottom sheet semplice (descrizione carta) -->
+<div id="card-sheet" class="card-sheet hidden">
+  <div class="card-sheet-backdrop" id="card-sheet-backdrop"></div>
+  <div class="card-sheet-panel">
+    <div class="card-sheet-head">
+      <div id="card-sheet-title" class="card-sheet-title"></div>
+      <button id="card-sheet-close" class="card-sheet-close">✕</button>
+    </div>
+    <div id="card-sheet-desc" class="card-sheet-desc"></div>
+    <div class="card-sheet-actions">
+      <button id="card-use-btn" class="card-use-btn">USA</button>
+    </div>
+  </div>
+</div> 
 </body>
 </html>
