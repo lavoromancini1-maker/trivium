@@ -368,9 +368,7 @@ export async function useCard(gameCode, playerId, cardId, payload = {}) {
   if (!snap.exists()) throw new Error("Partita non trovata");
 
   const game = snap.val();
-
   if (game.state !== "IN_PROGRESS") throw new Error("La partita non è in corso.");
-  if (game.currentPlayerId !== playerId) throw new Error("Non è il tuo turno.");
 
   const players = game.players || {};
   const player = players[playerId];
@@ -379,61 +377,71 @@ export async function useCard(gameCode, playerId, cardId, payload = {}) {
   const cards = normalizeCards(player.cards);
   if (!cards.includes(cardId)) throw new Error("Non possiedi questa carta.");
 
-  // regola UNA carta per turno
-  const usedCard = !!game.turnContext?.usedCard;
-  if (usedCard) throw new Error("Hai già usato una carta in questo turno.");
-
-  // regole fase/limitazioni globali (no key/scrigno/minigame/duello ecc.)
+  // Validazione “momento giusto” (da cards.js)
   const can = canUseCardNow(game, player, cardId);
-  if (!can.ok) {
-    // messaggio semplice (poi possiamo mapparlo meglio lato UI)
-    throw new Error("Non puoi usare questa carta ora.");
-  }
+  if (!can.ok) throw new Error("Non puoi usare questa carta ora.");
 
-  const cost = CARD_COSTS[cardId] ?? null;
+  const cost = CARD_COSTS[cardId];
   if (typeof cost !== "number") throw new Error("Costo carta non valido.");
-
   if ((player.points ?? 0) < cost) throw new Error("Punti insufficienti.");
 
-// Implementate: EXTRA_TIME + FIFTY_FIFTY
-if (![CARD_IDS.EXTRA_TIME, CARD_IDS.FIFTY_FIFTY].includes(cardId)) {
-  throw new Error("Questa carta non è ancora implementata.");
-}
+  // In questo step implementiamo: EXTRA_TIME, FIFTY_FIFTY, ALT_QUESTION
+  if (![CARD_IDS.EXTRA_TIME, CARD_IDS.FIFTY_FIFTY, CARD_IDS.ALT_QUESTION].includes(cardId)) {
+    throw new Error("Questa carta non è ancora implementata.");
+  }
 
-  // Transazione atomica: aggiorna expiresAt, scala punti, rimuove carta, segna usedCard
-  const result = await runTransaction(gameRef, (current) => {
+  await runTransaction(gameRef, (current) => {
     if (!current) return current;
 
     if (current.state !== "IN_PROGRESS") return current;
-    if (current.currentPlayerId !== playerId) return current;
-
-    const curPlayer = current.players?.[playerId];
-    if (!curPlayer) return current;
-
-    const curCards = normalizeCards(curPlayer.cards);
-    if (!curCards.includes(cardId)) return current;
-
-    const alreadyUsed = !!current.turnContext?.usedCard;
-    if (alreadyUsed) return current;
+    if (current.phase !== "QUESTION") return current;
 
     const curQ = current.currentQuestion;
     if (!curQ) return current;
 
-    const curPoints = curPlayer.points ?? 0;
-    if (curPoints < cost) return current;
+    // le carte domanda le usa SOLO chi sta rispondendo
+    if (curQ.forPlayerId !== playerId) return current;
 
-    // --------------------------
-    // Applica effetto carta
-    // --------------------------
+    // ✅ 1 carta per domanda (non per turno)
+    const usedMap = curQ.cardUsedBy || {};
+    if (usedMap[playerId]) return current;
+
+    const curPlayers = current.players || {};
+    const me = curPlayers[playerId];
+    if (!me) return current;
+
+    const myCards = normalizeCards(me.cards);
+    if (!myCards.includes(cardId)) return current;
+
+    if ((me.points ?? 0) < cost) return current;
+
+    // rimuovi carta + scala punti
+    me.points = (me.points ?? 0) - cost;
+    me.cards = myCards.filter((c) => c !== cardId).slice(0, 3);
+    curPlayers[playerId] = me;
+    current.players = curPlayers;
+
+    // copia domanda per modifiche
     let newQuestion = { ...curQ };
 
-    if (cardId === CARD_IDS.EXTRA_TIME) {
-  if (typeof curQ.expiresAt !== "number") return current;
-  newQuestion.expiresAt = curQ.expiresAt + 10_000;
-}
+    // marca già “carta usata su questa domanda”
+    newQuestion.cardUsedBy = {
+      ...(curQ.cardUsedBy || {}),
+      [playerId]: { cardId, at: Date.now() },
+    };
 
+    // ─────────────────────────
+    // EXTRA_TIME (+10s)
+    // ─────────────────────────
+    if (cardId === CARD_IDS.EXTRA_TIME) {
+      if (typeof curQ.expiresAt !== "number") return current;
+      newQuestion.expiresAt = curQ.expiresAt + 10_000;
+    }
+
+    // ─────────────────────────
+    // FIFTY_FIFTY (salva 2 indici rimossi)
+    // ─────────────────────────
     if (cardId === CARD_IDS.FIFTY_FIFTY) {
-      // 50/50 solo su domande normali categoria/livello
       const isNormal =
         typeof curQ.level === "number" &&
         !curQ.isKeyQuestion &&
@@ -451,13 +459,13 @@ if (![CARD_IDS.EXTRA_TIME, CARD_IDS.FIFTY_FIFTY].includes(cardId)) {
       if (fifty[playerId]) return current;
 
       const wrong = [0, 1, 2, 3].filter((i) => i !== correctIndex);
-      if (wrong.length < 2) return current;
 
-      // scegli 2 indici sbagliati random
+      // shuffle
       for (let i = wrong.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [wrong[i], wrong[j]] = [wrong[j], wrong[i]];
       }
+
       const removed = wrong.slice(0, 2);
 
       newQuestion.aids = {
@@ -469,17 +477,77 @@ if (![CARD_IDS.EXTRA_TIME, CARD_IDS.FIFTY_FIFTY].includes(cardId)) {
       };
     }
 
-    // Scritture domanda aggiornata
+    // ─────────────────────────
+    // ALT_QUESTION (nuova domanda stessa categoria+livello, timer reset)
+    // ─────────────────────────
+    if (cardId === CARD_IDS.ALT_QUESTION) {
+      const isNormal =
+        typeof curQ.level === "number" &&
+        !curQ.isKeyQuestion &&
+        !(curQ.tileType === "scrigno" || curQ.scrignoMode);
+
+      if (!isNormal) return current;
+
+      const category = curQ.category;
+      const level = curQ.level;
+
+      const usedIds = { ...(current.usedCategoryQuestionIds || {}) };
+      // evita di riprendere la stessa
+      if (curQ.id) usedIds[curQ.id] = true;
+
+      // prova a pescare non-usata
+      let raw = getRandomCategoryQuestion(category, level, usedIds);
+
+      // fallback: se pool finita, permetti ripetizioni ma evita la stessa id
+      if (!raw) {
+        for (let k = 0; k < 5; k++) {
+          const tryRaw = getRandomCategoryQuestion(category, level, {});
+          if (tryRaw && tryRaw.id !== curQ.id) {
+            raw = tryRaw;
+            break;
+          }
+        }
+      }
+      if (!raw) return current;
+
+      // shuffle risposte
+      const indices = [0, 1, 2, 3];
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+      const shuffledAnswers = indices.map((i) => raw.answers[i]);
+      const newCorrectIndex = indices.indexOf(raw.correctIndex);
+
+      const durationSec = curQ.durationSec ?? 20;
+      const startedAt = Date.now();
+      const expiresAt = startedAt + durationSec * 1000;
+
+      newQuestion = {
+        ...curQ,
+        id: raw.id,
+        text: raw.text,
+        answers: shuffledAnswers,
+        correctIndex: newCorrectIndex,
+        startedAt,
+        expiresAt,
+        // reset aiuti precedenti perché è una domanda nuova
+        aids: {},
+        // IMPORTANT: resta “carta usata” anche sulla nuova domanda
+        cardUsedBy: {
+          ...(curQ.cardUsedBy || {}),
+          [playerId]: { cardId, at: Date.now() },
+        },
+      };
+
+      // segna domanda come usata
+      current.usedCategoryQuestionIds = {
+        ...(current.usedCategoryQuestionIds || {}),
+        [raw.id]: true,
+      };
+    }
+
     current.currentQuestion = newQuestion;
-    curPlayer.points = curPoints - cost;
-    curPlayer.cards = curCards.filter((c) => c !== cardId);
-    current.players[playerId] = curPlayer;
-
-
-    current.turnContext = {
-      ...(current.turnContext || {}),
-      usedCard: true,
-    };
 
     current.lastCardUsed = {
       playerId,
@@ -490,12 +558,7 @@ if (![CARD_IDS.EXTRA_TIME, CARD_IDS.FIFTY_FIFTY].includes(cardId)) {
     return current;
   });
 
-  if (!result.committed) {
-    // se non ha committato, qualcosa è cambiato (turno/fase/punti) tra read e write
-    throw new Error("Impossibile usare la carta in questo momento. Riprova.");
-  }
-
-  return { ok: true, cardId };
+  return { ok: true };
 }
 
 // =======================================
