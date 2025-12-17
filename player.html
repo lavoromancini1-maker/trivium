@@ -6,117 +6,157 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body class="page--player">
-<main id="player-root">
-  <header class="player-header">
-    <h1>Trivium</h1>
-    <div id="player-name-display"></div>
-    <div id="player-status"></div>
-    <div id="player-progress" class="player-progress hidden"></div>
-  </header>
+  <main id="player-root" class="player-shell">
 
-  <section id="player-main-area">
-    <div id="join-game-panel">
-      <h2>Entra in una partita</h2>
-      <form id="join-game-form">
-        <label>
-          Codice partita
-          <input type="text" id="game-code-input" required maxlength="6" />
-        </label>
-        <label>
-          Il tuo nome
-          <input type="text" id="player-name-input" required maxlength="20" />
-        </label>
-        <button type="submit" class="btn btn-primary">Entra</button>
-      </form>
-      <div id="join-error" class="join-error"></div>
-    </div>
+    <!-- Top bar compatta (sempre) -->
+    <header class="player-topbar">
+      <div class="player-topbar-left">
+        <div class="player-topbar-title">TRIVIUM</div>
+        <div id="player-name-display" class="player-topbar-name"></div>
+      </div>
 
-    <div id="waiting-panel" class="hidden">
-      <p>Hai joinato la partita.</p>
-      <p>In attesa che l’host inizi il gioco...</p>
-    </div>
+      <div class="player-topbar-right">
+        <div id="player-status" class="player-topbar-status"></div>
+        <div id="player-progress" class="player-progress hidden"></div>
+      </div>
+    </header>
 
-    <div id="turn-panel" class="hidden">
-  <h2>Il tuo turno</h2>
-  <div id="turn-status-text"></div>
+    <!-- Area principale -->
+    <section id="player-main-area" class="player-content">
 
-   <div id="answer-panel" class="hidden">
-  <h2>Rispondi</h2>
-  <p>Guarda la domanda sullo schermo principale e scegli la risposta:</p>
-  <div id="answer-buttons" class="answer-buttons">
-    <button class="btn btn-primary answer-btn" data-answer-index="0">A</button>
-    <button class="btn btn-primary answer-btn" data-answer-index="1">B</button>
-    <button class="btn btn-primary answer-btn" data-answer-index="2">C</button>
-    <button class="btn btn-primary answer-btn" data-answer-index="3">D</button>
-  </div>
-</div>
+      <!-- JOIN -->
+      <div id="join-game-panel" class="panel panel-card">
+        <div class="panel-header">
+          <h2>Entra in una partita</h2>
+          <p class="panel-subtitle">Scansiona il QR o inserisci il codice.</p>
+        </div>
 
-<div id="closest-panel" class="hidden">
-  <h2>Più vicino vince</h2>
-  <p>Inserisci un numero:</p>
-  <input id="closest-input" type="number" inputmode="numeric" />
-  <button id="closest-send-btn" class="btn btn-primary">Invia</button>
-  <div id="closest-hint" class="join-error"></div>
-</div>
+        <form id="join-game-form" class="form-stack" autocomplete="on">
+          <label class="field">
+            <span>Codice partita</span>
+            <input
+              type="text"
+              id="game-code-input"
+              required
+              maxlength="6"
+              inputmode="text"
+              autocapitalize="characters"
+              autocomplete="one-time-code"
+              placeholder="ES. AB12CD"
+            />
+          </label>
 
-  <div id="vf-panel" class="hidden">
-  <h2>Vero/Falso lampo</h2>
-  <p id="vf-text"></p>
-  <div class="vf-btns">
-    <button id="vf-true-btn" class="btn btn-secondary">VERO</button>
-    <button id="vf-false-btn" class="btn btn-secondary">FALSO</button>
-  </div>
-  <div id="vf-hint" class="join-error"></div>
-</div>
-      
-<div id="sequence-panel" class="hidden">
-  <h2>Ordina la sequenza</h2>
-  <p id="sequence-prompt"></p>
+          <label class="field">
+            <span>Il tuo nome</span>
+            <input
+              type="text"
+              id="player-name-input"
+              required
+              maxlength="20"
+              inputmode="text"
+              autocomplete="nickname"
+              placeholder="Es. Laura"
+            />
+          </label>
 
-  <div id="sequence-items"></div>
+          <button type="submit" class="btn btn-primary btn-full btn-big">Entra</button>
+        </form>
 
-  <div class="intruder-btns" style="margin-top:10px;">
-    <button id="sequence-reset-btn" class="btn btn-secondary">Reset</button>
-    <button id="sequence-submit-btn" class="btn btn-primary">Conferma ordine</button>
-  </div>
+        <div id="join-error" class="join-error"></div>
+      </div>
 
-  <div id="sequence-hint" class="join-error"></div>
-</div>
-      
-<div id="intruder-panel" class="hidden">
-  <h2>L’intruso</h2>
-  <p id="intruder-prompt"></p>
-  <div class="intruder-btns">
-    <button id="intr-a" class="btn btn-secondary">A</button>
-    <button id="intr-b" class="btn btn-secondary">B</button>
-    <button id="intr-c" class="btn btn-secondary">C</button>
-    <button id="intr-d" class="btn btn-secondary">D</button>
-  </div>
-  <div id="intruder-hint" class="join-error"></div>
-</div>
-      
-  <div id="dice-panel">
-    <button id="roll-dice-btn" class="btn btn-primary">
-      Tira il dado
-    </button>
-    <div id="dice-result"></div>
-  </div>
+      <!-- WAITING -->
+      <div id="waiting-panel" class="panel panel-card hidden">
+        <h2>Sei dentro ✅</h2>
+        <p>In attesa che l’host inizi la partita...</p>
+      </div>
 
-  <div id="direction-panel" class="hidden">
-    <p>Scegli la direzione:</p>
-    <div id="direction-buttons"></div>
-  </div>
-</div>
+      <!-- TURN -->
+      <div id="turn-panel" class="panel panel-card hidden">
+        <h2>Il tuo turno</h2>
+        <div id="turn-status-text" class="turn-status"></div>
 
-  </section>
+        <!-- ANSWER -->
+        <div id="answer-panel" class="hidden">
+          <h3>Rispondi</h3>
+          <p class="hint">Guarda la domanda sullo schermo principale e scegli la risposta:</p>
+          <div id="answer-buttons" class="answer-buttons">
+            <button class="btn btn-primary answer-btn" data-answer-index="0">A</button>
+            <button class="btn btn-primary answer-btn" data-answer-index="1">B</button>
+            <button class="btn btn-primary answer-btn" data-answer-index="2">C</button>
+            <button class="btn btn-primary answer-btn" data-answer-index="3">D</button>
+          </div>
+        </div>
 
-  <section id="player-cards-panel">
-    <!-- Qui più avanti vedremo le carte -->
-  </section>
-</main>
+        <!-- CLOSEST -->
+        <div id="closest-panel" class="hidden">
+          <h3>Più vicino vince</h3>
+          <p class="hint">Inserisci un numero:</p>
+          <input id="closest-input" type="number" inputmode="numeric" class="input-big" />
+          <button id="closest-send-btn" class="btn btn-primary btn-full">Invia</button>
+          <div id="closest-hint" class="join-error"></div>
+        </div>
+
+        <!-- VF -->
+        <div id="vf-panel" class="hidden">
+          <h3>Vero/Falso lampo</h3>
+          <p id="vf-text" class="hint"></p>
+          <div class="vf-btns">
+            <button id="vf-true-btn" class="btn btn-secondary btn-full">VERO</button>
+            <button id="vf-false-btn" class="btn btn-secondary btn-full">FALSO</button>
+          </div>
+          <div id="vf-hint" class="join-error"></div>
+        </div>
+
+        <!-- SEQUENCE -->
+        <div id="sequence-panel" class="hidden">
+          <h3>Ordina la sequenza</h3>
+          <p id="sequence-prompt" class="hint"></p>
+          <div id="sequence-items"></div>
+
+          <div class="intruder-btns" style="margin-top:10px;">
+            <button id="sequence-reset-btn" class="btn btn-secondary btn-full">Reset</button>
+            <button id="sequence-submit-btn" class="btn btn-primary btn-full">Conferma ordine</button>
+          </div>
+
+          <div id="sequence-hint" class="join-error"></div>
+        </div>
+
+        <!-- INTRUDER -->
+        <div id="intruder-panel" class="hidden">
+          <h3>L’intruso</h3>
+          <p id="intruder-prompt" class="hint"></p>
+          <div class="intruder-btns">
+            <button id="intr-a" class="btn btn-secondary btn-full">A</button>
+            <button id="intr-b" class="btn btn-secondary btn-full">B</button>
+            <button id="intr-c" class="btn btn-secondary btn-full">C</button>
+            <button id="intr-d" class="btn btn-secondary btn-full">D</button>
+          </div>
+          <div id="intruder-hint" class="join-error"></div>
+        </div>
+
+        <!-- DICE -->
+        <div id="dice-panel">
+          <button id="roll-dice-btn" class="btn btn-primary btn-full btn-big">Tira il dado</button>
+          <div id="dice-result" class="dice-result"></div>
+        </div>
+
+        <!-- DIRECTION -->
+        <div id="direction-panel" class="hidden">
+          <p class="hint">Scegli la direzione:</p>
+          <div id="direction-buttons"></div>
+        </div>
+
+      </div>
+    </section>
+
+    <section id="player-cards-panel" class="player-cards">
+      <!-- carte in futuro -->
+    </section>
+  </main>
 
   <script type="module" src="js/player.js"></script>
 </body>
 </html>
-
