@@ -1356,3 +1356,18 @@ body.has-cards-dock {
   from { transform: translateX(-50%) translateY(-10px); opacity: 0; }
   to   { transform: translateX(-50%) translateY(0); opacity: 1; }
 }
+
+.overlay-topbar{
+  display:flex; gap:10px; align-items:center; justify-content:space-between;
+  margin-bottom:10px;
+}
+.overlay-badges{ display:flex; gap:8px; flex-wrap:wrap; }
+.badge{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 10px; border-radius:999px;
+  font-weight:800; font-size:12px;
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.06);
+}
+.badge--success{ border-color: rgba(46,204,113,.35); }
+.badge--danger{ border-color: rgba(231,76,60,.35); }
