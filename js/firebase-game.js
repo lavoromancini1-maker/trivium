@@ -2138,7 +2138,7 @@ async function finalizeSequenceMinigame(gameRef, game) {
     // === DROP CARTA (MINIGAME) ===
   // 30% ai vincitori (se più di uno, tentiamo per ciascuno)
   for (const w of winners) {
-    await maybeDropCardByRef(gameRef, w, 0.30, "MINIGAME_SEQUENCE_WIN");
+    await maybeDropCardByRef(gameRef, w, 1.0, "MINIGAME_SEQUENCE_WIN");
   }
 }
 
@@ -2241,7 +2241,7 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
       const bestIds = entries.filter(([_,s]) => (s||0) === bestScore).map(([id]) => id);
 
       for (const w of bestIds) {
-        await maybeDropCardByRef(gameRef, w, 0.25, "MINIGAME_VF_FLASH_WIN");
+        await maybeDropCardByRef(gameRef, w, 1.0, "MINIGAME_VF_FLASH_WIN");
       }
     }
   }
@@ -2322,7 +2322,7 @@ export async function answerIntruderMinigame(gameCode, playerId, chosenIndex) {
   if (tx.committed) {
     const after = tx.snapshot.val();
     if (after?.lastMinigameType === "INTRUDER" && after?.lastMinigameWinnerId) {
-      await maybeDropCardByRef(gameRef, after.lastMinigameWinnerId, 0.30, "MINIGAME_INTRUDER_WIN");
+      await maybeDropCardByRef(gameRef, after.lastMinigameWinnerId, 1.0, "MINIGAME_INTRUDER_WIN");
     }
   }
 
@@ -2385,7 +2385,7 @@ if (mg.type !== "CLOSEST") {
 
   await update(gameRef, updates);
   if (winnerId) {
-  await maybeDropCardByRef(gameRef, winnerId, 0.30, "MINIGAME_CLOSEST_WIN");
+  await maybeDropCardByRef(gameRef, winnerId, 1.0, "MINIGAME_CLOSEST_WIN");
 }
   return { handled: true, winnerId };
 }
@@ -2523,10 +2523,10 @@ export async function checkAndHandleRapidFireTimeout(gameCode) {
   // === DROP CARTA (MINIGAME: RAPID_FIRE) ===
 // 40% al primo, 15% al secondo (se esiste)
 for (const pid of firstGroup) {
-  await maybeDropCardByRef(gameRef, pid, 0.40, "MINIGAME_RAPID_FIRE_FIRST");
+  await maybeDropCardByRef(gameRef, pid, 1.0, "MINIGAME_RAPID_FIRE_FIRST");
 }
 for (const pid of secondGroup) {
-  await maybeDropCardByRef(gameRef, pid, 0.15, "MINIGAME_RAPID_FIRE_SECOND");
+  await maybeDropCardByRef(gameRef, pid, 1.0, "MINIGAME_RAPID_FIRE_SECOND");
 }
   return { handled: true, reason: "FINISHED" };
 }
@@ -2836,12 +2836,12 @@ export async function checkAndHandleRevealAdvance(gameCode) {
     // Probabilità: 35% al vincitore, 20% ciascuno se pareggio
     if (owner && opp && pOwner && pOpp) {
       if (sOwner > sOpp) {
-        await maybeDropCardByRef(gameRef, owner, 0.35, "EVENT_DUEL_WIN");
+        await maybeDropCardByRef(gameRef, owner, 1.0, "EVENT_DUEL_WIN");
       } else if (sOpp > sOwner) {
-        await maybeDropCardByRef(gameRef, opp, 0.35, "EVENT_DUEL_WIN");
+        await maybeDropCardByRef(gameRef, opp, 1.0, "EVENT_DUEL_WIN");
       } else {
-        await maybeDropCardByRef(gameRef, owner, 0.20, "EVENT_DUEL_TIE");
-        await maybeDropCardByRef(gameRef, opp, 0.20, "EVENT_DUEL_TIE");
+        await maybeDropCardByRef(gameRef, owner, 1.0, "EVENT_DUEL_TIE");
+        await maybeDropCardByRef(gameRef, opp, 1.0, "EVENT_DUEL_TIE");
       }
     }
     return { handled: true, reason: "DUEL_FINISHED" };
@@ -2857,7 +2857,7 @@ export async function checkAndHandleRevealAdvance(gameCode) {
         // === DROP CARTA (EVENTO generico: BOOM / RISK ecc.) ===
     // ownerPlayerId è di solito chi ha attivato l’evento
     const ownerId = ev?.ownerPlayerId;
-    await maybeDropCardByRef(gameRef, ownerId, 0.25, "EVENT_GENERIC");
+    await maybeDropCardByRef(gameRef, ownerId, 1.0, "EVENT_GENERIC");
     return { handled: true, reason: "EVENT_FINISHED" };
   }
 
