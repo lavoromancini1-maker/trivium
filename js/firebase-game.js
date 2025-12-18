@@ -412,7 +412,6 @@ export async function startGame(gameCode) {
 export async function useCard(gameCode, playerId, cardId, payload = {}) {
   const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
   const snap = await get(gameRef);
-
   if (!snap.exists()) throw new Error("Partita non trovata");
 
   const game = snap.val();
@@ -429,6 +428,98 @@ export async function useCard(gameCode, playerId, cardId, payload = {}) {
     throw new Error("Carta non valida.");
   }
 
+  // helper: trova tileId della casella CHIAVE di una categoria
+  function findKeyTileIdByCategory(category) {
+    const ids = Object.keys(BOARD || {});
+    for (const id of ids) {
+      const t = BOARD[id];
+      if (t && t.type === "key" && t.category === category) return parseInt(id, 10);
+    }
+    return null;
+  }
+
+  // helper: applica “atterraggio su casella” (category/key/event/minigame/scrigno)
+  // Versione sync per useCard (transaction)
+  function resolveLanding(current, pid, tileId) {
+    const tile = BOARD[tileId];
+    if (!tile) return { ok: false, reason: "BAD_TILE" };
+
+    current.currentTile = {
+      tileId,
+      type: tile.type,
+      category: tile.category || null,
+      zone: tile.zone,
+    };
+
+    // reset roba “domanda in corso”
+    current.currentQuestion = null;
+    current.reveal = null;
+    current.playerAnswerIndex = null;
+
+    // CATEGORY / KEY => crea domanda categoria
+    if (tile.type === "category" || tile.type === "key") {
+      const { questionData } = prepareCategoryQuestionForTile(current, pid, tile, tileId);
+      if (!questionData) return { ok: false, reason: "NO_QUESTION" };
+
+      current.phase = "QUESTION";
+      current.currentQuestion = questionData;
+
+      if (questionData.id) {
+        current.usedCategoryQuestionIds = {
+          ...(current.usedCategoryQuestionIds || {}),
+          [questionData.id]: true,
+        };
+      }
+      return { ok: true, kind: "QUESTION" };
+    }
+
+    // EVENTO
+    if (tile.type === "event") {
+      // replica dello startEventTile “base” (sync)
+      // NOTA: nel tuo codice eventi sono gestiti con currentEvent + phase EVENT_*
+      // qui mettiamo la stessa cosa che fai quando atterri su EVENT.
+      current.phase = "EVENT_START";
+      current.currentEvent = {
+        type: null,
+        ownerPlayerId: pid,
+        startedAt: Date.now(),
+      };
+      // il tuo listener/flow eventi già gestisce poi l’estrazione (se la fai altrove),
+      // ma per non “bloccare”, facciamo partire subito un evento casuale
+      // usando la tua funzione esistente (makeRandomEventQuestion) non è possibile qui senza sapere type,
+      // quindi usiamo un evento RISK default.
+      current.currentEvent.type = "RISK";
+      current.phase = "EVENT_RISK_DECISION";
+      return { ok: true, kind: "EVENT" };
+    }
+
+    // MINIGAME
+    if (tile.type === "minigame") {
+      // nel tuo gioco minigame usa phase MINIGAME con current.minigame
+      current.phase = "MINIGAME";
+      current.minigame = {
+        type: "CLOSEST",
+        startedAt: Date.now(),
+      };
+      // (qui è “fallback” safe: non crasha, poi lo rifiniamo)
+      return { ok: true, kind: "MINIGAME" };
+    }
+
+    // SCRIGNO
+    if (tile.type === "scrigno") {
+      // nel tuo gioco scrigno ha fasi dedicate; qui fallback “entra scrigno”
+      current.phase = "SCRIGNO";
+      current.scrigno = {
+        mode: "ENTRY",
+        forPlayerId: pid,
+        startedAt: Date.now(),
+      };
+      return { ok: true, kind: "SCRIGNO" };
+    }
+
+    return { ok: false, reason: "UNSUPPORTED_TILE_TYPE" };
+  }
+
   await runTransaction(gameRef, (current) => {
     if (!current) return current;
     if (current.state !== "IN_PROGRESS") return current;
@@ -441,269 +532,218 @@ export async function useCard(gameCode, playerId, cardId, payload = {}) {
     if (!myCards.includes(cardId)) return current;
 
     const cost = CARD_COSTS[cardId] ?? 0;
-    if ((me.points ?? 0) < cost) return current;
+    if ((me.points ?? 0) < cost) {
+      current.lastCardError = { playerId, cardId, reason: "NOT_ENOUGH_POINTS", at: Date.now() };
+      return current;
+    }
+
+    // gate centrale (cards.js)
+    const gate = canUseCardNow(current, me, cardId);
+    if (!gate.ok) {
+      current.lastCardError = { playerId, cardId, reason: gate.reason, at: Date.now() };
+      return current;
+    }
 
     function consume() {
       me.points = (me.points ?? 0) - cost;
       me.cards = myCards.filter((c) => c !== cardId).slice(0, 3);
       curPlayers[playerId] = me;
       current.players = curPlayers;
-
       current.lastCardUsed = { playerId, cardId, at: Date.now() };
     }
 
-    function isNormalCategoryQuestion(q) {
-      return (
-        q &&
-        typeof q.level === "number" &&
-        !q.isKeyQuestion &&
-        !(q.tileType === "scrigno" || q.scrignoMode) &&
-        !q.isFinalfinal &&
-        !q.isFinal
-      );
-    }
-
     // ─────────────────────────────────────────────
-    // 1) CARTE DOMANDA (fase QUESTION)
+    // 0) vincolo “1 carta per domanda” (server-side)
     // ─────────────────────────────────────────────
-    const inQuestion = [
-      CARD_IDS.EXTRA_TIME,
-      CARD_IDS.FIFTY_FIFTY,
-      CARD_IDS.ALT_QUESTION,
-      CARD_IDS.CHANGE_CATEGORY,
-    ];
-
-    if (inQuestion.includes(cardId)) {
-      if (current.phase !== "QUESTION") return current;
-
-      const curQ = current.currentQuestion;
-      if (!curQ) return current;
-
-      if (curQ.forPlayerId !== playerId) return current;
-      if (!isNormalCategoryQuestion(curQ)) return current;
-
+    const curQ = current.currentQuestion || null;
+    if (current.phase === "QUESTION" && curQ && curQ.forPlayerId === playerId) {
       const usedMap = curQ.cardUsedBy || {};
-      if (usedMap[playerId]) return current;
-
-      let newQuestion = { ...curQ };
-
-      newQuestion.cardUsedBy = {
-        ...(curQ.cardUsedBy || {}),
-        [playerId]: { cardId, at: Date.now() },
-      };
-
-      // EXTRA_TIME
-      if (cardId === CARD_IDS.EXTRA_TIME) {
-        if (typeof curQ.expiresAt !== "number") return current;
-        newQuestion.expiresAt = curQ.expiresAt + 10000;
+      if (usedMap[playerId]) {
+        current.lastCardError = { playerId, cardId, reason: "ONE_CARD_PER_QUESTION", at: Date.now() };
+        return current;
       }
-
-      // 50/50
-      if (cardId === CARD_IDS.FIFTY_FIFTY) {
-        const correctIndex = curQ.correctIndex;
-        if (typeof correctIndex !== "number") return current;
-
-        const already = curQ?.aids?.fifty?.[playerId]?.removed;
-        if (already && Array.isArray(already) && already.length) return current;
-
-        const all = [0, 1, 2, 3].filter((i) => i !== correctIndex);
-        const removed = all.sort(() => Math.random() - 0.5).slice(0, 2);
-
-        const aids = curQ.aids || {};
-        const fifty = aids.fifty || {};
-
-        newQuestion.aids = {
-          ...aids,
-          fifty: {
-            ...fifty,
-            [playerId]: { removed, at: Date.now() },
-          },
-        };
-      }
-
-      // ALT_QUESTION
-      if (cardId === CARD_IDS.ALT_QUESTION) {
-        const category = curQ.category;
-        const level = curQ.level;
-
-        const pool = getQuestionsByCategoryAndLevel(category, level) || [];
-        const candidates = pool.filter((q) => q && q.id && q.id !== curQ.id);
-        if (!candidates.length) return current;
-
-        const raw = candidates[Math.floor(Math.random() * candidates.length)];
-
-        const answers = Array.isArray(raw.answers) ? raw.answers.slice() : [];
-        if (answers.length !== 4) return current;
-
-        const indices = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
-        const shuffled = indices.map((i) => answers[i]);
-        const newCorrectIndex = indices.indexOf(raw.correctIndex);
-
-        const startedAt = Date.now();
-        const seconds = getCategoryQuestionDurationSeconds(level, false, !!curQ.advancesLevel, false);
-        const expiresAt = startedAt + seconds * 1000;
-
-        newQuestion = {
-          ...curQ,
-          id: raw.id,
-          category,
-          level,
-          prompt: raw.prompt,
-          answers: shuffled,
-          correctIndex: newCorrectIndex,
-          startedAt,
-          expiresAt,
-          aids: {},
-          cardUsedBy: {
-            ...(curQ.cardUsedBy || {}),
-            [playerId]: { cardId, at: Date.now() },
-          },
-        };
-
-        current.usedCategoryQuestionIds = {
-          ...(current.usedCategoryQuestionIds || {}),
-          [raw.id]: true,
-        };
-      }
-
-// ─────────────────────────
-// CHANGE_CATEGORY (stesso livello, categoria scelta, timer reset)
-// payload: { newCategory: "storia" | ... }
-// ─────────────────────────
-if (cardId === CARD_IDS.CHANGE_CATEGORY) {
-  const isNormal =
-    typeof curQ.level === "number" &&
-    !curQ.isKeyQuestion &&
-    !(curQ.tileType === "scrigno" || curQ.scrignoMode);
-
-  if (!isNormal) return current;
-
-  const newCategory = payload?.newCategory;
-  if (!newCategory) return current;
-
-  // scegli domanda nuova per quella categoria+livello
-  const pool = getQuestionsByCategoryAndLevel(newCategory, curQ.level) || [];
-  if (!pool.length) return current;
-
-  // evita la stessa domanda attuale se per caso coincidessero
-  const candidates = pool.filter((q) => q && q.id && q.id !== curQ.id);
-  const raw = (candidates.length ? candidates : pool)[
-    Math.floor(Math.random() * (candidates.length ? candidates.length : pool.length))
-  ];
-  if (!raw || !raw.id) return current;
-
-  // shuffle risposte
-  const indices = [0, 1, 2, 3];
-  for (let i = indices.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [indices[i], indices[j]] = [indices[j], indices[i]];
-  }
-  const shuffledAnswers = indices.map((i) => raw.answers[i]);
-  const newCorrectIndex = indices.indexOf(raw.correctIndex);
-
-  const startedAt = Date.now();
-  const durationSec = getCategoryQuestionDurationSeconds(curQ.level, false, !!curQ.advancesLevel, false);
-  const expiresAt = startedAt + durationSec * 1000;
-
-  newQuestion = {
-    ...curQ,
-    id: raw.id,
-    category: newCategory,
-    text: raw.text,
-    answers: shuffledAnswers,
-    correctIndex: newCorrectIndex,
-    startedAt,
-    expiresAt,
-    aids: {}, // reset aiuti: nuova domanda
-    cardUsedBy: {
-      ...(curQ.cardUsedBy || {}),
-      [playerId]: { cardId, at: Date.now() },
-    },
-  };
-
-  // segna usata (evita ripetizioni future)
-  current.usedCategoryQuestionIds = {
-    ...(current.usedCategoryQuestionIds || {}),
-    [raw.id]: true,
-  };
-}
-
-      current.currentQuestion = newQuestion;
-      consume();
-      return current;
     }
 
     // ─────────────────────────────────────────────
-    // 2) TELEPORT_CATEGORY (prima del dado)
+    // 1) EXTRA_TIME
     // ─────────────────────────────────────────────
-    if (cardId === CARD_IDS.TELEPORT_CATEGORY) {
-      if (current.phase !== "WAIT_ROLL") return current;
-      if (current.currentPlayerId !== playerId) return current;
-
-      const category = payload?.category;
-      if (!category || !CATEGORIES.includes(category)) return current;
-
-      const levels = me.levels || {};
-      if ((levels[category] ?? 0) < 3) return current;
-
-      let keyTileId = null;
-      for (const [tid, t] of Object.entries(BOARD)) {
-        if (t && t.type === "key" && t.category === category) {
-          keyTileId = tid;
-          break;
-        }
+    if (cardId === CARD_IDS.EXTRA_TIME) {
+      if (current.phase !== "QUESTION" || !curQ) {
+        current.lastCardError = { playerId, cardId, reason: "WRONG_PHASE", at: Date.now() };
+        return current;
       }
-      if (keyTileId === null) return current;
+      if (typeof curQ.expiresAt !== "number") {
+        current.lastCardError = { playerId, cardId, reason: "NO_TIMER", at: Date.now() };
+        return current;
+      }
 
-      const keyTile = BOARD[keyTileId];
-      if (!keyTile) return current;
-
-      me.position = keyTileId;
-      curPlayers[playerId] = me;
-      current.players = curPlayers;
-
-      const { questionData } = prepareCategoryQuestionForTile(current, playerId, keyTile, keyTileId);
-      if (!questionData) return current;
-
-      current.phase = "QUESTION";
-      current.currentDice = null;
-      current.currentMove = null;
-      current.availableDirections = null;
-      current.currentTile = {
-        tileId: keyTileId,
-        type: keyTile.type,
-        category: keyTile.category || null,
-        zone: keyTile.zone,
+      current.currentQuestion = {
+        ...curQ,
+        expiresAt: curQ.expiresAt + 10000,
+        cardUsedBy: { ...(curQ.cardUsedBy || {}), [playerId]: { cardId, at: Date.now() } },
       };
-      current.currentQuestion = questionData;
-
-      if (questionData.id) {
-        current.usedCategoryQuestionIds = {
-          ...(current.usedCategoryQuestionIds || {}),
-          [questionData.id]: true,
-        };
-      }
 
       consume();
       return current;
     }
 
     // ─────────────────────────────────────────────
-    // 3) SALVEZZA (dopo risposta sbagliata)
+    // 2) FIFTY_FIFTY
+    // ─────────────────────────────────────────────
+    if (cardId === CARD_IDS.FIFTY_FIFTY) {
+      if (current.phase !== "QUESTION" || !curQ) {
+        current.lastCardError = { playerId, cardId, reason: "WRONG_PHASE", at: Date.now() };
+        return current;
+      }
+
+      const correctIndex = curQ.correctIndex;
+      if (typeof correctIndex !== "number") {
+        current.lastCardError = { playerId, cardId, reason: "BAD_QUESTION", at: Date.now() };
+        return current;
+      }
+
+      const removed = [];
+      for (let i = 0; i < 4; i++) {
+        if (i !== correctIndex) removed.push(i);
+      }
+      // rimuovo 2 sbagliate a caso
+      removed.sort(() => Math.random() - 0.5);
+      const removedTwo = removed.slice(0, 2).sort((a, b) => a - b);
+
+      current.currentQuestion = {
+        ...curQ,
+        fiftyFiftyRemoved: removedTwo,
+        cardUsedBy: { ...(curQ.cardUsedBy || {}), [playerId]: { cardId, at: Date.now() } },
+      };
+
+      consume();
+      return current;
+    }
+
+    // ─────────────────────────────────────────────
+    // 3) ALT_QUESTION (no-op se non trova alternativa)
+    // ─────────────────────────────────────────────
+    if (cardId === CARD_IDS.ALT_QUESTION) {
+      if (current.phase !== "QUESTION" || !curQ) {
+        current.lastCardError = { playerId, cardId, reason: "WRONG_PHASE", at: Date.now() };
+        return current;
+      }
+
+      const pool = getQuestionsByCategoryAndLevel(curQ.category, curQ.level) || [];
+      const candidates = pool.filter((qq) => qq && qq.id && qq.id !== curQ.id && !(current.usedCategoryQuestionIds || {})[qq.id]);
+
+      if (!candidates.length) {
+        // IMPORTANTISSIMO: non consumare
+        current.lastCardError = { playerId, cardId, reason: "NO_ALTERNATIVE_AVAILABLE", at: Date.now() };
+        return current;
+      }
+
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      const now = Date.now();
+      const seconds = getCategoryQuestionDurationSeconds(curQ.level, false, !!curQ.advancesLevel, false);
+
+      current.currentQuestion = {
+        ...curQ,
+        id: pick.id,
+        text: pick.text,
+        answers: pick.answers,
+        correctIndex: pick.correctIndex,
+        startedAt: now,
+        expiresAt: now + seconds * 1000,
+        fiftyFiftyRemoved: null,
+        cardUsedBy: { ...(curQ.cardUsedBy || {}), [playerId]: { cardId, at: now } },
+      };
+
+      // segna usata la domanda nuova
+      current.usedCategoryQuestionIds = {
+        ...(current.usedCategoryQuestionIds || {}),
+        [pick.id]: true,
+      };
+
+      consume();
+      return current;
+    }
+
+    // ─────────────────────────────────────────────
+    // 4) CHANGE_CATEGORY (payload.newCategory obbligatorio)
+    // ─────────────────────────────────────────────
+    if (cardId === CARD_IDS.CHANGE_CATEGORY) {
+      if (current.phase !== "QUESTION" || !curQ) {
+        current.lastCardError = { playerId, cardId, reason: "WRONG_PHASE", at: Date.now() };
+        return current;
+      }
+
+      const newCategory = (payload?.newCategory || "").trim().toLowerCase();
+      if (!newCategory) {
+        current.lastCardError = { playerId, cardId, reason: "MISSING_NEW_CATEGORY", at: Date.now() };
+        return current;
+      }
+
+      const pool = getQuestionsByCategoryAndLevel(newCategory, curQ.level) || [];
+      const candidates = pool.filter((qq) => qq && qq.id && !(current.usedCategoryQuestionIds || {})[qq.id]);
+
+      if (!candidates.length) {
+        current.lastCardError = { playerId, cardId, reason: "NO_QUESTION_IN_NEW_CATEGORY", at: Date.now() };
+        return current;
+      }
+
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      const now = Date.now();
+      const seconds = getCategoryQuestionDurationSeconds(curQ.level, false, true, false);
+
+      current.currentQuestion = {
+        ...curQ,
+        category: newCategory,
+        id: pick.id,
+        text: pick.text,
+        answers: pick.answers,
+        correctIndex: pick.correctIndex,
+        startedAt: now,
+        expiresAt: now + seconds * 1000,
+        fiftyFiftyRemoved: null,
+        cardUsedBy: { ...(curQ.cardUsedBy || {}), [playerId]: { cardId, at: now } },
+      };
+
+      current.usedCategoryQuestionIds = {
+        ...(current.usedCategoryQuestionIds || {}),
+        [pick.id]: true,
+      };
+
+      consume();
+      return current;
+    }
+
+    // ─────────────────────────────────────────────
+    // 5) SALVEZZA (REVEAL dopo errore: ripristina turno al player)
     // ─────────────────────────────────────────────
     if (cardId === CARD_IDS.SALVEZZA) {
-      if (current.phase !== "REVEAL") return current;
-
       const r = current.reveal;
-      if (!r) return current;
-      if (r.forPlayerId !== playerId) return current;
-      if (r.correct !== false) return current;
-      if (!isNormalCategoryQuestion(r.question)) return current;
+      if (current.phase !== "REVEAL" || !r) {
+        current.lastCardError = { playerId, cardId, reason: "WRONG_PHASE", at: Date.now() };
+        return current;
+      }
+      if (r.forPlayerId !== playerId) {
+        current.lastCardError = { playerId, cardId, reason: "NOT_YOUR_REVEAL", at: Date.now() };
+        return current;
+      }
+      if (r.correct !== false) {
+        current.lastCardError = { playerId, cardId, reason: "ONLY_AFTER_WRONG", at: Date.now() };
+        return current;
+      }
+      if (r.source && r.source !== "CATEGORY") {
+        current.lastCardError = { playerId, cardId, reason: "NOT_CATEGORY_REVEAL", at: Date.now() };
+        return current;
+      }
 
-      const order = current.turnOrder || [];
+      // Ripristina turno al playerId (anche se era già passato al prossimo)
+      const order = Array.isArray(current.turnOrder) ? current.turnOrder : [];
       const idx = order.indexOf(playerId);
-      if (idx >= 0) current.currentTurnIndex = idx;
-      current.currentPlayerId = playerId;
+      if (idx >= 0) {
+        current.currentTurnIndex = idx;
+        current.currentPlayerId = playerId;
+      } else {
+        current.currentPlayerId = playerId;
+      }
 
       current.phase = "WAIT_ROLL";
       current.reveal = null;
@@ -715,17 +755,21 @@ if (cardId === CARD_IDS.CHANGE_CATEGORY) {
     }
 
     // ─────────────────────────────────────────────
-    // 4) SHIELD (rifiuta duello)
+    // 6) SHIELD (rifiuta duello - opponent)
     // ─────────────────────────────────────────────
     if (cardId === CARD_IDS.SHIELD) {
       const ev = current.currentEvent;
-      if (!ev || ev.type !== "DUELLO") return current;
+      const inDuel = typeof current.phase === "string" && current.phase.startsWith("EVENT_DUEL");
+      if (!ev || ev.type !== "DUELLO" || !inDuel) {
+        current.lastCardError = { playerId, cardId, reason: "NO_DUEL", at: Date.now() };
+        return current;
+      }
+      if (ev.opponentPlayerId !== playerId) {
+        current.lastCardError = { playerId, cardId, reason: "NOT_OPPONENT", at: Date.now() };
+        return current;
+      }
 
-      const inDuel = current.phase === "EVENT_DUEL_CHOOSE" || current.phase === "EVENT_DUEL_QUESTION";
-      if (!inDuel) return current;
-
-      if (ev.opponentPlayerId !== playerId) return current;
-
+      // annulla duello e passa al prossimo turno
       const { nextIndex, nextPlayerId } = getNextTurn(current);
       current.currentTurnIndex = nextIndex;
       current.currentPlayerId = nextPlayerId;
@@ -741,64 +785,104 @@ if (cardId === CARD_IDS.CHANGE_CATEGORY) {
     }
 
     // ─────────────────────────────────────────────
-    // 5) SKIP_PLUS_ONE (minimale: solo se +1 porta a category/key)
+    // 7) TELEPORT_CATEGORY (WAIT_ROLL nel tuo turno + check lvl3)
+    // ─────────────────────────────────────────────
+    if (cardId === CARD_IDS.TELEPORT_CATEGORY) {
+      if (current.phase !== "WAIT_ROLL" || current.currentPlayerId !== playerId) {
+        current.lastCardError = { playerId, cardId, reason: "WRONG_PHASE_OR_TURN", at: Date.now() };
+        return current;
+      }
+
+      const category = (payload?.category || "").trim().toLowerCase();
+      if (!category) {
+        current.lastCardError = { playerId, cardId, reason: "MISSING_CATEGORY", at: Date.now() };
+        return current;
+      }
+
+      const lvl = me.levels?.[category] ?? 0;
+      if (lvl < 3) {
+        current.lastCardError = { playerId, cardId, reason: "NEED_LEVEL_3", at: Date.now() };
+        return current;
+      }
+
+      const keyTileId = findKeyTileIdByCategory(category);
+      if (keyTileId == null) {
+        current.lastCardError = { playerId, cardId, reason: "KEY_TILE_NOT_FOUND", at: Date.now() };
+        return current;
+      }
+
+      const fromTileId = me.position ?? START_TILE_ID;
+      me.position = keyTileId;
+      curPlayers[playerId] = me;
+      current.players = curPlayers;
+
+      // aggiorna contesto movimento “virtuale”
+      current.turnContext = {
+        ...(current.turnContext || {}),
+        lastMove: {
+          fromTileId,
+          toTileId: keyTileId,
+          path: [fromTileId, keyTileId],
+          directionIndex: null,
+          kind: "TELEPORT",
+        },
+      };
+
+      // atterraggio su key => domanda
+      const landing = resolveLanding(current, playerId, keyTileId);
+      if (!landing.ok) {
+        current.lastCardError = { playerId, cardId, reason: landing.reason || "LANDING_FAILED", at: Date.now() };
+        return current;
+      }
+
+      consume();
+      return current;
+    }
+
+    // ─────────────────────────────────────────────
+    // 8) SKIP_PLUS_ONE (post-move: +1 nella stessa direzione; può finire anche su EVENT/MINIGAME/SCRIGNO)
     // ─────────────────────────────────────────────
     if (cardId === CARD_IDS.SKIP_PLUS_ONE) {
-      if (current.phase !== "QUESTION") return current;
-
-      const curQ = current.currentQuestion;
-      if (!curQ) return current;
-      if (curQ.forPlayerId !== playerId) return current;
-      if (!isNormalCategoryQuestion(curQ)) return current;
+      if (current.phase !== "QUESTION" || !curQ || curQ.forPlayerId !== playerId) {
+        current.lastCardError = { playerId, cardId, reason: "WRONG_PHASE", at: Date.now() };
+        return current;
+      }
 
       const lastMove = current.turnContext?.lastMove || null;
       const curTileId = current.currentTile?.tileId;
-      if (!lastMove || !curTileId || lastMove.toTileId !== curTileId) return current;
+      if (!lastMove || !curTileId || lastMove.toTileId !== curTileId) {
+        current.lastCardError = { playerId, cardId, reason: "NEEDS_POST_MOVE_WINDOW", at: Date.now() };
+        return current;
+      }
 
       const path = Array.isArray(lastMove.path) ? lastMove.path : [];
-      if (path.length < 2) return current;
+      if (path.length < 2) {
+        current.lastCardError = { playerId, cardId, reason: "BAD_PATH", at: Date.now() };
+        return current;
+      }
 
       const prev = path[path.length - 2];
       const cur = path[path.length - 1];
 
       const neighbors = (BOARD[cur]?.neighbors || []).filter((nid) => nid !== prev);
-      if (!neighbors.length) return current;
+      if (!neighbors.length) {
+        current.lastCardError = { playerId, cardId, reason: "NO_NEXT_TILE", at: Date.now() };
+        return current;
+      }
 
       const nextTileId = neighbors[0];
       const nextTile = BOARD[nextTileId];
-      if (!nextTile) return current;
+      if (!nextTile) {
+        current.lastCardError = { playerId, cardId, reason: "BAD_NEXT_TILE", at: Date.now() };
+        return current;
+      }
 
-      // SOLO category/key in questa versione (sicurezza)
-      if (!(nextTile.type === "category" || nextTile.type === "key")) return current;
-
+      // sposta player
       me.position = nextTileId;
       curPlayers[playerId] = me;
       current.players = curPlayers;
 
-      current.currentQuestion = null;
-      current.reveal = null;
-      current.playerAnswerIndex = null;
-
-      current.currentTile = {
-        tileId: nextTileId,
-        type: nextTile.type,
-        category: nextTile.category || null,
-        zone: nextTile.zone,
-      };
-
-      const { questionData } = prepareCategoryQuestionForTile(current, playerId, nextTile, nextTileId);
-      if (!questionData) return current;
-
-      current.phase = "QUESTION";
-      current.currentQuestion = questionData;
-
-      if (questionData.id) {
-        current.usedCategoryQuestionIds = {
-          ...(current.usedCategoryQuestionIds || {}),
-          [questionData.id]: true,
-        };
-      }
-
+      // aggiorna lastMove
       current.turnContext = {
         ...(current.turnContext || {}),
         lastMove: {
@@ -808,10 +892,24 @@ if (cardId === CARD_IDS.CHANGE_CATEGORY) {
         },
       };
 
+      // IMPORTANTISSIMO: stai “saltando” la domanda appena generata -> la annulliamo
+      current.currentQuestion = null;
+      current.reveal = null;
+      current.playerAnswerIndex = null;
+
+      // risolvi la casella su cui atterri (category/key/event/minigame/scrigno)
+      const landing = resolveLanding(current, playerId, nextTileId);
+      if (!landing.ok) {
+        current.lastCardError = { playerId, cardId, reason: landing.reason || "LANDING_FAILED", at: Date.now() };
+        return current;
+      }
+
       consume();
       return current;
     }
 
+    // fallback
+    current.lastCardError = { playerId, cardId, reason: "UNHANDLED_CARD", at: Date.now() };
     return current;
   });
 
