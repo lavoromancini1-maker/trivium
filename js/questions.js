@@ -782,32 +782,21 @@ function generatePlaceholderQuestion(category, level, index) {
     media: null,
   };
 }
-
-function ensureTenQuestionsPerCategoryLevel() {
-  const categories = ["geografia", "storia", "arte", "sport", "spettacolo", "scienza"];
-  const levels = [1, 2, 3];
-
-  categories.forEach((category) => {
-    levels.forEach((level) => {
-      const existing = CATEGORY_QUESTIONS.filter(
-        (q) => q.category === category && q.level === level
-      );
-
-      const missing = 10 - existing.length;
-
-      if (missing > 0) {
-        for (let i = 1; i <= missing; i++) {
-          CATEGORY_QUESTIONS.push(
-            generatePlaceholderQuestion(
-              category,
-              level,
-              existing.length + i
-            )
-          );
-        }
-      }
-    });
-  });
+function generatePlaceholderQuestion(category, level, index) {
+  return {
+    id: `${category}_${level}_test_${index}`,
+    category,
+    level,
+    text: `[TEST] Domanda ${index} – ${category.toUpperCase()} (livello ${level})`,
+    answers: [
+      "✅ CORRETTA (premi A)",
+      "❌ SBAGLIATA",
+      "❌ SBAGLIATA",
+      "❌ SBAGLIATA",
+    ],
+    correctIndex: 0, // SEMPRE A
+    media: null,
+  };
 }
 
 // ⚠️ ATTIVO SOLO IN FASE DI TEST
