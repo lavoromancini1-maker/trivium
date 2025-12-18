@@ -2906,15 +2906,61 @@ export async function checkAndHandleRevealAdvance(gameCode) {
     const pOpp = players[opp];
 
     if (owner && opp && pOwner && pOpp) {
-      if (sOwner > sOpp) {
-        updates[`players/${owner}/points`] = (pOwner.points || 0) + 50;
-      } else if (sOpp > sOwner) {
-        updates[`players/${opp}/points`] = (pOpp.points || 0) + 50;
-      } else {
-        updates[`players/${owner}/points`] = (pOwner.points || 0) + 10;
-        updates[`players/${opp}/points`] = (pOpp.points || 0) + 10;
-      }
-    }
+  const now = Date.now();
+
+  const nOwner = pOwner?.name || "Player 1";
+  const nOpp = pOpp?.name || "Player 2";
+
+  const baseOwner = Number.isFinite(pOwner?.points) ? pOwner.points : 0;
+  const baseOpp   = Number.isFinite(pOpp?.points) ? pOpp.points : 0;
+
+  let hostTitle = "⚔️ Duello concluso!";
+  let hostSubtitle = "";
+  let ownerDelta = 0;
+  let oppDelta = 0;
+
+  if (sOwner > sOpp) {
+    ownerDelta = 50;
+    hostSubtitle = `Vince ${nOwner} (+50) — ${sOwner} a ${sOpp}`;
+  } else if (sOpp > sOwner) {
+    oppDelta = 50;
+    hostSubtitle = `Vince ${nOpp} (+50) — ${sOpp} a ${sOwner}`;
+  } else {
+    ownerDelta = 10;
+    oppDelta = 10;
+    hostSubtitle = `Pareggio (+10 ciascuno) — ${sOwner} a ${sOpp}`;
+  }
+
+  updates[`players/${owner}/points`] = addPointsSafe(baseOwner, ownerDelta);
+  updates[`players/${opp}/points`]   = addPointsSafe(baseOpp, oppDelta);
+
+  // ✅ toast (host + player)
+  updates.toast = {
+    shownAt: now,
+    hideAt: now + 2600,
+    host: {
+      kind: (sOwner === sOpp) ? "neutral" : "success",
+      title: hostTitle,
+      subtitle: hostSubtitle,
+    },
+    players: {
+      [owner]: {
+        kind: ownerDelta >= 0 ? "success" : "danger",
+        title: "⚔️ Esito duello",
+        subtitle: ownerDelta
+          ? `Hai ${ownerDelta > 0 ? "guadagnato" : "perso"} ${Math.abs(ownerDelta)} punti.`
+          : "Nessun cambiamento punti.",
+      },
+      [opp]: {
+        kind: oppDelta >= 0 ? "success" : "danger",
+        title: "⚔️ Esito duello",
+        subtitle: oppDelta
+          ? `Hai ${oppDelta > 0 ? "guadagnato" : "perso"} ${Math.abs(oppDelta)} punti.`
+          : "Nessun cambiamento punti.",
+      },
+    },
+  };
+}
 
     const { nextIndex, nextPlayerId } = getNextTurn(game);
     updates.currentTurnIndex = nextIndex;
@@ -2937,18 +2983,40 @@ export async function checkAndHandleRevealAdvance(gameCode) {
   }
 
   if (afterEv?.kind === "END_SINGLE") {
-    await update(gameRef, {
-      phase: "WAIT_ROLL",
-      reveal: null,
-      currentQuestion: null,
-      currentEvent: null,
-    });
-        // === DROP CARTA (EVENTO generico: BOOM / RISK ecc.) ===
-    // ownerPlayerId è di solito chi ha attivato l’evento
-    const ownerId = ev?.ownerPlayerId;
-    await maybeDropCardByRef(gameRef, ownerId, 1.0, "EVENT_GENERIC");
-    return { handled: true, reason: "EVENT_FINISHED" };
-  }
+  const now = Date.now();
+  const ownerId = ev?.ownerPlayerId;
+
+  // prova a leggere delta dalla reveal appena mostrata
+  const delta = Number.isFinite(r?.delta) ? r.delta : 0;
+  const pName = game.players?.[ownerId]?.name || "Giocatore";
+
+  await update(gameRef, {
+    phase: "WAIT_ROLL",
+    reveal: null,
+    currentQuestion: null,
+    currentEvent: null,
+    toast: {
+      shownAt: now,
+      hideAt: now + 2400,
+      host: {
+        kind: delta >= 0 ? "success" : "danger",
+        title: "🎲 Evento concluso",
+        subtitle: `${pName}: ${delta >= 0 ? "+" : ""}${delta} punti`,
+      },
+      players: ownerId ? {
+        [ownerId]: {
+          kind: delta >= 0 ? "success" : "danger",
+          title: "🎲 Evento concluso",
+          subtitle: `Hai ${delta >= 0 ? "guadagnato" : "perso"} ${Math.abs(delta)} punti.`,
+        }
+      } : {}
+    },
+  });
+
+  // DROP carta rimane uguale
+  await maybeDropCardByRef(gameRef, ownerId, 1.0, "EVENT_GENERIC");
+  return { handled: true, reason: "EVENT_FINISHED" };
+}
 
   // default (domande normali)
   await update(gameRef, {
