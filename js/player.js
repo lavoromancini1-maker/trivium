@@ -215,10 +215,6 @@ async function tryAutoRejoin() {
   }
 }
 
-// prova subito al load
-tryAutoRejoin();
-
-
   const turnPanel = document.getElementById("turn-panel");
   const turnStatusText = document.getElementById("turn-status-text");
   const rollDiceBtn = document.getElementById("roll-dice-btn");
@@ -253,6 +249,8 @@ closestInput = document.getElementById("closest-input");
 closestSendBtn = document.getElementById("closest-send-btn");
 closestHint = document.getElementById("closest-hint");
 
+tryAutoRejoin();  
+  
 vfPanel = document.getElementById("vf-panel");
 vfText = document.getElementById("vf-text");
 vfTrueBtn = document.getElementById("vf-true-btn");
