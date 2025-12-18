@@ -42,6 +42,31 @@ let sequenceSelection = []; // array di indici scelti
 let lastSequenceQuestionId = null;
 let lastGameState = null;
 
+function renderSequencePicker(items) {
+  if (!sequenceItems) return;
+  sequenceItems.innerHTML = "";
+
+  items.forEach((text, idx) => {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-secondary";
+    btn.style.display = "block";
+    btn.style.width = "100%";
+    btn.style.margin = "6px 0";
+
+    const pickedPos = sequenceSelection.indexOf(idx);
+    btn.textContent = pickedPos >= 0 ? `${pickedPos + 1}. ${text}` : text;
+
+    btn.disabled = pickedPos >= 0; // una volta scelto, non puoi riselezionarlo finché non resetti
+
+    btn.addEventListener("click", () => {
+      sequenceSelection.push(idx);
+      renderSequencePicker(items);
+    });
+
+    sequenceItems.appendChild(btn);
+  });
+}
+
 let cardsDock = null, cardsSlots = null;
 let cardSheet = null, cardSheetBackdrop = null, cardSheetClose = null;
 let cardSheetTitle = null, cardSheetDesc = null, cardUseBtn = null;
@@ -279,31 +304,6 @@ async function sendIntruder(idx) {
     intruderHint.textContent = e.message || "Errore invio.";
     [intrA, intrB, intrC, intrD].forEach(b => b && (b.disabled = false));
   }
-}
-
-function renderSequencePicker(items) {
-  if (!sequenceItems) return;
-  sequenceItems.innerHTML = "";
-
-  items.forEach((text, idx) => {
-    const btn = document.createElement("button");
-    btn.className = "btn btn-secondary";
-    btn.style.display = "block";
-    btn.style.width = "100%";
-    btn.style.margin = "6px 0";
-
-    const pickedPos = sequenceSelection.indexOf(idx);
-    btn.textContent = pickedPos >= 0 ? `${pickedPos + 1}. ${text}` : text;
-
-    btn.disabled = pickedPos >= 0; // una volta scelto, non puoi riselezionarlo finché non resetti
-
-    btn.addEventListener("click", () => {
-      sequenceSelection.push(idx);
-      renderSequencePicker(items);
-    });
-
-    sequenceItems.appendChild(btn);
-  });
 }
 
 sequenceResetBtn?.addEventListener("click", () => {
