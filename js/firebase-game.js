@@ -410,17 +410,6 @@ export async function useCard(gameCode, playerId, cardId, payload = {}) {
     const me = curPlayers[playerId];
     if (!me) return current;
 
-    const myCards = normalizeCards(me.cards);
-    if (!myCards.includes(cardId)) return current;
-
-    if ((me.points ?? 0) < cost) return current;
-
-    // rimuovi carta + scala punti
-    me.points = (me.points ?? 0) - cost;
-    me.cards = myCards.filter((c) => c !== cardId).slice(0, 3);
-    curPlayers[playerId] = me;
-    current.players = curPlayers;
-
     // copia domanda per modifiche
     let newQuestion = { ...curQ };
 
@@ -495,20 +484,15 @@ export async function useCard(gameCode, playerId, cardId, payload = {}) {
       // evita di riprendere la stessa
       if (curQ.id) usedIds[curQ.id] = true;
 
-      // prova a pescare non-usata
-      let raw = getRandomCategoryQuestion(category, level, usedIds);
+// Prendi il pool e scegli una domanda diversa da quella attuale.
+// (Ignoriamo usedCategoryQuestionIds: l'obiettivo della carta è cambiare domanda, anche se ripete una già vista.)
+const pool = getQuestionsByCategoryAndLevel(curQ.category, curQ.level) || [];
+const candidates = pool.filter((q) => q && q.id && q.id !== curQ.id);
 
-      // fallback: se pool finita, permetti ripetizioni ma evita la stessa id
-      if (!raw) {
-        for (let k = 0; k < 5; k++) {
-          const tryRaw = getRandomCategoryQuestion(category, level, {});
-          if (tryRaw && tryRaw.id !== curQ.id) {
-            raw = tryRaw;
-            break;
-          }
-        }
-      }
-      if (!raw) return current;
+if (!candidates.length) return current;
+
+// scegli random tra le candidate
+const raw = candidates[Math.floor(Math.random() * candidates.length)];
 
       // shuffle risposte
       const indices = [0, 1, 2, 3];
@@ -546,6 +530,11 @@ export async function useCard(gameCode, playerId, cardId, payload = {}) {
         [raw.id]: true,
       };
     }
+// Consuma carta e punti SOLO dopo che l'effetto è stato applicato
+me.points = (me.points ?? 0) - cost;
+me.cards = myCards.filter((c) => c !== cardId).slice(0, 3);
+curPlayers[playerId] = me;
+current.players = curPlayers;
 
     current.currentQuestion = newQuestion;
 
