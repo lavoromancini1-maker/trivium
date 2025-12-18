@@ -20,7 +20,7 @@ import {
   grantRandomCard,
 } from "./firebase-game.js";
 
-import { CARD_IDS, getCardDef } from "./cards.js";
+import { CARD_IDS, getCardDef, canUseCardNow } from "./cards.js";
 
 let currentGameCode = null;
 let currentPlayerId = null;
@@ -527,26 +527,26 @@ async function tryUseSelectedCard() {
 
   try {
     if (cardUseBtn) cardUseBtn.disabled = true;
+if (selectedCardId === CARD_IDS.CHANGE_CATEGORY) {
+  const cat = prompt("Scegli categoria (geografia, storia, arte, sport, spettacolo, scienza):");
+  if (!cat) { if (cardUseBtn) cardUseBtn.disabled = false; return; }
+  await useCard(currentGameCode, currentPlayerId, selectedCardId, { newCategory: cat.trim().toLowerCase() });
+  closeCardSheet();
+  return;
+}
 
-    // Carte che richiedono scelta categoria
-    if (selectedCardId === CARD_IDS.CHANGE_CATEGORY) {
-      const cat = prompt("Scegli categoria: geografia, storia, arte, sport, spettacolo, scienza");
-      if (!cat) throw new Error("Categoria non selezionata.");
-      await useCard(currentGameCode, currentPlayerId, selectedCardId, { newCategory: cat.trim().toLowerCase() });
-      closeCardSheet();
-      return;
-    }
-
-    if (selectedCardId === CARD_IDS.TELEPORT_CATEGORY) {
-      const cat = prompt("Scegli categoria per teletrasporto (serve livello 3): geografia, storia, arte, sport, spettacolo, scienza");
-      if (!cat) throw new Error("Categoria non selezionata.");
-      await useCard(currentGameCode, currentPlayerId, selectedCardId, { category: cat.trim().toLowerCase() });
-      closeCardSheet();
-      return;
-    }
+if (selectedCardId === CARD_IDS.TELEPORT_CATEGORY) {
+  const cat = prompt("Scegli categoria per teletrasporto:");
+  if (!cat) { if (cardUseBtn) cardUseBtn.disabled = false; return; }
+  await useCard(currentGameCode, currentPlayerId, selectedCardId, { category: cat.trim().toLowerCase() });
+  closeCardSheet();
+  return;
+}
 
     // Tutte le altre
     await useCard(currentGameCode, currentPlayerId, selectedCardId, {});
+    const el = document.getElementById("turn-status-text");
+if (el) el.textContent = "✅ Carta usata!";
     closeCardSheet();
   } catch (e) {
     const msg = (e && e.message) ? e.message : "Errore nell’uso della carta.";
@@ -600,45 +600,28 @@ function renderCardsDock(gameState) {
     const def = getCardDef(cardId);
     if (!def) return;
 
+    // ✅ usa la logica centrale (cards.js) invece di hardcodare 3 carte
     let canUse = false;
     let reason = "";
 
-    if (cardId === CARD_IDS.EXTRA_TIME) {
-      canUse = isMyQuestionNow && isNormalQuestion && !usedCardThisQuestion;
+    const gate = canUseCardNow(gameState, me, cardId);
+    canUse = !!gate.ok;
 
-      if (usedCardThisQuestion) reason = "Hai già usato una carta su questa domanda.";
-      else if (!isMyQuestionNow) reason = "Puoi usare carte solo durante la tua domanda.";
-      else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
-
-    } else if (cardId === CARD_IDS.FIFTY_FIFTY) {
-      canUse = isMyQuestionNow && isNormalQuestion && !usedCardThisQuestion;
-
-      if (usedCardThisQuestion) {
-        canUse = false;
-        reason = "Hai già usato una carta su questa domanda.";
-      }
-
-      const removed = gameState?.currentQuestion?.aids?.fifty?.[myId]?.removed;
-      if (removed && removed.length) {
-        canUse = false;
-        reason = "Hai già usato 50/50 su questa domanda.";
-      } else {
-        if (!isMyQuestionNow) reason = "Puoi usare carte solo durante la tua domanda.";
-        else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
-      }
-
-    } else if (cardId === CARD_IDS.ALT_QUESTION) {
-      canUse = isMyQuestionNow && isNormalQuestion && !usedCardThisQuestion;
-
-      if (usedCardThisQuestion) reason = "Hai già usato una carta su questa domanda.";
-      else if (!isMyQuestionNow) reason = "Puoi usare carte solo durante la tua domanda.";
-      else if (!isNormalQuestion) reason = "Usabile solo durante una domanda categoria/livello (non chiave/scrigno).";
-
-    } else {
-      canUse = false;
-      reason = "Questa carta sarà attivata nei prossimi step.";
+    if (!gate.ok) {
+      reason = "Non utilizzabile ora.";
+      if (gate.reason === "WRONG_PHASE") reason = "Non puoi usarla in questa fase.";
+      else if (gate.reason === "BLOCKED_BY_RULES") reason = "Carte vietate in questa situazione.";
+      else if (gate.reason === "NOT_ALLOWED_ON_THIS_QUESTION") reason = "Non usabile su chiave/scrigno/minigiochi.";
+      else if (gate.reason === "NOT_YOUR_REVEAL") reason = "Non è la tua fase di esito.";
+      else if (gate.reason === "NOT_OPPONENT") reason = "Solo il bersaglio del duello può usare Scudo.";
     }
-  
+
+    // ✅ extra: vincolo “una carta per domanda” (se il backend lo scrive)
+    if (canUse && q?.cardUsedBy?.[myId] && phase === "QUESTION") {
+      canUse = false;
+      reason = "Hai già usato una carta su questa domanda.";
+    }
+
     const slot = document.createElement("div");
     slot.className = "card-slot" + (canUse ? "" : " disabled");
     slot.innerHTML = `
