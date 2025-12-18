@@ -40,6 +40,7 @@ let intruderPanel, intruderPrompt, intrA, intrB, intrC, intrD, intruderHint;
 let sequencePanel, sequencePrompt, sequenceItems, sequenceResetBtn, sequenceSubmitBtn, sequenceHint;
 let sequenceSelection = []; // array di indici scelti
 let lastSequenceQuestionId = null;
+let lastGameState = null;
 
 let cardsDock = null, cardsSlots = null;
 let cardSheet = null, cardSheetBackdrop = null, cardSheetClose = null;
@@ -528,21 +529,24 @@ async function tryUseSelectedCard() {
   try {
     if (cardUseBtn) cardUseBtn.disabled = true;
 if (selectedCardId === CARD_IDS.CHANGE_CATEGORY) {
-  const cat = prompt("Scegli categoria (geografia, storia, arte, sport, spettacolo, scienza):");
+  const all = ["geografia","storia","arte","sport","spettacolo","scienza"];
+  const cat = await openCategoryPicker("Cambio categoria: scegli", all);
   if (!cat) { if (cardUseBtn) cardUseBtn.disabled = false; return; }
-  await useCard(currentGameCode, currentPlayerId, selectedCardId, { newCategory: cat.trim().toLowerCase() });
+  await useCard(currentGameCode, currentPlayerId, selectedCardId, { newCategory: cat });
   closeCardSheet();
   return;
 }
 
 if (selectedCardId === CARD_IDS.TELEPORT_CATEGORY) {
-  const cat = prompt("Scegli categoria per teletrasporto:");
+  const me = lastGameState?.players?.[currentPlayerId]; // vedi nota sotto
+  const lv = me?.levels || {};
+  const eligible = ["geografia","storia","arte","sport","spettacolo","scienza"].filter(c => (lv[c] ?? 0) >= 3);
+  const cat = await openCategoryPicker("Teletrasporto: scegli (solo lvl 3)", eligible);
   if (!cat) { if (cardUseBtn) cardUseBtn.disabled = false; return; }
-  await useCard(currentGameCode, currentPlayerId, selectedCardId, { category: cat.trim().toLowerCase() });
+  await useCard(currentGameCode, currentPlayerId, selectedCardId, { category: cat });
   closeCardSheet();
   return;
 }
-
     // Tutte le altre
     await useCard(currentGameCode, currentPlayerId, selectedCardId, {});
     const el = document.getElementById("turn-status-text");
@@ -554,6 +558,38 @@ if (el) el.textContent = "✅ Carta usata!";
     if (el) el.textContent = msg;
     if (cardUseBtn) cardUseBtn.disabled = false;
   }
+}
+
+function openCategoryPicker(title, categories) {
+  const wrap = document.getElementById("category-picker");
+  const grid = document.getElementById("category-picker-grid");
+  const ttl = document.getElementById("category-picker-title");
+  const cancel = document.getElementById("category-picker-cancel");
+  const backdrop = document.getElementById("category-picker-backdrop");
+  if (!wrap || !grid || !ttl || !cancel || !backdrop) return Promise.resolve(null);
+
+  ttl.textContent = title || "Scegli una categoria";
+  grid.innerHTML = "";
+
+  return new Promise((resolve) => {
+    const close = (val) => {
+      wrap.classList.add("hidden");
+      resolve(val ?? null);
+    };
+
+    cancel.onclick = () => close(null);
+    backdrop.onclick = () => close(null);
+
+    categories.forEach((cat) => {
+      const b = document.createElement("button");
+      b.className = "cat-btn";
+      b.textContent = cat.toUpperCase();
+      b.onclick = () => close(cat);
+      grid.appendChild(b);
+    });
+
+    wrap.classList.remove("hidden");
+  });
 }
 
 function renderCardsDock(gameState) {
@@ -698,7 +734,7 @@ function showCardOffer(gameState) {
 }
 
 function handleGameUpdate(
-  gameState,
+  gameState;,
   {
     waitingPanel,
     turnPanel,
@@ -712,6 +748,7 @@ function handleGameUpdate(
     playerProgressEl
   }
 ) {
+  lastGameState = gameState;
   if (!gameState) {
     turnStatusText.textContent = "Partita non trovata.";
     return;
