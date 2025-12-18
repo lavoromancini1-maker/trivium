@@ -195,79 +195,78 @@ export function isNormalCategoryQuestion(game) {
   return typeof q.level === "number";
 }
 
-/**
- * Validazione minimale (non fa controlli punti e "una carta per turno",
- * quelli si fanno in firebase-game.js perché devono essere atomici).
- */
 export function canUseCardNow(game, player, cardId) {
   if (!isValidCardId(cardId)) return { ok: false, reason: "CARD_NOT_FOUND" };
   if (!game || !player) return { ok: false, reason: "NO_GAME_OR_PLAYER" };
 
+  // blocchi globali (chiave/scrigno finale/minigame/duello ecc.)
   if (isCardGloballyBlocked(game, cardId)) {
     return { ok: false, reason: "BLOCKED_BY_RULES" };
   }
 
   const phase = game.phase;
+  const myId = player.id;
 
-  // Teletrasporto: prima del dado
+  // helper
+  const q = game.currentQuestion || null;
+  const isMyQuestion = !!(q && q.forPlayerId === myId);
+
+  // TELEPORT_CATEGORY: solo nel tuo turno prima del dado
   if (cardId === CARD_IDS.TELEPORT_CATEGORY) {
     if (phase !== "WAIT_ROLL") return { ok: false, reason: "WRONG_PHASE" };
+    if (game.currentPlayerId !== myId) return { ok: false, reason: "NOT_YOUR_TURN" };
     return { ok: true };
   }
 
-  // Salta +1: serve finestra post-move che creeremo in firebase-game.js
-  if (cardId === CARD_IDS.SKIP_PLUS_ONE) {
-    return { ok: false, reason: "NEEDS_POST_MOVE_WINDOW" };
-  }
-
-  // Carte “durante domanda”
-const inQuestion = [
-  CARD_IDS.FIFTY_FIFTY,
-  CARD_IDS.CHANGE_CATEGORY,
-  CARD_IDS.ALT_QUESTION,
-  CARD_IDS.EXTRA_TIME,
-  CARD_IDS.SKIP_PLUS_ONE,
-];
-  if (inQuestion.includes(cardId)) {
+  // CARTE domanda (QUESTION)
+  if (
+    cardId === CARD_IDS.EXTRA_TIME ||
+    cardId === CARD_IDS.FIFTY_FIFTY ||
+    cardId === CARD_IDS.ALT_QUESTION ||
+    cardId === CARD_IDS.CHANGE_CATEGORY
+  ) {
     if (phase !== "QUESTION") return { ok: false, reason: "WRONG_PHASE" };
-    if (!isNormalCategoryQuestion(game))
-      return { ok: false, reason: "NOT_ALLOWED_ON_THIS_QUESTION" };
+    if (!isMyQuestion) return { ok: false, reason: "NOT_YOUR_QUESTION" };
+    if (!isNormalCategoryQuestion(game)) return { ok: false, reason: "NOT_ALLOWED_ON_THIS_QUESTION" };
     return { ok: true };
   }
 
-// Salvezza: subito dopo risposta errata (fase REVEAL)
-if (cardId === CARD_IDS.SALVEZZA) {
-  if (phase !== "REVEAL") return { ok: false, reason: "WRONG_PHASE" };
-  const r = game.reveal;
-  if (!r || r.forPlayerId !== player.id) return { ok: false, reason: "NOT_YOUR_REVEAL" };
-  if (r.correct !== false) return { ok: false, reason: "NOT_NEEDED" };
+  // SALVEZZA: solo in REVEAL dopo errore, e solo se è la tua reveal
+  if (cardId === CARD_IDS.SALVEZZA) {
+    if (phase !== "REVEAL") return { ok: false, reason: "WRONG_PHASE" };
+    const r = game.reveal;
+    if (!r || r.forPlayerId !== myId) return { ok: false, reason: "NOT_YOUR_REVEAL" };
+    if (r.correct !== false) return { ok: false, reason: "ONLY_AFTER_WRONG" };
+    // extra safety: deve essere reveal di una domanda categoria/livello (non evento/duello/minigame)
+    if (r.source && r.source !== "CATEGORY") return { ok: false, reason: "NOT_CATEGORY_REVEAL" };
+    return { ok: true };
+  }
 
-  // vietata se non è una domanda categoria normale
-  const q = r.question;
-  const isNormal =
-    q &&
-    typeof q.level === "number" &&
-    !q.isKeyQuestion &&
-    !(q.tileType === "scrigno" || q.scrignoMode) &&
-    !q.isFinal;
+  // SHIELD: solo in duello e solo se sei l’opponent
+  if (cardId === CARD_IDS.SHIELD) {
+    const isDuelPhase = typeof phase === "string" && phase.startsWith("EVENT_DUEL");
+    if (!isDuelPhase) return { ok: false, reason: "WRONG_PHASE" };
+    const ev = game.currentEvent;
+    if (!ev || ev.type !== "DUELLO") return { ok: false, reason: "NO_DUEL" };
+    if (ev.opponentPlayerId !== myId) return { ok: false, reason: "NOT_OPPONENT" };
+    return { ok: true };
+  }
 
-  if (!isNormal) return { ok: false, reason: "NOT_ALLOWED_ON_THIS_QUESTION" };
+  // SKIP_PLUS_ONE: finestra "post-move" = fase QUESTION sulla domanda appena generata
+  if (cardId === CARD_IDS.SKIP_PLUS_ONE) {
+    if (phase !== "QUESTION") return { ok: false, reason: "WRONG_PHASE" };
+    if (!isMyQuestion) return { ok: false, reason: "NOT_YOUR_QUESTION" };
+    if (!isNormalCategoryQuestion(game)) return { ok: false, reason: "NOT_ALLOWED_ON_THIS_QUESTION" };
 
-  return { ok: true };
+    const lastMove = game.turnContext?.lastMove || null;
+    const curTileId = game.currentTile?.tileId;
+    if (!lastMove || !curTileId) return { ok: false, reason: "NEEDS_POST_MOVE_WINDOW" };
+    if (lastMove.toTileId !== curTileId) return { ok: false, reason: "NEEDS_POST_MOVE_WINDOW" };
+
+    return { ok: true };
+  }
+
+  // fallback
+  return { ok: false, reason: "NOT_IMPLEMENTED_OR_BLOCKED" };
 }
 
-// Scudo: solo nel duello, solo per rifiutare (opponent)
-if (cardId === CARD_IDS.SHIELD) {
-  const isDuelPhase = typeof phase === "string" && phase.startsWith("EVENT_DUEL");
-  if (!isDuelPhase) return { ok: false, reason: "WRONG_PHASE" };
-
-  const ev = game.currentEvent;
-  if (!ev || ev.type !== "DUELLO") return { ok: false, reason: "NO_DUEL" };
-
-  if (ev.opponentPlayerId !== player.id) return { ok: false, reason: "NOT_OPPONENT" };
-
-  return { ok: true };
-}
-
-  return { ok: false, reason: "NOT_IMPLEMENTED" };
-}
