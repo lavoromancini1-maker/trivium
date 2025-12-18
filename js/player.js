@@ -734,7 +734,7 @@ function showCardOffer(gameState) {
 }
 
 function handleGameUpdate(
-  gameState;,
+  gameState,
   {
     waitingPanel,
     turnPanel,
