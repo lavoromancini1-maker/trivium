@@ -434,6 +434,13 @@ if (r.source === "DUELLO") {
   }).join("");
 
   overlayContent.innerHTML = `
+    <div class="overlay-topbar">
+  <div class="overlay-badges">
+    <span class="badge">🎲 EVENTO</span>
+    <span class="badge">REVEAL</span>
+  </div>
+</div>
+
     <div class="question-card">
       <div class="question-header">
         <div class="question-category">⚔️ DUELLO — ${(q?.category || "").toUpperCase()}</div>
@@ -451,6 +458,17 @@ if (r.source === "DUELLO") {
       <div style="margin-top:10px; font-weight:700; opacity:.95">
         ${linesHtml || ""}
       </div>
+      <div class="responders">
+  ${Object.entries(r.answeredBy || {}).map(([pid, a]) => `
+    <div class="responder ${a.correct ? "done" : "pending"}">
+      <div class="name">${gameState.players?.[pid]?.name || pid}</div>
+      <div class="meta">
+        ${a.correct ? "Risposta corretta ✅" : "Risposta errata ❌"}
+      </div>
+    </div>
+  `).join("")}
+</div>
+
     </div>
   `;
 
