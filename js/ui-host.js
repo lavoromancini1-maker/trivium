@@ -865,23 +865,28 @@ function renderEventOverlay(gameState) {
 
   const tb = getOverlayTopbarUI(gameState);
 
-  overlayContent.innerHTML = `
-    <div class="question-card">
-  <div class="overlay-topbar">
-    <div class="overlay-badges">
-      <span class="badge">${tb.left}</span>
-      <span class="badge">${tb.right}</span>
+overlayContent.innerHTML = `
+  <div class="question-card">
+    <div class="overlay-topbar">
+      <div class="overlay-badges">
+        <span class="badge">${tb.left}</span>
+        <span class="badge">${tb.right}</span>
+      </div>
     </div>
+
+    ${gameState.phase === "EVENT_QUESTION" || gameState.phase === "EVENT_DUEL_QUESTION"
+      ? ""
+      : `
+        <div class="question-header">
+          <div class="question-category">${title}</div>
+        </div>
+      `
+    }
+
+    ${bodyHtml}
   </div>
+`;
 
-  <div class="question-header">
-    <div class="question-category">${title}</div>
-  </div>
-
-  ${bodyHtml}
-</div>
-
-  `;
 
   overlay.classList.remove("hidden");
 }
