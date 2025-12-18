@@ -372,6 +372,7 @@ if (scrigno) {
  * Mostra la domanda corrente in overlay sull'host.
  */
 export function renderQuestionOverlay(gameState) {
+  renderToastHost(gameState);
   const overlay = document.getElementById("overlay");
   const overlayContent = document.getElementById("overlay-content");
 
@@ -402,7 +403,60 @@ if (gameState && gameState.phase === "MINIGAME" && gameState.minigame?.type === 
 if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.reveal.question) {
   const r = gameState.reveal;
   const q = r.question;
+   if (r.source === "DUELLO") {
+  const q = r.question;
+  const answeredBy = r.answeredBy || {};
+  const players = gameState.players || {};
 
+  const entries = Object.entries(answeredBy); // [ [pid, {answerIndex, correct}] ... ]
+  const anyCorrect = entries.some(([, a]) => a && a.correct === true);
+
+  // classi overlay: verde se almeno uno corretto, rosso se tutti sbagliati
+  overlay.classList.remove("correct-answer", "wrong-answer");
+  overlay.classList.add(anyCorrect ? "correct-answer" : "wrong-answer");
+
+  // intestazione
+  questionCategoryEl.textContent = `⚔️ DUELLO — ${q?.category || ""}`;
+  questionTextEl.textContent = q?.text || "";
+
+  // risposte: evidenzia sempre la corretta
+  const correctIndex = q?.correctIndex;
+  answersListEl.innerHTML = (q?.answers || []).map((ans, idx) => {
+    const isCorrect = idx === correctIndex;
+    return `
+      <div class="answer-item ${isCorrect ? "correct" : ""}">
+        <span class="letter">${String.fromCharCode(65 + idx)}.</span>
+        <span class="text">${ans}</span>
+      </div>
+    `;
+  }).join("");
+
+  // esito per player (righe sotto le risposte)
+  const lines = entries.map(([pid, a]) => {
+    const name = players?.[pid]?.name || pid;
+    const letter = Number.isFinite(a?.answerIndex) ? String.fromCharCode(65 + a.answerIndex) : "—";
+    const ok = a?.correct === true;
+    return `• ${name}: ${letter} ${ok ? "✅" : "❌"}`;
+  }).join("\n");
+
+  // se hai un elemento “revealTextEl” o simile, usalo.
+  // se non ce l’hai, aggiungiamo un blocchetto sotto answersList.
+  let duelMeta = document.getElementById("duel-reveal-meta");
+  if (!duelMeta) {
+    duelMeta = document.createElement("pre");
+    duelMeta.id = "duel-reveal-meta";
+    duelMeta.style.marginTop = "10px";
+    duelMeta.style.whiteSpace = "pre-wrap";
+    duelMeta.style.opacity = "0.95";
+    duelMeta.style.fontWeight = "700";
+    duelMeta.style.fontSize = "14px";
+    answersListEl.parentElement.appendChild(duelMeta);
+  }
+  duelMeta.textContent = lines;
+
+  overlay.classList.remove("hidden");
+  return; // IMPORTANTISSIMO: evita di cadere nel ramo “REVEAL normale”
+}
   const answersHtml = q.answers
     .map((ans, idx) => {
       const isCorrect = idx === q.correctIndex;
@@ -1048,4 +1102,36 @@ export function updateBoardHighlights(gameState) {
       rect.classList.remove("svg-tile--dim");
     }
   }
+}
+
+function ensureToastEl() {
+  let el = document.getElementById("trivium-toast");
+  if (el) return el;
+
+  el = document.createElement("div");
+  el.id = "trivium-toast";
+  el.className = "trivium-toast hidden neutral";
+  el.innerHTML = `
+    <div class="title"></div>
+    <div class="subtitle"></div>
+  `;
+  document.body.appendChild(el);
+  return el;
+}
+
+function renderToastHost(gameState) {
+  const toast = gameState?.toast || null;
+  const el = ensureToastEl();
+
+  if (!toast || !toast.host || !toast.hideAt || Date.now() > toast.hideAt) {
+    el.classList.add("hidden");
+    return;
+  }
+
+  const kind = toast.host.kind || "neutral";
+  el.classList.remove("hidden", "success", "danger", "neutral");
+  el.classList.add(kind);
+
+  el.querySelector(".title").textContent = toast.host.title || "";
+  el.querySelector(".subtitle").textContent = toast.host.subtitle || "";
 }
