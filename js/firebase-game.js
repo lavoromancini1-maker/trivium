@@ -537,8 +537,8 @@ export async function useCard(gameCode, playerId, cardId, payload = {}) {
       return current;
     }
 
-    // gate centrale (cards.js)
-    const gate = canUseCardNow(current, me, cardId);
+   // gate centrale (cards.js) — IMPORTANT: assicurati che player.id esista
+const gate = canUseCardNow(current, { ...me, id: playerId }, cardId);
     if (!gate.ok) {
       current.lastCardError = { playerId, cardId, reason: gate.reason, at: Date.now() };
       return current;
