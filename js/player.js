@@ -604,7 +604,7 @@ function renderCardsDock(gameState) {
     let canUse = false;
     let reason = "";
 
-    const gate = canUseCardNow(gameState, me, cardId);
+    const gate = canUseCardNow(gameState, { ...me, id: myId }, cardId);
     canUse = !!gate.ok;
 
     if (!gate.ok) {
