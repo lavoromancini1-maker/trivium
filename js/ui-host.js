@@ -384,6 +384,8 @@ function getOverlayTopbarUI(gameState) {
   let right = phase || "";
   if (phase === "EVENT_DUEL_QUESTION" || phase === "EVENT_QUESTION") right = "QUESTION";
   if (phase === "REVEAL") right = "REVEAL";
+  if (phase === "EVENT_DUEL_CHOOSE") right = "SCEGLIE SFIDANTE";
+  if (phase === "EVENT_RISK_DECISION") right = "DECISIONE";
 
   return { left, right };
 }
@@ -861,13 +863,24 @@ function renderEventOverlay(gameState) {
     `;
   }
 
+  const tb = getOverlayTopbarUI(gameState);
+
   overlayContent.innerHTML = `
     <div class="question-card">
-      <div class="question-header">
-        <div class="question-category">${title}</div>
-      </div>
-      ${bodyHtml}
+  <div class="overlay-topbar">
+    <div class="overlay-badges">
+      <span class="badge">${tb.left}</span>
+      <span class="badge">${tb.right}</span>
     </div>
+  </div>
+
+  <div class="question-header">
+    <div class="question-category">${title}</div>
+  </div>
+
+  ${bodyHtml}
+</div>
+
   `;
 
   overlay.classList.remove("hidden");
