@@ -286,28 +286,58 @@ function pickRandomCategory() {
   return CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
 }
 
-function makeScrignoPointsOnlyQuestion(game, forPlayerId) {
+function makeScrignoPointsOnlyQuestion(game, forPlayerId, forcedCategory = null) {
+  const players = game.players || {};
+  const player = players[forPlayerId];
+  if (!player) return null;
+
   const used = game.usedCategoryQuestionIds ? Object.keys(game.usedCategoryQuestionIds) : [];
-  const category = pickRandomCategory();
-  const raw = getRandomCategoryQuestion(category, 2, used);
+
+  const category = forcedCategory || pickRandomCategory();
+
+  const levels = player.levels || {};
+  const currentLevel = levels[category] ?? 0;
+
+  // ✅ Regola Scrigno:
+  // - se lvl 0/1/2 -> domanda del livello successivo e AVANZA
+  // - se lvl 3 -> domanda lvl 2 e NON avanza
+  let questionLevel;
+  let advancesLevel;
+
+  if (currentLevel < 3) {
+    questionLevel = currentLevel + 1; // 0->1, 1->2, 2->3
+    advancesLevel = true;
+  } else {
+    questionLevel = 2;
+    advancesLevel = false;
+  }
+
+  const raw = getRandomCategoryQuestion(category, questionLevel, used);
   if (!raw) return null;
 
   const shuffled = shuffleAnswers(raw);
   const now = Date.now();
+
+  const durationSec = getCategoryQuestionDurationSeconds(
+    questionLevel,
+    false, // isKeyQuestion
+    false, // isFinal
+    false  // extraTime
+  );
 
   return {
     ...shuffled,
     forPlayerId,
     tileType: "scrigno",
     category,
-    level: 2,
-    advancesLevel: false,
-    isKeyQuestion: false,
+    level: questionLevel,
+    advancesLevel,          // ✅ può avanzare (ma senza chiave)
+    isKeyQuestion: false,   // ✅ MAI chiave da scrigno
     isFinal: false,
-    scrignoMode: "EXIT_POINTS",
+    scrignoMode: "PICK_CATEGORY_L2_PLUS",
     startedAt: now,
-    durationSec: getCategoryQuestionDurationSeconds(2, false, false, false),
-    expiresAt: now + getCategoryQuestionDurationSeconds(2, false, false, false) * 1000,
+    durationSec,
+    expiresAt: now + durationSec * 1000,
   };
 }
 
@@ -519,17 +549,28 @@ if (tile.type === "event") {
       return { ok: true, kind: "MINIGAME" };
     }
 
-    // SCRIGNO
-    if (tile.type === "scrigno") {
-      // nel tuo gioco scrigno ha fasi dedicate; qui fallback “entra scrigno”
-      current.phase = "SCRIGNO";
-      current.scrigno = {
-        mode: "ENTRY",
-        forPlayerId: pid,
-        startedAt: Date.now(),
-      };
-      return { ok: true, kind: "SCRIGNO" };
-    }
+// SCRIGNO
+if (tile.type === "scrigno") {
+  // ✅ Se NON hai tutte e 6 le chiavi: scegli categoria, poi domanda lvl 2
+  if (!hasAllSixKeys(me)) {
+    current.phase = "SCRIGNO_PICK_CATEGORY";
+    current.scrigno = {
+      mode: "PICK_CATEGORY",
+      forPlayerId: pid,
+      startedAt: Date.now(),
+    };
+    return { ok: true, kind: "SCRIGNO_PICK_CATEGORY" };
+  }
+
+  // ✅ Se hai 6 chiavi: per ora lasciamo il comportamento attuale (lo definiremo dopo)
+  current.phase = "SCRIGNO";
+  current.scrigno = {
+    mode: "ENTRY",
+    forPlayerId: pid,
+    startedAt: Date.now(),
+  };
+  return { ok: true, kind: "SCRIGNO" };
+}
 
     return { ok: false, reason: "UNSUPPORTED_TILE_TYPE" };
   }
@@ -3208,4 +3249,49 @@ const newPoints = basePoints + delta;
       },
     });
   }
+}
+
+export async function chooseScrignoCategory(gameCode, playerId, category) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+
+  await runTransaction(gameRef, (current) => {
+    if (!current) return current;
+    if (current.state !== "IN_PROGRESS") return current;
+
+    if (current.currentPlayerId !== playerId) return current;
+    if (current.phase !== "SCRIGNO_PICK_CATEGORY") return current;
+
+    const me = current.players?.[playerId];
+    if (!me) return current;
+
+    // sicurezza: solo 6 categorie valide
+    const allowed = ["geografia", "storia", "arte", "sport", "spettacolo", "scienza"];
+    if (!allowed.includes(category)) return current;
+
+    // crea domanda lvl 2 della categoria scelta (NO avanzamento, NO chiave)
+    const q = makeScrignoPointsOnlyQuestion(current, playerId, category);
+    if (!q) return current;
+
+    current.phase = "QUESTION";
+    current.currentQuestion = q;
+
+    // anti-ripetizione
+    if (q.id) {
+      current.usedCategoryQuestionIds = {
+        ...(current.usedCategoryQuestionIds || {}),
+        [q.id]: true,
+      };
+    }
+
+    // pulizia reveal/risposte precedenti
+    current.reveal = null;
+    current.playerAnswerIndex = null;
+
+    // chiudi lo stato scrigno “pick”
+    current.scrigno = null;
+
+    return current;
+  });
+
+  return { ok: true };
 }
