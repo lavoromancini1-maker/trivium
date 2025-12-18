@@ -5,7 +5,6 @@
 export const CARD_CATEGORIES = {
   MOVIMENTO: "MOVIMENTO",
   DOMANDA: "DOMANDA",
-  PROTEZIONE: "PROTEZIONE",
 };
 
 // ID stabili (NON cambiare dopo: verranno salvati nel DB)
@@ -20,23 +19,17 @@ export const CARD_IDS = {
   ALT_QUESTION: "ALT_QUESTION",
   EXTRA_TIME: "EXTRA_TIME",
   SALVEZZA: "SALVEZZA",
-
-  // Protezione
-  SHIELD: "SHIELD",
 };
 
 // ✅ Costi ufficiali da POINTS_CONFIG
 export const CARD_COSTS = {
   [CARD_IDS.TELEPORT_CATEGORY]: 200,
   [CARD_IDS.SKIP_PLUS_ONE]: 40,
-
   [CARD_IDS.FIFTY_FIFTY]: 30,
   [CARD_IDS.CHANGE_CATEGORY]: 150,
   [CARD_IDS.ALT_QUESTION]: 40,
   [CARD_IDS.EXTRA_TIME]: 10,
   [CARD_IDS.SALVEZZA]: 60,
-
-  [CARD_IDS.SHIELD]: 50,
 };
 
 export const CARD_DROP_POOL = [
@@ -45,7 +38,6 @@ export const CARD_DROP_POOL = [
   CARD_IDS.ALT_QUESTION,
   CARD_IDS.SKIP_PLUS_ONE,
   CARD_IDS.SALVEZZA,
-  CARD_IDS.SHIELD,
   CARD_IDS.CHANGE_CATEGORY,
   CARD_IDS.TELEPORT_CATEGORY,
 ];
@@ -118,16 +110,6 @@ export const CARD_DEFS = {
     short:
       "Subito dopo una risposta sbagliata (solo categoria/livello) continui il turno come se fosse corretta.",
   },
-
-  [CARD_IDS.SHIELD]: {
-    id: CARD_IDS.SHIELD,
-    category: CARD_CATEGORIES.PROTEZIONE,
-    cost: CARD_COSTS[CARD_IDS.SHIELD],
-    icon: "🛡️",
-    title: "Scudo",
-    short:
-      "Annulla un attacco (duello/scambio posizione/perdi turno). Si scarta dopo l’uso. In duello: rifiuta il duello e basta.",
-  },
 };
 
 // ----------------------------------------------------
@@ -164,9 +146,9 @@ export function isCardGloballyBlocked(game, cardId) {
 
   // Duelli: nel tuo codice le fasi iniziano con EVENT_DUEL...
   const isDuelPhase = typeof phase === "string" && phase.startsWith("EVENT_DUEL");
-  if (isDuelPhase) {
-    return cardId !== CARD_IDS.SHIELD;
-  }
+if (isDuelPhase) {
+  return true; // in duello nessuna carta è utilizzabile (scudo non esiste più)
+}
 
   // Domande scrigno
   const q = game.currentQuestion;
@@ -239,16 +221,6 @@ export function canUseCardNow(game, player, cardId) {
     if (r.correct !== false) return { ok: false, reason: "ONLY_AFTER_WRONG" };
     // extra safety: deve essere reveal di una domanda categoria/livello (non evento/duello/minigame)
     if (r.source && r.source !== "CATEGORY") return { ok: false, reason: "NOT_CATEGORY_REVEAL" };
-    return { ok: true };
-  }
-
-  // SHIELD: solo in duello e solo se sei l’opponent
-  if (cardId === CARD_IDS.SHIELD) {
-    const isDuelPhase = typeof phase === "string" && phase.startsWith("EVENT_DUEL");
-    if (!isDuelPhase) return { ok: false, reason: "WRONG_PHASE" };
-    const ev = game.currentEvent;
-    if (!ev || ev.type !== "DUELLO") return { ok: false, reason: "NO_DUEL" };
-    if (ev.opponentPlayerId !== myId) return { ok: false, reason: "NOT_OPPONENT" };
     return { ok: true };
   }
 
