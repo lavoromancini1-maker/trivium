@@ -460,7 +460,7 @@ if (r.source === "DUELLO") {
       </div>
       <div class="responders">
   ${Object.entries(r.answeredBy || {}).map(([pid, a]) => `
-    <div class="responder ${a.correct ? "done" : "pending"}">
+    <div class="responder done ${a.correct ? "is-correct" : "is-wrong"}">
       <div class="name">${gameState.players?.[pid]?.name || pid}</div>
       <div class="meta">
         ${a.correct ? "Risposta corretta ✅" : "Risposta errata ❌"}
