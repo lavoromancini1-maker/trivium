@@ -473,25 +473,20 @@ export async function useCard(gameCode, playerId, cardId, payload = {}) {
       return { ok: true, kind: "QUESTION" };
     }
 
-    // EVENTO
-    if (tile.type === "event") {
-      // replica dello startEventTile “base” (sync)
-      // NOTA: nel tuo codice eventi sono gestiti con currentEvent + phase EVENT_*
-      // qui mettiamo la stessa cosa che fai quando atterri su EVENT.
-      current.phase = "EVENT_START";
-      current.currentEvent = {
-        type: null,
-        ownerPlayerId: pid,
-        startedAt: Date.now(),
-      };
-      // il tuo listener/flow eventi già gestisce poi l’estrazione (se la fai altrove),
-      // ma per non “bloccare”, facciamo partire subito un evento casuale
-      // usando la tua funzione esistente (makeRandomEventQuestion) non è possibile qui senza sapere type,
-      // quindi usiamo un evento RISK default.
-      current.currentEvent.type = "RISK";
-      current.phase = "EVENT_RISK_DECISION";
-      return { ok: true, kind: "EVENT" };
-    }
+// EVENTO
+if (tile.type === "event") {
+  // fallback sync: facciamo partire un RISK “completo” (con punti), così non può mai generare NaN
+  current.phase = "EVENT_RISK_DECISION";
+  current.currentEvent = {
+    type: "RISK",
+    ownerPlayerId: pid,
+    pointsCorrect: 30,
+    pointsWrong: -15,
+    decision: null,
+    startedAt: Date.now(),
+  };
+  return { ok: true, kind: "EVENT" };
+}
 
     // MINIGAME
     if (tile.type === "minigame") {
@@ -3092,11 +3087,14 @@ export async function answerEventQuestion(gameCode, playerId, answerIndex) {
     if (ev.ownerPlayerId !== playerId) throw new Error("Non è il tuo evento");
 
     const correct = answerIndex === q.correctIndex;
-    const delta = correct ? ev.pointsCorrect : ev.pointsWrong;
+const rawDelta = correct ? ev.pointsCorrect : ev.pointsWrong;
+const delta = Number.isFinite(rawDelta) ? rawDelta : 0;
 
-    const players = game.players || {};
-    const p = players[playerId];
-    const newPoints = (p?.points || 0) + delta;
+const players = game.players || {};
+const p = players[playerId];
+const basePoints = Number.isFinite(p?.points) ? p.points : 0;
+
+const newPoints = basePoints + delta;
 
     const now = Date.now();
     const updates = {
