@@ -760,3 +760,55 @@ export function getRandomSequenceQuestion(usedIds = []) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+// ─────────────────────────────────────────────
+// AUTO-FILL DOMANDE TEST (SOLO PER DEBUG / TEST)
+// ─────────────────────────────────────────────
+
+const TEST_ANSWERS = [
+  "Risposta A",
+  "Risposta B",
+  "Risposta C",
+  "Risposta D",
+];
+
+function generatePlaceholderQuestion(category, level, index) {
+  return {
+    id: `${category}_${level}_test_${index}`,
+    category,
+    level,
+    text: `[TEST] Domanda ${index} – ${category.toUpperCase()} (livello ${level})`,
+    answers: [...TEST_ANSWERS],
+    correctIndex: index % 4,
+    media: null,
+  };
+}
+
+function ensureTenQuestionsPerCategoryLevel() {
+  const categories = ["geografia", "storia", "arte", "sport", "spettacolo", "scienza"];
+  const levels = [1, 2, 3];
+
+  categories.forEach((category) => {
+    levels.forEach((level) => {
+      const existing = CATEGORY_QUESTIONS.filter(
+        (q) => q.category === category && q.level === level
+      );
+
+      const missing = 10 - existing.length;
+
+      if (missing > 0) {
+        for (let i = 1; i <= missing; i++) {
+          CATEGORY_QUESTIONS.push(
+            generatePlaceholderQuestion(
+              category,
+              level,
+              existing.length + i
+            )
+          );
+        }
+      }
+    });
+  });
+}
+
+// ⚠️ ATTIVO SOLO IN FASE DI TEST
+ensureTenQuestionsPerCategoryLevel();
