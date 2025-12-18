@@ -751,6 +751,25 @@ function handleGameUpdate(
     const isMyTurn = myId && activePlayerId === myId;
 
     renderCardsDock(gameState);
+    // --- DIAGNOSTICA CARTE: mostra lastCardError al player interessato ---
+try {
+  const err = gameState?.lastCardError;
+  if (err && err.playerId === myId && err.at && err.at !== window.__lastCardErrorAt) {
+    window.__lastCardErrorAt = err.at;
+
+    let msg = "❌ Carta non utilizzabile.";
+    if (err.reason === "BLOCKED_BY_RULES") msg = "❌ Non utilizzabile: chiave/scrigno/minigioco/duello.";
+    else if (err.reason === "WRONG_PHASE") msg = "❌ Non è la fase giusta per questa carta.";
+    else if (err.reason === "NOT_ENOUGH_POINTS") msg = "❌ Punti insufficienti.";
+    else if (err.reason === "ONE_CARD_PER_QUESTION") msg = "❌ Hai già usato una carta su questa domanda.";
+    else if (err.reason === "NO_ALTERNATIVE_AVAILABLE") msg = "❌ Nessuna domanda alternativa disponibile.";
+    else if (err.reason === "MISSING_NEW_CATEGORY") msg = "❌ Devi scegliere una categoria valida.";
+    else if (err.reason === "NEED_LEVEL_3") msg = "❌ Teletrasporto: devi essere a livello 3 in quella categoria.";
+    else if (err.reason === "NOT_OPPONENT") msg = "❌ Scudo: solo il bersaglio del duello può usarlo.";
+
+    if (turnStatusText) turnStatusText.textContent = msg;
+  }
+} catch (_) {}
 
     showCardOffer(gameState);
 
