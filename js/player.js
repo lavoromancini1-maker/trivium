@@ -808,7 +808,7 @@ try {
   }
 } catch (_) {}
 
-    showCardOffer(gameState);
+    showCardOffer(gameState);    
 
 // --- RESET UI minigame "Closest" se non siamo in MINIGAME/CLOSEST ---
 const mg = gameState.minigame;
@@ -1226,6 +1226,7 @@ if (Array.isArray(removed) && removed.length) {
       }
     }
 
+    maybePromptSalvezza(gameState);
     return;
   }
 
@@ -1288,4 +1289,45 @@ function renderPlayerProgress(gameState, myId, container) {
       ${rowsHtml}
     </div>
   `;
+}
+
+let lastSalvezzaRevealAt = 0;
+
+function maybePromptSalvezza(gameState) {
+  const myId = currentPlayerId;
+  const me = gameState?.players?.[myId];
+  const has = Array.isArray(me?.cards) && me.cards.includes(CARD_IDS.SALVEZZA);
+  if (!has) return;
+
+  if (gameState?.phase !== "REVEAL") return;
+  const r = gameState?.reveal;
+  if (!r || r.forPlayerId !== myId) return;
+  if (r.correct !== false) return;
+
+  // evita popup ripetuti
+  const at = r.at || Date.now();
+  if (at <= lastSalvezzaRevealAt) return;
+  lastSalvezzaRevealAt = at;
+
+  const wrap = document.getElementById("salvezza-prompt");
+  const yes = document.getElementById("salvezza-yes");
+  const no = document.getElementById("salvezza-no");
+  const back = document.getElementById("salvezza-backdrop");
+  if (!wrap || !yes || !no || !back) return;
+
+  const close = () => wrap.classList.add("hidden");
+  no.onclick = close;
+  back.onclick = close;
+
+  yes.onclick = async () => {
+    try {
+      yes.disabled = true;
+      await useCard(currentGameCode, myId, CARD_IDS.SALVEZZA, {});
+      close();
+    } finally {
+      yes.disabled = false;
+    }
+  };
+
+  wrap.classList.remove("hidden");
 }
