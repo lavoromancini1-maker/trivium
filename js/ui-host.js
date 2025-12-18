@@ -9,6 +9,7 @@ function formatQuestionCategoryLabel(q) {
   if (q.scrignoMode === "FINAL") return "SCRIGNO – DOMANDA FINALE";
   if (q.scrignoMode === "CHALLENGE") return `SCRIGNO – MINI SFIDA (${q.challengeIndex || 1}/3)`;
   if (q.scrignoMode === "EXIT_POINTS") return "SCRIGNO – SOLO PUNTI (POI USCITA)";
+  if (q.scrignoMode === "PICK_CATEGORY_L2_PLUS") return "SCRIGNO – DOMANDA (CATEGORIA SCELTA)";
 
   const cat = (q.category || "").toUpperCase();
   return `${cat} ${q.isKeyQuestion ? "– DOMANDA CHIAVE" : ""}`.trim();
@@ -403,59 +404,58 @@ if (gameState && gameState.phase === "MINIGAME" && gameState.minigame?.type === 
 if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.reveal.question) {
   const r = gameState.reveal;
   const q = r.question;
-   if (r.source === "DUELLO") {
-  const q = r.question;
+if (r.source === "DUELLO") {
   const answeredBy = r.answeredBy || {};
   const players = gameState.players || {};
 
   const entries = Object.entries(answeredBy); // [ [pid, {answerIndex, correct}] ... ]
   const anyCorrect = entries.some(([, a]) => a && a.correct === true);
 
-  // classi overlay: verde se almeno uno corretto, rosso se tutti sbagliati
   overlay.classList.remove("correct-answer", "wrong-answer");
   overlay.classList.add(anyCorrect ? "correct-answer" : "wrong-answer");
 
-  // intestazione
-  questionCategoryEl.textContent = `⚔️ DUELLO — ${q?.category || ""}`;
-  questionTextEl.textContent = q?.text || "";
-
-  // risposte: evidenzia sempre la corretta
   const correctIndex = q?.correctIndex;
-  answersListEl.innerHTML = (q?.answers || []).map((ans, idx) => {
+
+  const answersHtml = (q?.answers || []).map((ans, idx) => {
     const isCorrect = idx === correctIndex;
     return `
-      <div class="answer-item ${isCorrect ? "correct" : ""}">
-        <span class="letter">${String.fromCharCode(65 + idx)}.</span>
-        <span class="text">${ans}</span>
-      </div>
+      <li class="answer-item ${isCorrect ? "answer-item--correct" : ""}">
+        <span class="answer-label">${String.fromCharCode(65 + idx)}.</span>
+        <span class="answer-text">${ans}</span>
+      </li>
     `;
   }).join("");
 
-  // esito per player (righe sotto le risposte)
-  const lines = entries.map(([pid, a]) => {
+  const linesHtml = entries.map(([pid, a]) => {
     const name = players?.[pid]?.name || pid;
     const letter = Number.isFinite(a?.answerIndex) ? String.fromCharCode(65 + a.answerIndex) : "—";
     const ok = a?.correct === true;
-    return `• ${name}: ${letter} ${ok ? "✅" : "❌"}`;
-  }).join("\n");
+    return `<div class="duel-line">• ${name}: ${letter} ${ok ? "✅" : "❌"}</div>`;
+  }).join("");
 
-  // se hai un elemento “revealTextEl” o simile, usalo.
-  // se non ce l’hai, aggiungiamo un blocchetto sotto answersList.
-  let duelMeta = document.getElementById("duel-reveal-meta");
-  if (!duelMeta) {
-    duelMeta = document.createElement("pre");
-    duelMeta.id = "duel-reveal-meta";
-    duelMeta.style.marginTop = "10px";
-    duelMeta.style.whiteSpace = "pre-wrap";
-    duelMeta.style.opacity = "0.95";
-    duelMeta.style.fontWeight = "700";
-    duelMeta.style.fontSize = "14px";
-    answersListEl.parentElement.appendChild(duelMeta);
-  }
-  duelMeta.textContent = lines;
+  overlayContent.innerHTML = `
+    <div class="question-card">
+      <div class="question-header">
+        <div class="question-category">⚔️ DUELLO — ${(q?.category || "").toUpperCase()}</div>
+        <div class="question-player">
+          Esito complessivo: <strong>${anyCorrect ? "ALMENO UNO CORRETTO ✅" : "TUTTI SBAGLIATO ❌"}</strong>
+        </div>
+      </div>
+
+      <div class="question-text">${q?.text || ""}</div>
+
+      <ul class="answers-list">
+        ${answersHtml}
+      </ul>
+
+      <div style="margin-top:10px; font-weight:700; opacity:.95">
+        ${linesHtml || ""}
+      </div>
+    </div>
+  `;
 
   overlay.classList.remove("hidden");
-  return; // IMPORTANTISSIMO: evita di cadere nel ramo “REVEAL normale”
+  return; // IMPORTANTISSIMO: evita di cadere nel ramo REVEAL normale
 }
   const answersHtml = q.answers
     .map((ans, idx) => {
