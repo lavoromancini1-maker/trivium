@@ -245,6 +245,25 @@ function shuffleArray(arr) {
   return a;
 }
 
+function shuffleAnswers(q) {
+  if (!q || !Array.isArray(q.answers) || q.answers.length !== 4) return q;
+
+  const indices = [0, 1, 2, 3];
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+
+  const answers = indices.map((i) => q.answers[i]);
+  const correctIndex = indices.indexOf(q.correctIndex);
+
+  return {
+    ...q,
+    answers,
+    correctIndex,
+  };
+}
+
 const CATEGORIES = [
   "geografia",
   "storia",
