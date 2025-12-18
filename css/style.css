@@ -1407,3 +1407,6 @@ body.has-cards-dock {
 .responder.pending {
   opacity: 0.75;
 }
+
+.responder.is-correct { outline: 2px solid rgba(46, 204, 113, 0.35); }
+.responder.is-wrong   { outline: 2px solid rgba(231, 76, 60, 0.35); }
