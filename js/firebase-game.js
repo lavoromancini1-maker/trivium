@@ -1208,6 +1208,12 @@ const baseUpdate = {
   currentDice: null,
   currentMove: null,
   availableDirections: null,
+  currentTile: {
+    tileId: finalTileId,
+    type: finalTile.type,
+    category: finalTile.category || null,
+    zone: finalTile.zone,
+  },
   turnContext: {
     ...(game.turnContext || {}),
     lastMove: {
@@ -1268,84 +1274,86 @@ if (finalTile.type === "minigame") {
     return { finalTileId, finalTile };
   }
 
-  if (finalTile.type === "scrigno") {
-    const players = game.players || {};
-    const p = players[playerId];
-    if (!p) return;
+if (finalTile.type === "scrigno") {
+  const players = game.players || {};
+  const p = players[playerId];
+  if (!p) return;
 
-    // Aggiorna currentTile base
-    const baseUpdate = {
-      currentDice: null,
-      currentMove: null,
-      currentTile: {
-        tileId: finalTileId,
-        type: finalTile.type,
-        category: null,
-        zone: finalTile.zone,
-      },
-      reveal: null,
-    };
+  // ✅ usa SEMPRE baseUpdate già creato sopra (quello con position + turnContext.lastMove)
+  const scrignoBase = {
+    ...baseUpdate,
+    currentTile: {
+      tileId: finalTileId,
+      type: "scrigno",
+      category: null,
+      zone: finalTile.zone,
+    },
+    reveal: null,
+    currentQuestion: null,
+    playerAnswerIndex: null,
+    playerAnswerCorrect: null,
+  };
 
-    // Se NON ha 6 chiavi: domanda solo punti, poi choose_direction per uscire
-    if (!hasAllSixKeys(p)) {
-      const q = makeScrignoPointsOnlyQuestion(game, playerId);
-      if (!q) {
-        await update(gameRef, { ...baseUpdate, phase: "WAIT_ROLL" });
-        return;
-      }
-
-      await update(gameRef, {
-        ...baseUpdate,
-        phase: "QUESTION",
-        currentQuestion: q,
-        [`usedCategoryQuestionIds/${q.id}`]: true,
-      });
+  // Se NON ha 6 chiavi: domanda solo punti, poi uscita
+  if (!hasAllSixKeys(p)) {
+    const q = makeScrignoPointsOnlyQuestion(game, playerId);
+    if (!q) {
+      await update(gameRef, { ...scrignoBase, phase: "WAIT_ROLL" });
       return;
     }
 
-    // Ha 6 chiavi: gestiamo tentativi/fail e mini-sfida
-    const scrigno = game.scrigno || { attempts: {} };
-    const attempts = scrigno.attempts || {};
-    const a = attempts[playerId] || { failedFinalCount: 0 };
+    await update(gameRef, {
+      ...scrignoBase,
+      phase: "QUESTION",
+      currentQuestion: q,
+      [`usedCategoryQuestionIds/${q.id}`]: true,
+    });
+    return;
+  }
 
-    // Se ha già fallito almeno una finale → mini-sfida 3 domande L2 no-error
-    if (a.failedFinalCount >= 1) {
-      const q = makeScrignoChallengeQuestion(game, playerId, 1);
-      if (!q) {
-        await update(gameRef, { ...baseUpdate, phase: "WAIT_ROLL", scrigno: { attempts } });
-        return;
-      }
+  // Ha 6 chiavi: tentativi/fail e mini-sfida
+  const scrigno = game.scrigno || { attempts: {} };
+  const attempts = scrigno.attempts || {};
+  const a = attempts[playerId] || { failedFinalCount: 0 };
 
-      attempts[playerId] = a;
-
-      await update(gameRef, {
-        ...baseUpdate,
-        phase: "QUESTION",
-        currentQuestion: q,
-        scrigno: { attempts },
-        [`usedCategoryQuestionIds/${q.id}`]: true,
-      });
-      return;
-    }
-
-    // Primo accesso (mai fallita finale) → domanda finale direttamente
-    const qFinal = makeScrignoFinalQuestion(game, playerId, scrigno?.finalCategory || null);
-    if (!qFinal) {
-      await update(gameRef, { ...baseUpdate, phase: "WAIT_ROLL" });
+  // Se ha già fallito almeno una finale → mini-sfida 3 domande L2 no-error
+  if (a.failedFinalCount >= 1) {
+    const q = makeScrignoChallengeQuestion(game, playerId, 1);
+    if (!q) {
+      await update(gameRef, { ...scrignoBase, phase: "WAIT_ROLL", scrigno: { attempts } });
       return;
     }
 
     attempts[playerId] = a;
 
     await update(gameRef, {
-      ...baseUpdate,
+      ...scrignoBase,
       phase: "QUESTION",
-      currentQuestion: qFinal,
-      scrigno: { ...scrigno, attempts },
-      [`usedCategoryQuestionIds/${qFinal.id}`]: true,
+      currentQuestion: q,
+      scrigno: { attempts },
+      [`usedCategoryQuestionIds/${q.id}`]: true,
     });
     return;
   }
+
+  // Primo accesso → domanda finale
+  const qFinal = makeScrignoFinalQuestion(game, playerId, scrigno?.finalCategory || null);
+  if (!qFinal) {
+    await update(gameRef, { ...scrignoBase, phase: "WAIT_ROLL" });
+    return;
+  }
+
+  attempts[playerId] = a;
+
+  await update(gameRef, {
+    ...scrignoBase,
+    phase: "QUESTION",
+    currentQuestion: qFinal,
+    scrigno: { ...scrigno, attempts },
+    [`usedCategoryQuestionIds/${qFinal.id}`]: true,
+  });
+  return;
+}
 
 
   // Fallback di sicurezza
