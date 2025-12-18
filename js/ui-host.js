@@ -369,6 +369,25 @@ if (scrigno) {
   container.appendChild(wrap);
 }
 
+function getOverlayTopbarUI(gameState) {
+  const phase = gameState?.phase || "";
+  const evType = gameState?.currentEvent?.type || "";
+  const revealSource = gameState?.reveal?.source || "";
+
+  // badge sinistra: “tipo”
+  let left = "❓ DOMANDA";
+  if (phase.startsWith("EVENT") || evType) left = "🎲 EVENTO";
+  if (evType === "DUELLO" || revealSource === "DUELLO") left = "⚔️ DUELLO";
+  if (phase === "MINIGAME" || phase.startsWith("RAPID_FIRE")) left = "🎮 MINIGIOCO";
+
+  // badge destra: “fase”
+  let right = phase || "";
+  if (phase === "EVENT_DUEL_QUESTION" || phase === "EVENT_QUESTION") right = "QUESTION";
+  if (phase === "REVEAL") right = "REVEAL";
+
+  return { left, right };
+}
+
 /**
  * Mostra la domanda corrente in overlay sull'host.
  */
@@ -433,11 +452,13 @@ if (r.source === "DUELLO") {
     return `<div class="duel-line">• ${name}: ${letter} ${ok ? "✅" : "❌"}</div>`;
   }).join("");
 
+  const tb = getOverlayTopbarUI(gameState);
+
   overlayContent.innerHTML = `
     <div class="overlay-topbar">
   <div class="overlay-badges">
-    <span class="badge">🎲 EVENTO</span>
-    <span class="badge">REVEAL</span>
+    <span class="badge">${tb.left}</span>
+    <span class="badge">${tb.right}</span>
   </div>
 </div>
 
