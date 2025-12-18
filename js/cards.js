@@ -47,7 +47,7 @@ export const CARD_DROP_POOL = [
   CARD_IDS.SALVEZZA,
   CARD_IDS.SHIELD,
   CARD_IDS.CHANGE_CATEGORY,
-  // TELEPORT_CATEGORY è forte e rara: per ora la lasciamo fuori dalla pool drop
+  CARD_IDS.TELEPORT_CATEGORY,
 ];
 
 // Definizione “UI-friendly” (icona/label/testo breve)
@@ -221,12 +221,13 @@ export function canUseCardNow(game, player, cardId) {
   }
 
   // Carte “durante domanda”
-  const inQuestion = [
-    CARD_IDS.FIFTY_FIFTY,
-    CARD_IDS.CHANGE_CATEGORY,
-    CARD_IDS.ALT_QUESTION,
-    CARD_IDS.EXTRA_TIME,
-  ];
+const inQuestion = [
+  CARD_IDS.FIFTY_FIFTY,
+  CARD_IDS.CHANGE_CATEGORY,
+  CARD_IDS.ALT_QUESTION,
+  CARD_IDS.EXTRA_TIME,
+  CARD_IDS.SKIP_PLUS_ONE,
+];
   if (inQuestion.includes(cardId)) {
     if (phase !== "QUESTION") return { ok: false, reason: "WRONG_PHASE" };
     if (!isNormalCategoryQuestion(game))
@@ -234,15 +235,39 @@ export function canUseCardNow(game, player, cardId) {
     return { ok: true };
   }
 
-  // Salvezza: finestra dedicata dopo errore
-  if (cardId === CARD_IDS.SALVEZZA) {
-    return { ok: false, reason: "NEEDS_SALVEZZA_WINDOW" };
-  }
+// Salvezza: subito dopo risposta errata (fase REVEAL)
+if (cardId === CARD_IDS.SALVEZZA) {
+  if (phase !== "REVEAL") return { ok: false, reason: "WRONG_PHASE" };
+  const r = game.reveal;
+  if (!r || r.forPlayerId !== player.id) return { ok: false, reason: "NOT_YOUR_REVEAL" };
+  if (r.correct !== false) return { ok: false, reason: "NOT_NEEDED" };
 
-  // Scudo: finestra dedicata “attacco”
-  if (cardId === CARD_IDS.SHIELD) {
-    return { ok: false, reason: "NEEDS_ATTACK_WINDOW" };
-  }
+  // vietata se non è una domanda categoria normale
+  const q = r.question;
+  const isNormal =
+    q &&
+    typeof q.level === "number" &&
+    !q.isKeyQuestion &&
+    !(q.tileType === "scrigno" || q.scrignoMode) &&
+    !q.isFinal;
+
+  if (!isNormal) return { ok: false, reason: "NOT_ALLOWED_ON_THIS_QUESTION" };
+
+  return { ok: true };
+}
+
+// Scudo: solo nel duello, solo per rifiutare (opponent)
+if (cardId === CARD_IDS.SHIELD) {
+  const isDuelPhase = typeof phase === "string" && phase.startsWith("EVENT_DUEL");
+  if (!isDuelPhase) return { ok: false, reason: "WRONG_PHASE" };
+
+  const ev = game.currentEvent;
+  if (!ev || ev.type !== "DUELLO") return { ok: false, reason: "NO_DUEL" };
+
+  if (ev.opponentPlayerId !== player.id) return { ok: false, reason: "NOT_OPPONENT" };
+
+  return { ok: true };
+}
 
   return { ok: false, reason: "NOT_IMPLEMENTED" };
 }
