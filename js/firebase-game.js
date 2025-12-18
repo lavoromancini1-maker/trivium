@@ -8,6 +8,7 @@ import {
   getRandomVFFlashQuestion,
   getRandomIntruderQuestion,
   getRandomSequenceQuestion,
+  getQuestionsByCategoryAndLevel,
 } from "./questions.js";
 
 import { CARD_IDS, CARD_COSTS, CARD_DROP_POOL, canUseCardNow, normalizeCards } from "./cards.js";
@@ -565,60 +566,67 @@ export async function useCard(gameCode, playerId, cardId, payload = {}) {
         };
       }
 
-      // CHANGE_CATEGORY
-      if (cardId === CARD_IDS.CHANGE_CATEGORY) {
-        const newCategory = payload?.newCategory;
-        if (!newCategory || !CATEGORIES.includes(newCategory)) return current;
+// ─────────────────────────
+// CHANGE_CATEGORY (stesso livello, categoria scelta, timer reset)
+// payload: { newCategory: "storia" | ... }
+// ─────────────────────────
+if (cardId === CARD_IDS.CHANGE_CATEGORY) {
+  const isNormal =
+    typeof curQ.level === "number" &&
+    !curQ.isKeyQuestion &&
+    !(curQ.tileType === "scrigno" || curQ.scrignoMode);
 
-        const level = curQ.level;
+  if (!isNormal) return current;
 
-        const pool = getQuestionsByCategoryAndLevel(newCategory, level) || [];
-        if (!pool.length) return current;
+  const newCategory = payload?.newCategory;
+  if (!newCategory) return current;
 
-        const candidates = pool.filter((q) => q && q.id && q.id !== curQ.id);
-        const raw = (candidates.length ? candidates : pool)[
-          Math.floor(Math.random() * (candidates.length ? candidates.length : pool.length))
-        ];
-        if (!raw || !raw.id) return current;
+  // scegli domanda nuova per quella categoria+livello
+  const pool = getQuestionsByCategoryAndLevel(newCategory, curQ.level) || [];
+  if (!pool.length) return current;
 
-        const answers = Array.isArray(raw.answers) ? raw.answers.slice() : [];
-        if (answers.length !== 4) return current;
+  // evita la stessa domanda attuale se per caso coincidessero
+  const candidates = pool.filter((q) => q && q.id && q.id !== curQ.id);
+  const raw = (candidates.length ? candidates : pool)[
+    Math.floor(Math.random() * (candidates.length ? candidates.length : pool.length))
+  ];
+  if (!raw || !raw.id) return current;
 
-        const indices = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
-        const shuffled = indices.map((i) => answers[i]);
-        const newCorrectIndex = indices.indexOf(raw.correctIndex);
+  // shuffle risposte
+  const indices = [0, 1, 2, 3];
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  const shuffledAnswers = indices.map((i) => raw.answers[i]);
+  const newCorrectIndex = indices.indexOf(raw.correctIndex);
 
-        const levels = me.levels || {};
-        const currentLevelInNewCat = levels[newCategory] ?? 0;
-        const advancesLevel = currentLevelInNewCat < level && currentLevelInNewCat < 3;
+  const startedAt = Date.now();
+  const durationSec = getCategoryQuestionDurationSeconds(curQ.level, false, !!curQ.advancesLevel, false);
+  const expiresAt = startedAt + durationSec * 1000;
 
-        const startedAt = Date.now();
-        const seconds = getCategoryQuestionDurationSeconds(level, false, advancesLevel, false);
-        const expiresAt = startedAt + seconds * 1000;
+  newQuestion = {
+    ...curQ,
+    id: raw.id,
+    category: newCategory,
+    text: raw.text,
+    answers: shuffledAnswers,
+    correctIndex: newCorrectIndex,
+    startedAt,
+    expiresAt,
+    aids: {}, // reset aiuti: nuova domanda
+    cardUsedBy: {
+      ...(curQ.cardUsedBy || {}),
+      [playerId]: { cardId, at: Date.now() },
+    },
+  };
 
-        newQuestion = {
-          ...curQ,
-          id: raw.id,
-          category: newCategory,
-          level,
-          advancesLevel,
-          prompt: raw.prompt,
-          answers: shuffled,
-          correctIndex: newCorrectIndex,
-          startedAt,
-          expiresAt,
-          aids: {},
-          cardUsedBy: {
-            ...(curQ.cardUsedBy || {}),
-            [playerId]: { cardId, at: Date.now() },
-          },
-        };
-
-        current.usedCategoryQuestionIds = {
-          ...(current.usedCategoryQuestionIds || {}),
-          [raw.id]: true,
-        };
-      }
+  // segna usata (evita ripetizioni future)
+  current.usedCategoryQuestionIds = {
+    ...(current.usedCategoryQuestionIds || {}),
+    [raw.id]: true,
+  };
+}
 
       current.currentQuestion = newQuestion;
       consume();
