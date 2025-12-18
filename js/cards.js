@@ -205,7 +205,7 @@ export function canUseCardNow(game, player, cardId) {
   }
 
   const phase = game.phase;
-  const myId = player.id;
+  const myId = player?.id || player?.playerId || player?.uid || null;
 
   // helper
   const q = game.currentQuestion || null;
