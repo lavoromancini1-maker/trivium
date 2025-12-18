@@ -1139,7 +1139,7 @@ if (mg && mg.type === "SEQUENCE") {
             (b) => (b.disabled = false)
           );
           // --- 50/50 UI: oscura 2 risposte PER ME durante la domanda ---
-const removed = gameState?.currentQuestion?.aids?.fifty?.[myId]?.removed;
+const removed = gameState?.currentQuestion?.fiftyFiftyRemoved;
 const answerBtns = Array.from(answerButtons.querySelectorAll("button[data-answer-index]"));
 
 // reset base
