@@ -102,11 +102,19 @@ export async function createGame() {
     // Se per caso il codice esiste già, rigeneriamo (molto raro)
     return createGame();
   }
-
   const gameData = {
     createdAt: Date.now(),
     state: "LOBBY",
     players: {},
+
+    // ✅ STEP 8: presenza host (heartbeat)
+    host: {
+      active: true,
+      lastSeenAt: Date.now(),
+    },
+
+    // (opzionale) marker fine partita
+    endedAt: null,
   };
 
   await set(gameRef, gameData);
@@ -119,6 +127,48 @@ export async function gameExists(gameCode) {
   const snap = await get(gameRef);
   return snap.exists();
 }
+
+// ✅ STEP 8: host heartbeat (host aggiorna lastSeenAt ogni tot secondi)
+export async function touchHostPresence(gameCode) {
+  const hostRef = ref(db, `${GAMES_PATH}/${gameCode}/host`);
+  await update(hostRef, {
+    active: true,
+    lastSeenAt: Date.now(),
+  });
+}
+
+// ✅ STEP 8: partita attiva SOLO se host “vivo” di recente + state valido
+export async function isGameActive(gameCode) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+  if (!snap.exists()) return false;
+
+  const game = snap.val();
+  const state = game?.state || "LOBBY";
+
+  // se conclusa esplicitamente
+  if (state === "ENDED") return false;
+  if (game?.endedAt) return false;
+
+  // state ammessi
+  if (state !== "LOBBY" && state !== "IN_PROGRESS") return false;
+
+  const now = Date.now();
+
+  // controllo heartbeat host
+  const lastSeen = game?.host?.lastSeenAt || null;
+
+  // se manca lastSeen (vecchie partite), NON tenerle vive per ore:
+  // considerale attive solo per una finestra breve dalla creazione
+  if (!lastSeen) {
+    const createdAt = game?.createdAt || 0;
+    return (now - createdAt) < 10 * 60 * 1000; // 10 min
+  }
+
+  // host “vivo” se visto negli ultimi 90 secondi
+  return (now - lastSeen) < 90 * 1000;
+}
+
 
 export async function joinGame(gameCode, playerName) {
   const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
