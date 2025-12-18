@@ -13,12 +13,27 @@ import {
   checkAndHandleRapidFireTimeout,
   checkAndHandleRevealAdvance,
   checkAndHandleMinigameTimeout,
+  touchHostPresence,
 } from "./firebase-game.js";
 
 let currentGameCode = null;
 let unsubscribeGame = null;
 let timeoutIntervalId = null;
 let currentGameState = null;
+
+let hostHeartbeatId = null;
+
+function startHostHeartbeat(gameCode) {
+  if (hostHeartbeatId) clearInterval(hostHeartbeatId);
+
+  // ping immediato
+  touchHostPresence(gameCode);
+
+  // ping periodico
+  hostHeartbeatId = setInterval(() => {
+    touchHostPresence(gameCode);
+  }, 15000); // ogni 15s
+}
 
 // evita doppio render del board
 let boardRendered = false;
@@ -64,6 +79,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const { gameCode } = await createGame();
       currentGameCode = gameCode;
+
+      startHostHeartbeat(gameCode);
 
       // UI Hall
       gameCodeDisplay.textContent = gameCode;
@@ -261,4 +278,5 @@ function renderQrInto(targetEl, gameCode) {
 window.addEventListener("beforeunload", () => {
   if (timeoutIntervalId) clearInterval(timeoutIntervalId);
   if (unsubscribeGame) unsubscribeGame();
+  if (hostHeartbeatId) clearInterval(hostHeartbeatId);
 });
