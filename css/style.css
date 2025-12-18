@@ -1371,3 +1371,39 @@ body.has-cards-dock {
 }
 .badge--success{ border-color: rgba(46,204,113,.35); }
 .badge--danger{ border-color: rgba(231,76,60,.35); }
+
+/* ===============================
+   DUELLO – RESPONDERS
+   =============================== */
+.responders {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.responder {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+}
+
+.responder .name {
+  font-weight: 900;
+}
+
+.responder .meta {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+.responder.done {
+  outline: 2px solid rgba(46, 204, 113, 0.35);
+}
+
+.responder.pending {
+  opacity: 0.75;
+}
