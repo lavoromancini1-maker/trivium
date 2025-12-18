@@ -792,6 +792,7 @@ function handleGameUpdate(
     const phase = gameState.phase;
 
     const myId = currentPlayerId;
+    renderToastPlayer(gameState, myId);
     const isMyTurn = myId && activePlayerId === myId;
 
     renderCardsDock(gameState);
@@ -1383,4 +1384,38 @@ function maybePromptSalvezza(gameState) {
   };
 
   wrap.classList.remove("hidden");
+}
+
+function ensurePlayerToastEl() {
+  let el = document.getElementById("trivium-toast");
+  if (el) return el;
+
+  el = document.createElement("div");
+  el.id = "trivium-toast";
+  el.className = "trivium-toast hidden neutral";
+  el.innerHTML = `
+    <div class="title"></div>
+    <div class="subtitle"></div>
+  `;
+  document.body.appendChild(el);
+  return el;
+}
+
+function renderToastPlayer(gameState, myId) {
+  const toast = gameState?.toast || null;
+  const el = ensurePlayerToastEl();
+
+  const myToast = toast?.players?.[myId] || null;
+
+  if (!toast || !myToast || !toast.hideAt || Date.now() > toast.hideAt) {
+    el.classList.add("hidden");
+    return;
+  }
+
+  const kind = myToast.kind || "neutral";
+  el.classList.remove("hidden", "success", "danger", "neutral");
+  el.classList.add(kind);
+
+  el.querySelector(".title").textContent = myToast.title || "";
+  el.querySelector(".subtitle").textContent = myToast.subtitle || "";
 }
