@@ -755,36 +755,6 @@ const gate = canUseCardNow(current, { ...me, id: playerId }, cardId);
     }
 
     // ─────────────────────────────────────────────
-    // 6) SHIELD (rifiuta duello - opponent)
-    // ─────────────────────────────────────────────
-    if (cardId === CARD_IDS.SHIELD) {
-      const ev = current.currentEvent;
-      const inDuel = typeof current.phase === "string" && current.phase.startsWith("EVENT_DUEL");
-      if (!ev || ev.type !== "DUELLO" || !inDuel) {
-        current.lastCardError = { playerId, cardId, reason: "NO_DUEL", at: Date.now() };
-        return current;
-      }
-      if (ev.opponentPlayerId !== playerId) {
-        current.lastCardError = { playerId, cardId, reason: "NOT_OPPONENT", at: Date.now() };
-        return current;
-      }
-
-      // annulla duello e passa al prossimo turno
-      const { nextIndex, nextPlayerId } = getNextTurn(current);
-      current.currentTurnIndex = nextIndex;
-      current.currentPlayerId = nextPlayerId;
-
-      current.phase = "WAIT_ROLL";
-      current.currentEvent = null;
-      current.currentQuestion = null;
-      current.reveal = null;
-      current.playerAnswerIndex = null;
-
-      consume();
-      return current;
-    }
-
-    // ─────────────────────────────────────────────
     // 7) TELEPORT_CATEGORY (WAIT_ROLL nel tuo turno + check lvl3)
     // ─────────────────────────────────────────────
     if (cardId === CARD_IDS.TELEPORT_CATEGORY) {
