@@ -1292,3 +1292,22 @@ body.has-cards-dock {
 .card-offer-actions { margin-top: 12px; display:flex; gap:10px; }
 .card-offer-btn { flex:1; border:none; border-radius: 12px; padding: 12px 10px; font-weight: 900; }
 .card-offer-btn.primary { }
+
+.cat-grid{
+  margin-top: 10px;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:10px;
+}
+.cat-btn{
+  border:none;
+  border-radius:14px;
+  padding:14px 10px;
+  font-weight:900;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #fff;
+}
+.cat-btn:disabled{
+  opacity:0.45;
+}
