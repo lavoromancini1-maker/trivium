@@ -527,11 +527,28 @@ async function tryUseSelectedCard() {
 
   try {
     if (cardUseBtn) cardUseBtn.disabled = true;
-await useCard(currentGameCode, currentPlayerId, selectedCardId, {});
 
+    // Carte che richiedono scelta categoria
+    if (selectedCardId === CARD_IDS.CHANGE_CATEGORY) {
+      const cat = prompt("Scegli categoria: geografia, storia, arte, sport, spettacolo, scienza");
+      if (!cat) throw new Error("Categoria non selezionata.");
+      await useCard(currentGameCode, currentPlayerId, selectedCardId, { newCategory: cat.trim().toLowerCase() });
+      closeCardSheet();
+      return;
+    }
+
+    if (selectedCardId === CARD_IDS.TELEPORT_CATEGORY) {
+      const cat = prompt("Scegli categoria per teletrasporto (serve livello 3): geografia, storia, arte, sport, spettacolo, scienza");
+      if (!cat) throw new Error("Categoria non selezionata.");
+      await useCard(currentGameCode, currentPlayerId, selectedCardId, { category: cat.trim().toLowerCase() });
+      closeCardSheet();
+      return;
+    }
+
+    // Tutte le altre
+    await useCard(currentGameCode, currentPlayerId, selectedCardId, {});
     closeCardSheet();
   } catch (e) {
-    // usa il testo status già esistente
     const msg = (e && e.message) ? e.message : "Errore nell’uso della carta.";
     const el = document.getElementById("turn-status-text");
     if (el) el.textContent = msg;
