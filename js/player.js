@@ -18,6 +18,7 @@ import {
   useCard,
   resolveCardOffer,
   grantRandomCard,
+  chooseScrignoCategory,
 } from "./firebase-game.js";
 
 import { CARD_IDS, getCardDef, canUseCardNow } from "./cards.js";
@@ -447,6 +448,14 @@ directionButtons.addEventListener("click", async (e) => {
     if (riskChoice) {
       turnStatusText.textContent = "Scelta in corso...";
       await chooseRiskDecision(currentGameCode, currentPlayerId, riskChoice);
+      return;
+    }
+
+        // 2.5) SCRIGNO: scelta categoria (prima delle 6 chiavi)
+    const scrignoCat = btn.dataset.scrignoCategory;
+    if (scrignoCat) {
+      turnStatusText.textContent = "Categoria scelta... preparo la domanda!";
+      await chooseScrignoCategory(currentGameCode, currentPlayerId, scrignoCat);
       return;
     }
 
@@ -1212,6 +1221,42 @@ if (Array.isArray(removed) && removed.length) {
       if (activePlayer) {
         if (phase === "WAIT_ROLL") {
           turnStatusText.textContent = `È il turno di ${activePlayer.name}. Sta per tirare il dado.`;
+                } else if (phase === "SCRIGNO_PICK_CATEGORY") {
+        rollDiceBtn.disabled = true;
+        answerPanel.classList.add("hidden");
+
+        directionPanel.classList.remove("hidden");
+        directionButtons.innerHTML = "";
+        directionButtons.classList.add("dir-grid-2");
+        directionButtons.classList.remove("dir-grid-1");
+
+        turnStatusText.textContent = "SCRIGNO: scegli la categoria (domanda livello 2).";
+
+        const cats = ["geografia", "storia", "arte", "sport", "spettacolo", "scienza"];
+        const emojiByCat = {
+          geografia: "🌍",
+          storia: "🏛️",
+          arte: "🎨",
+          sport: "🏅",
+          spettacolo: "🎬",
+          scienza: "🧪",
+        };
+
+        cats.forEach((cat) => {
+          const btn = document.createElement("button");
+          btn.className = "dir-card";
+          btn.dataset.scrignoCategory = cat;
+
+          btn.innerHTML = `
+            <div class="dir-card-title">Categoria</div>
+            <div class="dir-card-main">${emojiByCat[cat] || "❓"} ${cat.toUpperCase()}</div>
+            <div class="dir-card-sub">Domanda livello 2 (solo punti)</div>
+          `;
+
+          directionButtons.appendChild(btn);
+        });
+
+        return;
         } else if (phase === "CHOOSE_DIRECTION") {
           turnStatusText.textContent = `È il turno di ${activePlayer.name}. Sta scegliendo la direzione.`;
         } else if (phase === "QUESTION") {
