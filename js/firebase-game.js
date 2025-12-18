@@ -27,6 +27,22 @@ import {
 
 const GAMES_PATH = "games";
 
+// ===============================
+// POINTS SAFETY: mai sotto 0
+// ===============================
+function toSafeInt(n, fallback = 0) {
+  const x = Number(n);
+  return Number.isFinite(x) ? x : fallback;
+}
+
+function clampPoints(n) {
+  return Math.max(0, toSafeInt(n, 0));
+}
+
+function addPointsSafe(currentPoints, delta) {
+  return clampPoints(toSafeInt(currentPoints, 0) + toSafeInt(delta, 0));
+}
+
 function getCategoryQuestionDurationSeconds(questionLevel, isKeyQuestion, advancesLevel, isFinal) {
   if (isFinal) return 40;
   if (isKeyQuestion) {
@@ -600,7 +616,7 @@ const gate = canUseCardNow(current, { ...me, id: playerId }, cardId);
     }
 
     function consume() {
-      me.points = (me.points ?? 0) - cost;
+      me.points = addPointsSafe(me.points, -cost);
       me.cards = myCards.filter((c) => c !== cardId).slice(0, 3);
       curPlayers[playerId] = me;
       current.players = curPlayers;
@@ -1859,7 +1875,7 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
     // REVEAL sempre (qui NON diamo punti per CHALLENGE e FINAL)
     // EXIT_POINTS (scrigno senza 6 chiavi) invece dà +20 se corretta
     if (q.scrignoMode === "EXIT_POINTS" && correct) {
-      playerUpdate.points = (playerUpdate.points || 0) + 20;
+      playerUpdate.points = addPointsSafe(playerUpdate.points, 20);
     }
 
     const reveal = {
@@ -1977,7 +1993,7 @@ export async function answerCategoryQuestion(gameCode, playerId, answerIndex) {
     }
   }
 
-  playerUpdate.points = (playerUpdate.points ?? 0) + pointsToAdd;
+  playerUpdate.points = addPointsSafe(playerUpdate.points, pointsToAdd);
 
   const now = Date.now();
   const REVEAL_MS = 1400;
@@ -2200,10 +2216,10 @@ async function finalizeSequenceMinigame(gameRef, game) {
 
   if (winners.length === 1) {
     const w = winners[0];
-    updates[`players/${w}/points`] = (players[w].points || 0) + 25;
+    updates[`players/${w}/points`] = addPointsSafe(players[w].points, 25);
   } else if (winners.length > 1) {
     for (const w of winners) {
-      updates[`players/${w}/points`] = (players[w].points || 0) + 10;
+      updates[`players/${w}/points`] = addPointsSafe(players[w].points, 10);
     }
   }
 
@@ -2258,7 +2274,7 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
       mg.winners[playerId] = (mg.winners[playerId] || 0) + 1;
 
       // punti immediati: +10 per affermazione corretta
-      players[playerId].points = (players[playerId].points || 0) + 10;
+      players[playerId].points = addPointsSafe(players[playerId].points, 10);
 
       // passa subito alla prossima affermazione (o chiudi)
       if (idx < 2) {
@@ -2366,7 +2382,7 @@ export async function answerIntruderMinigame(gameCode, playerId, chosenIndex) {
     if (correct) {
       // primo corretto vince e prende +20
       mg.currentWinnerId = playerId;
-      players[playerId].points = (players[playerId].points || 0) + 20;
+      players[playerId].points = addPointsSafe(players[playerId].points, 20);
 
       // salva info per drop post-transaction
       game.lastMinigameWinnerId = playerId;
@@ -2453,7 +2469,7 @@ if (mg.type !== "CLOSEST") {
 
   // Punti: +25 al vincitore (come da config che stai usando)
   if (winnerId && players[winnerId]) {
-    updates[`players/${winnerId}/points`] = (players[winnerId].points || 0) + 25;
+    updates[`players/${winnerId}/points`] = addPointsSafe(players[winnerId].points, 25);
   }
 
   await update(gameRef, updates);
@@ -2587,7 +2603,7 @@ export async function checkAndHandleRapidFireTimeout(gameCode) {
     else if (secondGroup.includes(pid)) delta = 15;
     else if (lastGroup.includes(pid)) delta = -10;
 
-    updates[`players/${pid}/points`] = (player.points ?? 0) + delta;
+    updates[`players/${pid}/points`] = addPointsSafe(player.points, delta);
   }
 
   updates.rapidFire = null;
@@ -3167,7 +3183,7 @@ const players = game.players || {};
 const p = players[playerId];
 const basePoints = Number.isFinite(p?.points) ? p.points : 0;
 
-const newPoints = basePoints + delta;
+const newPoints = addPointsSafe(basePoints, delta);
 
     const now = Date.now();
     const updates = {
