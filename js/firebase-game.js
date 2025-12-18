@@ -1318,6 +1318,19 @@ if (finalTile.type === "scrigno") {
     playerAnswerIndex: null,
     playerAnswerCorrect: null,
   };
+    // ✅ SCRIGNO SENZA 6 CHIAVI: scelta categoria sul player (poi domanda dinamica)
+  if (!hasAllSixKeys(p)) {
+    await update(gameRef, {
+      ...scrignoBase,
+      phase: "SCRIGNO_PICK_CATEGORY",
+      scrigno: {
+        mode: "PICK_CATEGORY",
+        forPlayerId: playerId,
+        startedAt: Date.now(),
+      },
+    });
+    return;
+  }
 
   // Se NON ha 6 chiavi: domanda solo punti, poi uscita
   if (!hasAllSixKeys(p)) {
