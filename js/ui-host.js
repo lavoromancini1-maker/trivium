@@ -394,6 +394,8 @@ function getOverlayTopbarUI(gameState) {
  * Mostra la domanda corrente in overlay sull'host.
  */
 export function renderQuestionOverlay(gameState) {
+    // WINNER full-screen (se attivo, non renderizzare altro overlay)
+  if (renderWinnerSceneHost(gameState)) return;
   renderToastHost(gameState);
   const overlay = document.getElementById("overlay");
   const overlayContent = document.getElementById("overlay-content");
@@ -1174,6 +1176,48 @@ function ensureToastEl() {
   `;
   document.body.appendChild(el);
   return el;
+}
+
+function shouldShowWinnerScene(gameState) {
+  const toast = gameState?.toast;
+  if (!toast?.host?.title || !toast?.hideAt) return false;
+  if (Date.now() > toast.hideAt) return false;
+
+  // Mostriamo “winner screen” solo per toast “di fine” (evento/duello/minigiochi)
+  const t = (toast.host.title || "").toLowerCase();
+  return (
+    t.includes("concluso") ||
+    t.includes("duello") ||
+    t.includes("evento") ||
+    t.includes("minigioco") ||
+    t.includes("risultato")
+  );
+}
+
+function renderWinnerSceneHost(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+  if (!overlay || !overlayContent) return false;
+
+  if (!shouldShowWinnerScene(gameState)) return false;
+
+  const toast = gameState.toast;
+  const kind = toast.host.kind || "neutral";
+  const title = toast.host.title || "";
+  const subtitle = toast.host.subtitle || "";
+
+  overlay.classList.remove("hidden");
+  overlay.classList.remove("winner-success", "winner-danger", "winner-neutral");
+  overlay.classList.add("winner-mode", `winner-${kind}`);
+
+  overlayContent.innerHTML = `
+    <div class="winner-screen">
+      <div class="winner-title">${title}</div>
+      <div class="winner-subtitle">${subtitle}</div>
+      <div class="winner-spark"></div>
+    </div>
+  `;
+  return true;
 }
 
 function renderToastHost(gameState) {
