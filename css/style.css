@@ -263,33 +263,6 @@ body {
   margin-top: 0.5rem;
 }
 
-/* Host overlay feedback (REVEAL) */
-#overlay.correct-answer .question-card {
-  outline: 4px solid rgba(34, 197, 94, 0.9);
-}
-
-#overlay.wrong-answer .question-card {
-  outline: 4px solid rgba(239, 68, 68, 0.9);
-}
-
-.answer-item--correct {
-  background: rgba(34, 197, 94, 0.15);
-  border-radius: 10px;
-  padding: 6px 8px;
-}
-
-.answer-item--chosen-wrong {
-  background: rgba(239, 68, 68, 0.18);
-  border-radius: 10px;
-  padding: 6px 8px;
-}
-
-.answer-item--chosen-correct {
-  background: rgba(34, 197, 94, 0.22);
-  border-radius: 10px;
-  padding: 6px 8px;
-}
-
 /* ===== Players panel: Keys + Levels (TV-friendly) ===== */
 
 .player-sep {
@@ -1412,7 +1385,8 @@ body.has-cards-dock {
 .responder.is-wrong   { outline: 2px solid rgba(231, 76, 60, 0.35); }
 
 /* =========================================
-   TV SHOW OVERLAY (HOST) — BIG, FULLSCREEN
+   TV SHOW OVERLAY + SCENE TRANSITION (HOST)
+   (UNICO BLOCCO – niente duplicati)
    ========================================= */
 
 #overlay {
@@ -1428,12 +1402,12 @@ body.has-cards-dock {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 
-  padding: 40px;
+  padding: 44px;
+  opacity: 1;
+  transition: opacity 180ms ease;
 }
 
-#overlay.hidden {
-  display: none;
-}
+#overlay.hidden { display: none; }
 
 #overlay-content {
   width: min(1200px, 92vw);
@@ -1441,145 +1415,16 @@ body.has-cards-dock {
   overflow: auto;
 }
 
-/* Card enorme stile show */
-.question-card {
-  border-radius: 24px;
-  padding: 26px 28px;
-
-  background: linear-gradient(180deg, rgba(18,18,24,0.92), rgba(10,10,14,0.88));
-  border: 1px solid rgba(255,255,255,0.12);
-  box-shadow: 0 25px 90px rgba(0,0,0,0.55);
-
-  transform: translateY(8px) scale(0.99);
-  animation: tvCardIn 220ms ease-out forwards;
+/* Entrata “scene” */
+#overlay:not(.hidden) #overlay-content {
+  animation: sceneIn 220ms ease-out;
+}
+@keyframes sceneIn {
+  from { transform: translateY(18px) scale(0.98); opacity: 0.35; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
 }
 
-@keyframes tvCardIn {
-  to { transform: translateY(0) scale(1); }
-}
-
-/* Header più “presenter” */
-.question-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
-.question-category {
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  opacity: 0.95;
-}
-
-.question-player {
-  font-size: 18px;
-  font-weight: 800;
-  opacity: 0.9;
-}
-
-/* Domanda gigante */
-.question-text {
-  font-size: 34px;
-  line-height: 1.18;
-  font-weight: 900;
-  margin: 16px 0 18px 0;
-}
-
-/* Risposte grandi, “pulsanti” */
-.answers-list {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.answer-item {
-  border-radius: 18px;
-  padding: 16px 18px;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.12);
-  font-size: 22px;
-  font-weight: 800;
-}
-
-.answer-label {
-  display: inline-block;
-  min-width: 36px;
-  opacity: 0.9;
-}
-
-/* Stato corretto / sbagliato più “show” */
-#overlay.correct-answer .question-card {
-  box-shadow: 0 25px 90px rgba(0,0,0,0.55), 0 0 0 3px rgba(46, 204, 113, 0.30);
-}
-
-#overlay.wrong-answer .question-card {
-  box-shadow: 0 25px 90px rgba(0,0,0,0.55), 0 0 0 3px rgba(231, 76, 60, 0.28);
-}
-
-.answer-item--correct {
-  background: rgba(46,204,113,0.16);
-  border-color: rgba(46,204,113,0.40);
-}
-
-/* footer più leggibile */
-.question-footer {
-  margin-top: 16px;
-  font-size: 18px;
-  font-weight: 800;
-  opacity: 0.9;
-}
-
-/* Topbar in stile “broadcast” */
-.overlay-topbar {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.overlay-badges {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.badge {
-  padding: 10px 14px;
-  border-radius: 999px;
-  font-weight: 900;
-  font-size: 14px;
-  letter-spacing: 0.4px;
-  background: rgba(255,255,255,0.10);
-  border: 1px solid rgba(255,255,255,0.16);
-}
-
-/* responders del duello più “TV” */
-.responders {
-  margin-top: 16px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.responder {
-  padding: 14px 14px;
-  border-radius: 18px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-}
-
-.responder .name { font-weight: 950; font-size: 18px; }
-.responder .meta { margin-top: 6px; font-weight: 800; opacity: .9; }
-
-.responder.is-correct { outline: 3px solid rgba(46, 204, 113, 0.35); }
-.responder.is-wrong   { outline: 3px solid rgba(231, 76, 60, 0.30); }
-
+/* Spotlight + vignetta */
 #overlay::before {
   content: "";
   position: absolute;
@@ -1596,8 +1441,153 @@ body.has-cards-dock {
 }
 #overlay-content { position: relative; z-index: 1; }
 
+/* Card enorme stile show */
+#overlay .question-card {
+  border-radius: 24px;
+  padding: 26px 28px;
+
+  background: linear-gradient(180deg, rgba(18,18,24,0.92), rgba(10,10,14,0.88));
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 25px 90px rgba(0,0,0,0.55);
+
+  transform: translateY(8px) scale(0.99);
+  animation: tvCardIn 220ms ease-out forwards;
+}
+@keyframes tvCardIn { to { transform: translateY(0) scale(1); } }
+
+/* Header */
+#overlay .question-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+#overlay .question-category {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  opacity: 0.95;
+}
+#overlay .question-player {
+  font-size: 18px;
+  font-weight: 800;
+  opacity: 0.9;
+}
+
+/* Domanda gigante */
+#overlay .question-text {
+  font-size: 34px;
+  line-height: 1.18;
+  font-weight: 900;
+  margin: 16px 0 18px 0;
+}
+
+/* Risposte */
+#overlay .answers-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#overlay .answer-item {
+  border-radius: 18px;
+  padding: 16px 18px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  font-size: 22px;
+  font-weight: 800;
+}
+#overlay .answer-label {
+  display: inline-block;
+  min-width: 36px;
+  opacity: 0.9;
+}
+
+/* Evidenzia correttezza */
+#overlay.correct-answer .question-card {
+  box-shadow: 0 25px 90px rgba(0,0,0,0.55), 0 0 0 3px rgba(46, 204, 113, 0.30);
+}
+#overlay.wrong-answer .question-card {
+  box-shadow: 0 25px 90px rgba(0,0,0,0.55), 0 0 0 3px rgba(231, 76, 60, 0.28);
+}
+
+/* classi usate da ui-host.js */
+#overlay .answer-item--correct {
+  background: rgba(46,204,113,0.16);
+  border-color: rgba(46,204,113,0.40);
+}
+
+/* scelta del giocatore (usate nel reveal) */
+#overlay .answer-item--chosen-wrong {
+  background: rgba(231, 76, 60, 0.18);
+  border-color: rgba(231, 76, 60, 0.35);
+}
+#overlay .answer-item--chosen-correct {
+  background: rgba(46, 204, 113, 0.16);
+  border-color: rgba(46, 204, 113, 0.40);
+}
+
+/* Footer */
+#overlay .question-footer {
+  margin-top: 16px;
+  font-size: 18px;
+  font-weight: 800;
+  opacity: 0.9;
+}
+
+/* Topbar broadcast (solo overlay) */
+#overlay .overlay-topbar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+#overlay .overlay-badges {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+#overlay .badge {
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 0.4px;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.16);
+}
+#overlay .overlay-right {
+  font-weight: 850;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+/* DUELLO responders (solo overlay) */
+#overlay .responders {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+#overlay .responder {
+  padding: 14px 14px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+#overlay .responder .name { font-weight: 950; font-size: 18px; }
+#overlay .responder .meta { margin-top: 6px; font-weight: 800; opacity: .9; }
+
+#overlay .responder.is-correct { outline: 3px solid rgba(46, 204, 113, 0.35); }
+#overlay .responder.is-wrong   { outline: 3px solid rgba(231, 76, 60, 0.30); }
+
 /* =========================================
    BROADCAST SCOREBOARD (HOST)
+   (coerente con ui-host.js: player-card--active)
    ========================================= */
 
 .player-card {
@@ -1608,7 +1598,7 @@ body.has-cards-dock {
   box-shadow: 0 16px 50px rgba(0,0,0,0.35);
 }
 
-.player-card--active { 
+.player-card--active {
   box-shadow: 0 16px 50px rgba(0,0,0,0.35), 0 0 0 3px rgba(80, 180, 255, 0.35);
   transform: translateY(-2px);
 }
@@ -1627,72 +1617,13 @@ body.has-cards-dock {
   margin-bottom: 10px;
 }
 
-.player-card__keys {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-/* “Chiavi” più show: icone animate */
-.player-key {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.10);
-  border: 1px solid rgba(255,255,255,0.16);
-  position: relative;
-  overflow: hidden;
-}
-
-.player-key.filled {
-  background: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.28);
+/* chiavi: nel tuo HTML sono key-dot / key-dot--on */
+.key-dot--on {
   animation: keyGlow 1.2s ease-in-out infinite;
 }
-
 @keyframes keyGlow {
   0%, 100% { filter: brightness(1); }
   50% { filter: brightness(1.35); }
-}
-
-/* =========================================
-   SCENE TRANSITION + FULLSCREEN OVERLAY
-   ========================================= */
-
-#overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  background: rgba(0,0,0,0.78);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-
-  padding: 44px;
-  opacity: 1;
-  transition: opacity 180ms ease;
-}
-
-#overlay.hidden {
-  display: none;
-}
-
-#overlay-content {
-  width: min(1200px, 92vw);
-  max-height: 88vh;
-  overflow: auto;
-}
-
-/* Entrata “scene” */
-#overlay:not(.hidden) #overlay-content {
-  animation: sceneIn 220ms ease-out;
-}
-@keyframes sceneIn {
-  from { transform: translateY(18px) scale(0.98); opacity: 0.35; }
-  to   { transform: translateY(0) scale(1); opacity: 1; }
 }
 
 /* =========================================
@@ -1731,7 +1662,6 @@ body.has-cards-dock {
 #overlay.winner-danger  .winner-screen { box-shadow: 0 30px 120px rgba(0,0,0,0.60), 0 0 0 4px rgba(231,76,60,0.24); }
 #overlay.winner-neutral .winner-screen { box-shadow: 0 30px 120px rgba(0,0,0,0.60), 0 0 0 4px rgba(80,180,255,0.26); }
 
-/* “spark” finto (effetto show) */
 .winner-spark {
   margin: 24px auto 0;
   width: 320px;
@@ -1752,8 +1682,4 @@ body.has-cards-dock {
 @keyframes sparkMove {
   0% { transform: translateX(-60%); }
   100% { transform: translateX(60%); }
-}
-
-.key-dot--on {
-  animation: keyGlow 1.2s ease-in-out infinite;
 }
