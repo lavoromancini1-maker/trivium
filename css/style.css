@@ -1410,3 +1410,188 @@ body.has-cards-dock {
 
 .responder.is-correct { outline: 2px solid rgba(46, 204, 113, 0.35); }
 .responder.is-wrong   { outline: 2px solid rgba(231, 76, 60, 0.35); }
+
+/* =========================================
+   TV SHOW OVERLAY (HOST) — BIG, FULLSCREEN
+   ========================================= */
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* sfondo “studio” */
+  background: radial-gradient(1200px 700px at 50% 35%, rgba(255,255,255,0.10), rgba(0,0,0,0.78));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  padding: 40px;
+}
+
+#overlay.hidden {
+  display: none;
+}
+
+#overlay-content {
+  width: min(1200px, 92vw);
+  max-height: 88vh;
+  overflow: auto;
+}
+
+/* Card enorme stile show */
+.question-card {
+  border-radius: 24px;
+  padding: 26px 28px;
+
+  background: linear-gradient(180deg, rgba(18,18,24,0.92), rgba(10,10,14,0.88));
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 25px 90px rgba(0,0,0,0.55);
+
+  transform: translateY(8px) scale(0.99);
+  animation: tvCardIn 220ms ease-out forwards;
+}
+
+@keyframes tvCardIn {
+  to { transform: translateY(0) scale(1); }
+}
+
+/* Header più “presenter” */
+.question-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.question-category {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  opacity: 0.95;
+}
+
+.question-player {
+  font-size: 18px;
+  font-weight: 800;
+  opacity: 0.9;
+}
+
+/* Domanda gigante */
+.question-text {
+  font-size: 34px;
+  line-height: 1.18;
+  font-weight: 900;
+  margin: 16px 0 18px 0;
+}
+
+/* Risposte grandi, “pulsanti” */
+.answers-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.answer-item {
+  border-radius: 18px;
+  padding: 16px 18px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.answer-label {
+  display: inline-block;
+  min-width: 36px;
+  opacity: 0.9;
+}
+
+/* Stato corretto / sbagliato più “show” */
+#overlay.correct-answer .question-card {
+  box-shadow: 0 25px 90px rgba(0,0,0,0.55), 0 0 0 3px rgba(46, 204, 113, 0.30);
+}
+
+#overlay.wrong-answer .question-card {
+  box-shadow: 0 25px 90px rgba(0,0,0,0.55), 0 0 0 3px rgba(231, 76, 60, 0.28);
+}
+
+.answer-item--correct {
+  background: rgba(46,204,113,0.16);
+  border-color: rgba(46,204,113,0.40);
+}
+
+/* footer più leggibile */
+.question-footer {
+  margin-top: 16px;
+  font-size: 18px;
+  font-weight: 800;
+  opacity: 0.9;
+}
+
+/* Topbar in stile “broadcast” */
+.overlay-topbar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.overlay-badges {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 0.4px;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.16);
+}
+
+/* responders del duello più “TV” */
+.responders {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.responder {
+  padding: 14px 14px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+.responder .name { font-weight: 950; font-size: 18px; }
+.responder .meta { margin-top: 6px; font-weight: 800; opacity: .9; }
+
+.responder.is-correct { outline: 3px solid rgba(46, 204, 113, 0.35); }
+.responder.is-wrong   { outline: 3px solid rgba(231, 76, 60, 0.30); }
+
+#overlay::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  background: radial-gradient(800px 480px at 50% 35%, rgba(255,255,255,0.10), rgba(0,0,0,0.75));
+  pointer-events: none;
+}
+#overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 120px rgba(0,0,0,0.72);
+  pointer-events: none;
+}
+#overlay-content { position: relative; z-index: 1; }
