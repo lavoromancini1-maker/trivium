@@ -1608,7 +1608,7 @@ body.has-cards-dock {
   box-shadow: 0 16px 50px rgba(0,0,0,0.35);
 }
 
-.player-card.active {
+.player-card--active { 
   box-shadow: 0 16px 50px rgba(0,0,0,0.35), 0 0 0 3px rgba(80, 180, 255, 0.35);
   transform: translateY(-2px);
 }
@@ -1752,4 +1752,8 @@ body.has-cards-dock {
 @keyframes sparkMove {
   0% { transform: translateX(-60%); }
   100% { transform: translateX(60%); }
+}
+
+.key-dot--on {
+  animation: keyGlow 1.2s ease-in-out infinite;
 }
