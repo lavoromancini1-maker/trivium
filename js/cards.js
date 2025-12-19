@@ -11,7 +11,6 @@ export const CARD_CATEGORIES = {
 export const CARD_IDS = {
   // Movimento
   TELEPORT_CATEGORY: "TELEPORT_CATEGORY",
-  SKIP_PLUS_ONE: "SKIP_PLUS_ONE",
 
   // Domanda
   FIFTY_FIFTY: "FIFTY_FIFTY",
@@ -24,7 +23,6 @@ export const CARD_IDS = {
 // ✅ Costi ufficiali da POINTS_CONFIG
 export const CARD_COSTS = {
   [CARD_IDS.TELEPORT_CATEGORY]: 200,
-  [CARD_IDS.SKIP_PLUS_ONE]: 40,
   [CARD_IDS.FIFTY_FIFTY]: 30,
   [CARD_IDS.CHANGE_CATEGORY]: 150,
   [CARD_IDS.ALT_QUESTION]: 40,
@@ -36,7 +34,6 @@ export const CARD_DROP_POOL = [
   CARD_IDS.EXTRA_TIME,
   CARD_IDS.FIFTY_FIFTY,
   CARD_IDS.ALT_QUESTION,
-  CARD_IDS.SKIP_PLUS_ONE,
   CARD_IDS.SALVEZZA,
   CARD_IDS.CHANGE_CATEGORY,
   CARD_IDS.TELEPORT_CATEGORY,
@@ -52,15 +49,6 @@ export const CARD_DEFS = {
     title: "Teletrasporto categoria",
     short:
       "Vai direttamente alla casella CHIAVE di una categoria (solo se sei già a livello 3).",
-  },
-
-  [CARD_IDS.SKIP_PLUS_ONE]: {
-    id: CARD_IDS.SKIP_PLUS_ONE,
-    category: CARD_CATEGORIES.MOVIMENTO,
-    cost: CARD_COSTS[CARD_IDS.SKIP_PLUS_ONE],
-    icon: "⏭️",
-    title: "Salta una casella",
-    short: "Dopo il movimento normale, avanzi di +1 nella stessa direzione.",
   },
 
   [CARD_IDS.FIFTY_FIFTY]: {
