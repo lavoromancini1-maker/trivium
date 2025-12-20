@@ -2209,10 +2209,23 @@ async function finalizeSequenceMinigame(gameRef, game) {
 
   const winners = playerIds.filter(pid => distances[pid] === best && best !== Infinity);
 
-  const updates = {
-    phase: "WAIT_ROLL",
-    minigame: null,
-  };
+const ownerId = mg.ownerPlayerId;
+const ownerWon = ownerId && winners.includes(ownerId);
+
+const updates = {
+  phase: "WAIT_ROLL",
+  minigame: null,
+};
+
+// ✅ Regola turni: owner continua solo se è tra i vincitori
+if (!ownerWon) {
+  const { nextIndex, nextPlayerId } = getNextTurn(game);
+  updates.currentTurnIndex = nextIndex;
+  updates.currentPlayerId = nextPlayerId;
+} else {
+  updates.currentTurnIndex = game.currentTurnIndex;
+  updates.currentPlayerId = ownerId;
+}
 
   if (winners.length === 1) {
     const w = winners[0];
@@ -2392,18 +2405,35 @@ export async function answerIntruderMinigame(gameCode, playerId, chosenIndex) {
       game.phase = "WAIT_ROLL";
       game.minigame = null;
       game.players = players;
+
+      const ownerId = mg.ownerPlayerId;
+const ownerWon = ownerId && (playerId === ownerId);
+
+if (!ownerWon) {
+  const { nextIndex, nextPlayerId } = getNextTurn(game);
+  game.currentTurnIndex = nextIndex;
+  game.currentPlayerId = nextPlayerId;
+} else {
+  game.currentTurnIndex = game.currentTurnIndex; // invariato
+  game.currentPlayerId = ownerId;
+}
       return game;
     }
 
     // se tutti hanno tentato e nessuno ha vinto -> chiudi minigame
     const allTried = playerIds.length > 0 && playerIds.every((pid) => mg.answeredThis[pid]);
-    if (allTried) {
-      game.lastMinigameType = "INTRUDER"; // utile per log/telemetria
-      game.phase = "WAIT_ROLL";
-      game.minigame = null;
-    } else {
-      game.minigame = mg;
-    }
+if (allTried) {
+  game.lastMinigameType = "INTRUDER";
+  game.phase = "WAIT_ROLL";
+  game.minigame = null;
+
+  // ✅ Regola turni: nessun vincitore = esito negativo per owner → passa turno
+  const { nextIndex, nextPlayerId } = getNextTurn(game);
+  game.currentTurnIndex = nextIndex;
+  game.currentPlayerId = nextPlayerId;
+} else {
+  game.minigame = mg;
+}
 
     return game;
   });
@@ -2441,7 +2471,17 @@ if (mg.type === "SEQUENCE") {
 }
 
 if (mg.type !== "CLOSEST") {
-  await update(gameRef, { phase: "WAIT_ROLL", minigame: null });
+  // ✅ Regola turni: timeout = esito negativo per owner → passa turno
+  const ownerId = mg.ownerPlayerId;
+  const { nextIndex, nextPlayerId } = getNextTurn(game);
+
+  await update(gameRef, {
+    phase: "WAIT_ROLL",
+    minigame: null,
+    currentTurnIndex: nextIndex,
+    currentPlayerId: nextPlayerId,
+  });
+
   return { handled: true };
 }
 
@@ -2466,6 +2506,18 @@ if (mg.type !== "CLOSEST") {
     phase: "WAIT_ROLL",
     minigame: null,
   };
+  // ✅ Regola turni: owner continua solo se vince lui (winnerId === ownerId)
+const ownerId = mg.ownerPlayerId;
+const ownerWon = ownerId && (winnerId === ownerId);
+
+if (!ownerWon) {
+  const { nextIndex, nextPlayerId } = getNextTurn(game);
+  updates.currentTurnIndex = nextIndex;
+  updates.currentPlayerId = nextPlayerId;
+} else {
+  updates.currentTurnIndex = game.currentTurnIndex;
+  updates.currentPlayerId = ownerId;
+}
 
   // Punti: +25 al vincitore (come da config che stai usando)
   if (winnerId && players[winnerId]) {
@@ -2962,35 +3014,33 @@ export async function checkAndHandleRevealAdvance(gameCode) {
   };
 }
 
-    const { nextIndex, nextPlayerId } = getNextTurn(game);
-    updates.currentTurnIndex = nextIndex;
-    updates.currentPlayerId = nextPlayerId;
+   // ✅ Regola turni: se OWNER vince o pareggia → continua, se perde → passa turno
+const ownerWonOrTied = (sOwner >= sOpp);
 
-    await update(gameRef, updates);
-        // === DROP CARTA (EVENTO: DUELLO) ===
-    // Probabilità: 35% al vincitore, 20% ciascuno se pareggio
-    if (owner && opp && pOwner && pOpp) {
-      if (sOwner > sOpp) {
-        await maybeDropCardByRef(gameRef, owner, 1.0, "EVENT_DUEL_WIN");
-      } else if (sOpp > sOwner) {
-        await maybeDropCardByRef(gameRef, opp, 1.0, "EVENT_DUEL_WIN");
-      } else {
-        await maybeDropCardByRef(gameRef, owner, 1.0, "EVENT_DUEL_TIE");
-        await maybeDropCardByRef(gameRef, opp, 1.0, "EVENT_DUEL_TIE");
-      }
-    }
-    return { handled: true, reason: "DUEL_FINISHED" };
+if (!ownerWonOrTied) {
+  const { nextIndex, nextPlayerId } = getNextTurn(game);
+  updates.currentTurnIndex = nextIndex;
+  updates.currentPlayerId = nextPlayerId;
+} else {
+  // resta il turno dell'owner (di solito è già così, ma lo lasciamo esplicito)
+  updates.currentTurnIndex = game.currentTurnIndex;
+  updates.currentPlayerId = owner;
+}
+
+await update(gameRef, updates);
   }
 
-  if (afterEv?.kind === "END_SINGLE") {
+if (afterEv?.kind === "END_SINGLE") {
   const now = Date.now();
   const ownerId = ev?.ownerPlayerId;
 
-  // prova a leggere delta dalla reveal appena mostrata
+  // delta > 0 = esito positivo (continua). delta <= 0 = negativo o neutro (passa turno)
   const delta = Number.isFinite(r?.delta) ? r.delta : 0;
+  const isPositive = delta > 0;
+
   const pName = game.players?.[ownerId]?.name || "Giocatore";
 
-  await update(gameRef, {
+  const updates = {
     phase: "WAIT_ROLL",
     reveal: null,
     currentQuestion: null,
@@ -3011,7 +3061,18 @@ export async function checkAndHandleRevealAdvance(gameCode) {
         }
       } : {}
     },
-  });
+  };
+
+  if (!isPositive) {
+    const { nextIndex, nextPlayerId } = getNextTurn(game);
+    updates.currentTurnIndex = nextIndex;
+    updates.currentPlayerId = nextPlayerId;
+  } else {
+    updates.currentTurnIndex = game.currentTurnIndex;
+    updates.currentPlayerId = ownerId;
+  }
+
+  await update(gameRef, updates);
 
   // DROP carta rimane uguale
   await maybeDropCardByRef(gameRef, ownerId, 1.0, "EVENT_GENERIC");
