@@ -1474,16 +1474,18 @@ const rawQuestions = getRandomRapidFireQuestions(3, usedIds);
   
   const now = Date.now();
 
-  const rapidFire = {
-    ownerPlayerId,
-    questions: shuffledQuestions,
-    currentIndex: 0,          // domanda corrente (0..questions.length-1)
-    scores: {},               // { playerId: numero risposte corrette }
-    answeredThisQuestion: {}, // { playerId: true se ha già risposto a questa domanda }
-    durationSec: 10,
-    startedAt: now,
-    expiresAt: now + 10 * 1000,
-  };
+const rapidFire = {
+  ownerPlayerId,
+  questions: shuffledQuestions,
+  currentIndex: 0,
+  scores: {},                 // risposte corrette
+  times: {},                  // ⏱ tempo totale per player (ms)
+  answeredThisQuestion: {},
+  durationSec: 10,
+  questionStartedAt: now,     // ⏱ inizio domanda
+  startedAt: now,
+  expiresAt: now + 10 * 1000,
+};
 
 const rfUsedUpdates = {};
 for (const q of rawQuestions) {
@@ -2034,6 +2036,7 @@ export async function answerRapidFireQuestion(gameCode, playerId, answerIndex) {
   if (game.phase !== "RAPID_FIRE") throw new Error("Non è una fase Rapid Fire.");
 
   const rapidFire = game.rapidFire;
+  const answerTime = Date.now() - rapidFire.questionStartedAt;
   if (!rapidFire) throw new Error("Rapid Fire non attivo.");
 
   const players = game.players || {};
@@ -2060,6 +2063,9 @@ export async function answerRapidFireQuestion(gameCode, playerId, answerIndex) {
     const prevScore = rapidFire.scores?.[playerId] ?? 0;
     updates[`rapidFire/scores/${playerId}`] = prevScore + 1;
   }
+
+ updates[`rapidFire/times/${playerId}`] =
+  (rapidFire.times?.[playerId] || 0) + answerTime;  
 
   await update(gameRef, updates);
 
@@ -2556,12 +2562,13 @@ async function maybeAdvanceRapidFireIfAllAnswered(gameRef) {
 
   if (currentIndex < totalQuestions - 1) {
     const now = Date.now();
-    await update(gameRef, {
-      "rapidFire/currentIndex": currentIndex + 1,
-      "rapidFire/answeredThisQuestion": {},
-      "rapidFire/startedAt": now,
-      "rapidFire/expiresAt": now + (rapidFire.durationSec ?? 10) * 1000,
-    });
+await update(gameRef, {
+  "rapidFire/currentIndex": currentIndex + 1,
+  "rapidFire/answeredThisQuestion": {},
+  "rapidFire/questionStartedAt": now,
+  "rapidFire/startedAt": now,
+  "rapidFire/expiresAt": now + (rapidFire.durationSec ?? 10) * 1000,
+});
     return;
   }
 
