@@ -1304,6 +1304,20 @@ export function updateBoardHighlights(gameState) {
       rect.classList.remove("svg-tile--dim");
     }
   }
+    // 3) spotlight tile attuale (evento/minigioco) per effetto "broadcast"
+  const ct = gameState.currentTile || null;
+  const phase = gameState.phase || "";
+  const isSpecial =
+    ct && (ct.type === "event" || ct.type === "minigame") &&
+    (phase.startsWith("EVENT_") || phase === "MINIGAME" || phase === "RAPID_FIRE");
+
+  if (isSpecial) {
+    const rect = document.getElementById(`tile-${ct.tileId}`);
+    if (rect) {
+      rect.classList.remove("svg-tile--dim");
+      rect.classList.add("svg-tile--pulse");
+    }
+  }
 }
 
 function ensureToastEl() {
