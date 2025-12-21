@@ -2408,35 +2408,6 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
       return game;
     }
 
-      // finito pack senza vincitore sull’ultima affermazione:
-      // decide comunque la classifica finale su winners/tempi (se nessuno ha punti -> owner perde)
-      const bestIds = computeBestIds();
-      const ownerId = mg.ownerPlayerId;
-      const ownerWon = ownerId && bestIds.includes(ownerId);
-
-      if (!ownerWon) {
-        const { nextIndex, nextPlayerId } = getNextTurn(game);
-        game.currentTurnIndex = nextIndex;
-        game.currentPlayerId = nextPlayerId;
-      } else {
-        game.currentTurnIndex = game.currentTurnIndex;
-        game.currentPlayerId = ownerId;
-      }
-
-      game.lastMinigameType = "VF_FLASH";
-      game.lastVFFlashWinners = mg.winners || {};
-      game.lastVFFlashTimes = mg.responseTimes || {};
-      game.lastVFFlashBestIds = bestIds;
-
-      game.phase = "WAIT_ROLL";
-      game.minigame = null;
-      return game;
-    }
-
-    game.minigame = mg;
-    return game;
-  });
-
   // Drop carta ai vincitori (bestIds) — post transaction
   if (tx.committed) {
     const after = tx.snapshot.val();
@@ -3223,33 +3194,86 @@ export async function checkAndHandleRevealAdvance(gameCode) {
     return { handled: true, reason: "VF_FLASH_NEXT" };
   }
 
-  if (after?.type === "VF_FLASH_END") {
-    const mg = game.minigame;
+if (after?.type === "VF_FLASH_END") {
+  const mg = game.minigame;
+  const players = game.players || {};
 
-    // chiudi minigioco e assegna carta al best (come già facevi a fine VF)
-    const winMap = mg?.winners || {};
-    const entries = Object.entries(winMap);
+  const winMap = mg?.winners || {};
+  const timeMap = mg?.responseTimes || {};
+  const entries = Object.entries(winMap);
 
-    await update(gameRef, {
-      ...base,
-      phase: "WAIT_ROLL",
-      minigame: null,
-      lastMinigameType: "VF_FLASH",
-      lastVFFlashWinners: winMap,
+  // tie-break: punti desc, tempo asc
+  let bestIds = [];
+  if (entries.length) {
+    entries.sort((a, b) => {
+      const sa = Number(a[1] || 0);
+      const sb = Number(b[1] || 0);
+      if (sb !== sa) return sb - sa;
+
+      const ta = Number.isFinite(timeMap?.[a[0]]) ? Number(timeMap[a[0]]) : Infinity;
+      const tb = Number.isFinite(timeMap?.[b[0]]) ? Number(timeMap[b[0]]) : Infinity;
+      return ta - tb;
     });
 
-    if (entries.length) {
-      entries.sort((a, b) => (b[1] || 0) - (a[1] || 0));
-      const bestScore = entries[0][1] || 0;
-      const bestIds = entries.filter(([_, s]) => (s || 0) === bestScore).map(([id]) => id);
-      for (const pid of bestIds) {
-        await maybeDropCardByRef(gameRef, pid, 1.0, "MINIGAME_VF_FLASH_WIN");
-      }
-    }
+    const bestScore = Number(entries[0][1] || 0);
+    const bestTime = Number.isFinite(timeMap?.[entries[0][0]]) ? Number(timeMap[entries[0][0]]) : Infinity;
 
-    return { handled: true, reason: "VF_FLASH_END" };
-  }  
+    bestIds = entries
+      .filter(([pid, sc]) => {
+        const s = Number(sc || 0);
+        const t = Number.isFinite(timeMap?.[pid]) ? Number(timeMap[pid]) : Infinity;
+        return s === bestScore && t === bestTime;
+      })
+      .map(([pid]) => pid);
+  }
 
+  // regola tua: se owner non è tra i vincitori finali -> passa turno
+  const ownerId = mg?.ownerPlayerId || null;
+  const ownerWon = ownerId && bestIds.includes(ownerId);
+
+  const updates = {
+    ...base,
+    phase: "WAIT_ROLL",
+    minigame: null,
+    reveal: null,
+    lastMinigameType: "VF_FLASH",
+    lastVFFlashWinners: winMap,
+    lastVFFlashTimes: timeMap,
+    lastVFFlashBestIds: bestIds,
+  };
+
+  if (!ownerWon) {
+    const { nextIndex, nextPlayerId } = getNextTurn(game);
+    updates.currentTurnIndex = nextIndex;
+    updates.currentPlayerId = nextPlayerId;
+  } else {
+    // resta l’owner (coerente con “se esito positivo va avanti”)
+    updates.currentTurnIndex = game.currentTurnIndex;
+    updates.currentPlayerId = ownerId;
+  }
+
+  // toast finale “show”
+  const topName = bestIds[0] ? (players?.[bestIds[0]]?.name || "—") : "—";
+  updates.toast = {
+    host: {
+      kind: bestIds.length ? "success" : "danger",
+      title: bestIds.length ? `Vero/Falso – Vince ${topName}` : "Vero/Falso – Nessun vincitore",
+      subtitle: bestIds.length
+        ? `Punti: ${Number(winMap?.[bestIds[0]] || 0)} • Tempo: ${(Number(timeMap?.[bestIds[0]] || 0) / 1000).toFixed(2)}s`
+        : "Nessuno ha segnato punti",
+    },
+    hideAt: Date.now() + 2200,
+  };
+
+  await update(gameRef, updates);
+
+  // drop carte ai best (coerente col tuo sistema “premio minigame”)
+  for (const pid of bestIds) {
+    await maybeDropCardByRef(gameRef, pid, 1.0, "MINIGAME_VF_FLASH_WIN");
+  }
+
+  return { handled: true, reason: "VF_FLASH_END" };
+}
   // ───────────────────────────────
   // EVENTI: post-reveal (tua logica invariata)
   // ───────────────────────────────
