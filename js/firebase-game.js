@@ -1608,6 +1608,8 @@ async function startVFFlashMinigame(gameRef, game, ownerPlayerId, finalTileId, f
     eliminatedThis: {}, // { [playerId]: true } se ha sbagliato questa affermazione
     winners: {},        // { [playerId]: countVittorie } (per riepilogo)
     currentWinnerId: null, // vincitore affermazione corrente (se già c'è)
+    responseTimes: {},     // { [playerId]: ms totali (solo risposte corrette) }
+    statementStartedAt: now, // timestamp inizio affermazione corrente
   };
 
   await update(gameRef, {
@@ -2269,11 +2271,15 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
     const stmt = mg.statements?.[idx];
     if (!stmt) return game;
 
-    // inizializza strutture
+    // init strutture
     mg.answeredThis = mg.answeredThis || {};
     mg.eliminatedThis = mg.eliminatedThis || {};
     mg.winners = mg.winners || {};
+    mg.responseTimes = mg.responseTimes || {};
     mg.currentWinnerId = mg.currentWinnerId || null;
+
+    // start time affermazione (se manca)
+    if (!mg.statementStartedAt) mg.statementStartedAt = Date.now();
 
     // se già chiusa (qualcuno ha già vinto questa affermazione)
     if (mg.currentWinnerId) return game;
@@ -2287,10 +2293,42 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
     // segna il tentativo
     mg.answeredThis[playerId] = true;
 
+    // helper: calcola vincitori finali con tie-break tempo
+    function computeBestIds() {
+      const entries = Object.entries(mg.winners || {});
+      if (!entries.length) return [];
+
+      entries.sort((a, b) => {
+        const sA = Number(a[1] || 0);
+        const sB = Number(b[1] || 0);
+        if (sB !== sA) return sB - sA;
+
+        const tA = Number.isFinite(mg.responseTimes?.[a[0]]) ? mg.responseTimes[a[0]] : Infinity;
+        const tB = Number.isFinite(mg.responseTimes?.[b[0]]) ? mg.responseTimes[b[0]] : Infinity;
+        return tA - tB;
+      });
+
+      const bestId = entries[0][0];
+      const bestScore = Number(entries[0][1] || 0);
+      const bestTime = Number.isFinite(mg.responseTimes?.[bestId]) ? mg.responseTimes[bestId] : Infinity;
+
+      return entries
+        .filter(([pid, sc]) => {
+          const s = Number(sc || 0);
+          const t = Number.isFinite(mg.responseTimes?.[pid]) ? mg.responseTimes[pid] : Infinity;
+          return s === bestScore && t === bestTime;
+        })
+        .map(([pid]) => pid);
+    }
+
     if (correct) {
-      // PRIMO corretto: vince il punto
+      // PRIMO corretto: vince il punto per questa affermazione
       mg.currentWinnerId = playerId;
       mg.winners[playerId] = (mg.winners[playerId] || 0) + 1;
+
+      // tempo: sommiamo SOLO quando prendi il punto (primo corretto)
+      const elapsed = Date.now() - (mg.statementStartedAt || Date.now());
+      mg.responseTimes[playerId] = (mg.responseTimes[playerId] || 0) + Math.max(0, elapsed);
 
       // punti immediati: +10 per affermazione corretta
       players[playerId].points = addPointsSafe(players[playerId].points, 10);
@@ -2301,16 +2339,34 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
         mg.answeredThis = {};
         mg.eliminatedThis = {};
         mg.currentWinnerId = null;
+        mg.statementStartedAt = Date.now();
+        game.minigame = mg;
+        game.players = players;
+        return game;
+      }
+
+      // finito pack: chiudi minigioco + applica regola turni owner
+      const bestIds = computeBestIds();
+      const ownerId = mg.ownerPlayerId;
+      const ownerWon = ownerId && bestIds.includes(ownerId);
+
+      if (!ownerWon) {
+        const { nextIndex, nextPlayerId } = getNextTurn(game);
+        game.currentTurnIndex = nextIndex;
+        game.currentPlayerId = nextPlayerId;
       } else {
-        // finito pack: chiudi minigioco
-        game.phase = "WAIT_ROLL";
-        game.minigame = null;
-        game.lastVFFlashWinners = mg.winners || {};
+        game.currentTurnIndex = game.currentTurnIndex;
+        game.currentPlayerId = ownerId;
       }
 
       game.lastMinigameType = "VF_FLASH";
+      game.lastVFFlashWinners = mg.winners || {};
+      game.lastVFFlashTimes = mg.responseTimes || {};
+      game.lastVFFlashBestIds = bestIds;
+
+      game.phase = "WAIT_ROLL";
+      game.minigame = null;
       game.players = players;
-      game.minigame = mg;
       return game;
     }
 
@@ -2325,48 +2381,56 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
         mg.answeredThis = {};
         mg.eliminatedThis = {};
         mg.currentWinnerId = null;
+        mg.statementStartedAt = Date.now();
 
-      } else {
-        game.lastMinigameType = "VF_FLASH";
-        game.lastVFFlashWinners = mg.winners || {};
-        game.phase = "WAIT_ROLL";
-        game.minigame = null;
+        game.minigame = mg;
+        return game;
       }
+
+      // finito pack senza vincitore sull’ultima affermazione:
+      // decide comunque la classifica finale su winners/tempi (se nessuno ha punti -> owner perde)
+      const bestIds = computeBestIds();
+      const ownerId = mg.ownerPlayerId;
+      const ownerWon = ownerId && bestIds.includes(ownerId);
+
+      if (!ownerWon) {
+        const { nextIndex, nextPlayerId } = getNextTurn(game);
+        game.currentTurnIndex = nextIndex;
+        game.currentPlayerId = nextPlayerId;
+      } else {
+        game.currentTurnIndex = game.currentTurnIndex;
+        game.currentPlayerId = ownerId;
+      }
+
+      game.lastMinigameType = "VF_FLASH";
+      game.lastVFFlashWinners = mg.winners || {};
+      game.lastVFFlashTimes = mg.responseTimes || {};
+      game.lastVFFlashBestIds = bestIds;
+
+      game.phase = "WAIT_ROLL";
+      game.minigame = null;
+      return game;
     }
 
     game.minigame = mg;
     return game;
   });
 
+  // Drop carta ai vincitori (bestIds) — post transaction
   if (tx.committed) {
-  const after = tx.snapshot.val();
-  if (after?.lastMinigameType === "VF_FLASH") {
-    const winMap = after?.lastVFFlashWinners || {};
-    const entries = Object.entries(winMap);
-    if (entries.length) {
-      entries.sort((a,b) => (b[1]||0) - (a[1]||0));
-      const bestScore = entries[0][1] || 0;
-      const bestIds = entries.filter(([_,s]) => (s||0) === bestScore).map(([id]) => id);
-
+    const after = tx.snapshot.val();
+    if (after?.lastMinigameType === "VF_FLASH") {
+      const bestIds = Array.isArray(after?.lastVFFlashBestIds) ? after.lastVFFlashBestIds : [];
       for (const w of bestIds) {
         await maybeDropCardByRef(gameRef, w, 1.0, "MINIGAME_VF_FLASH_WIN");
       }
     }
   }
-}
 
-  // Risposta al client (non perfetta al 100% in tutte le edge-case, ma sufficiente per UI)
   if (!tx.committed) return { ok: false };
-
-  const after = tx.snapshot.val();
-  const mgAfter = after?.minigame;
-
-  // Se minigame ancora attivo ed il player risulta in answeredThis dell'affermazione corrente,
-  // significa che ha appena tentato oppure aveva già tentato.
-  // Per feedback UI (✅/❌) possiamo ricalcolare dal pack originale in snapshot PRE-advance? Non ce l'abbiamo.
-  // Quindi ritorniamo "ok" e lato UI mostri "Inviato" / "Attendi".
   return { ok: true };
 }
+
 export async function answerIntruderMinigame(gameCode, playerId, chosenIndex) {
   const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
 
@@ -2620,6 +2684,7 @@ export async function checkAndHandleRapidFireTimeout(gameCode) {
     rapidFire.currentIndex = currentIndex + 1;
     rapidFire.answeredThisQuestion = {};
     rapidFire.startedAt = now2;
+    rapidFire.questionStartedAt = now2;
     rapidFire.expiresAt = now2 + rapidFire.durationSec * 1000;
 
     await update(gameRef, { rapidFire });
@@ -2627,31 +2692,42 @@ export async function checkAndHandleRapidFireTimeout(gameCode) {
   }
 
   const scores = rapidFire.scores || {};
+  const times = rapidFire.times || {};
   const updates = {};
 
-  // Costruiamo classifica per "corrette"
+  // Classifica: più risposte corrette (desc), a parità tempo totale minore (asc)
   const rows = playerIds.map((pid) => ({
     pid,
     score: scores[pid] ?? 0,
+    time: Number.isFinite(times[pid]) ? times[pid] : Infinity,
   }));
 
-  // Ordina decrescente
-  rows.sort((a, b) => b.score - a.score);
+  rows.sort((a, b) => (b.score - a.score) || (a.time - b.time));
 
-  const maxScore = rows[0]?.score ?? 0;
-  const minScore = rows[rows.length - 1]?.score ?? 0;
+  const bestScore = rows[0]?.score ?? 0;
+  const bestTime = rows[0]?.time ?? Infinity;
 
-  const firstGroup = rows.filter(r => r.score === maxScore).map(r => r.pid);
-  const lastGroup  = rows.filter(r => r.score === minScore).map(r => r.pid);
+  const firstGroup = rows
+    .filter((r) => r.score === bestScore && r.time === bestTime)
+    .map((r) => r.pid);
 
   // Secondo: solo se esiste un primo unico
   let secondGroup = [];
   if (firstGroup.length === 1) {
-    const secondScore = rows.find(r => r.score < maxScore)?.score;
-    if (typeof secondScore === "number") {
-      secondGroup = rows.filter(r => r.score === secondScore).map(r => r.pid);
+    const second = rows.find((r) => !(r.score === bestScore && r.time === bestTime));
+    if (second) {
+      secondGroup = rows
+        .filter((r) => r.score === second.score && r.time === second.time)
+        .map((r) => r.pid);
     }
   }
+
+  const worst = rows[rows.length - 1];
+  const lastGroup = worst
+    ? rows
+        .filter((r) => r.score === worst.score && r.time === worst.time)
+        .map((r) => r.pid)
+    : [];
 
   // Applica punti: 1° +30, 2° +15, ultimo -10, altri 0
   for (const pid of playerIds) {
@@ -2663,6 +2739,19 @@ export async function checkAndHandleRapidFireTimeout(gameCode) {
     else if (lastGroup.includes(pid)) delta = -10;
 
     updates[`players/${pid}/points`] = addPointsSafe(player.points, delta);
+  }
+
+  // ✅ Regola turni: owner continua SOLO se è vincitore (firstGroup)
+  const ownerId = rapidFire.ownerPlayerId;
+  const ownerWon = ownerId && firstGroup.includes(ownerId);
+
+  if (!ownerWon) {
+    const { nextIndex, nextPlayerId } = getNextTurn(game);
+    updates.currentTurnIndex = nextIndex;
+    updates.currentPlayerId = nextPlayerId;
+  } else {
+    updates.currentTurnIndex = game.currentTurnIndex;
+    updates.currentPlayerId = ownerId;
   }
 
   updates.rapidFire = null;
