@@ -19,6 +19,10 @@ import {
   resolveCardOffer,
   grantRandomCard,
   chooseScrignoCategory,
+  voteScrignoCategory,
+  finalizeScrignoVote,
+  pickScrignoTieCategory,
+  checkAndHandleScrignoTieTimeout,
 } from "./firebase-game.js";
 
 import { CARD_IDS, getCardDef, canUseCardNow } from "./cards.js";
@@ -42,6 +46,14 @@ let sequencePanel, sequencePrompt, sequenceItems, sequenceResetBtn, sequenceSubm
 let sequenceSelection = []; // array di indici scelti
 let lastSequenceQuestionId = null;
 let lastGameState = null;
+let scrignoVotePanel = null;
+let scrignoVoteButtons = null;
+let scrignoVoteHint = null;
+
+let scrignoTiePanel = null;
+let scrignoTieButtons = null;
+let scrignoTieHint = null;
+
 
 function renderSequencePicker(items) {
   if (!sequenceItems) return;
@@ -173,6 +185,18 @@ async function startListening(gameCode, playerId, playerName) {
       playerProgressEl,
     });
   });
+  // ───────────────────────────────
+// SCRIGNO vote/tie heartbeat (chiusura automatica stile gameshow)
+// ───────────────────────────────
+if (!window.__scrignoHeartbeat) {
+  window.__scrignoHeartbeat = setInterval(async () => {
+    try {
+      if (!currentGameCode) return;
+      await finalizeScrignoVote(currentGameCode);
+      await checkAndHandleScrignoTieTimeout(currentGameCode);
+    } catch (_) {}
+  }, 600);
+}
 }
 
 async function tryAutoRejoin() {
@@ -275,6 +299,15 @@ sequenceItems = document.getElementById("sequence-items");
 sequenceResetBtn = document.getElementById("sequence-reset-btn");
 sequenceSubmitBtn = document.getElementById("sequence-submit-btn");
 sequenceHint = document.getElementById("sequence-hint");  
+// --- STEP 7: SCRIGNO FINALE (vote / tie pick) ---
+scrignoVotePanel = document.getElementById("scrigno-vote-panel");
+scrignoVoteButtons = document.getElementById("scrigno-vote-buttons");
+scrignoVoteHint = document.getElementById("scrigno-vote-hint");
+
+scrignoTiePanel = document.getElementById("scrigno-tie-panel");
+scrignoTieButtons = document.getElementById("scrigno-tie-buttons");
+scrignoTieHint = document.getElementById("scrigno-tie-hint");
+  
 
 closestSendBtn?.addEventListener("click", async () => {
   if (!currentGameCode || !currentPlayerId) return;
@@ -740,6 +773,26 @@ function showCardOffer(gameState) {
   if (cardOfferEl) cardOfferEl.classList.remove("hidden");
 }
 
+// ───────────────────────────────
+// SCRIGNO VOTE / TIE UI helpers
+// ───────────────────────────────
+function hideScrignoPanels() {
+  if (scrignoVotePanel) scrignoVotePanel.classList.add("hidden");
+  if (scrignoTiePanel) scrignoTiePanel.classList.add("hidden");
+}
+
+function renderCategoryButtons(container, categories, onPick) {
+  if (!container) return;
+  container.innerHTML = "";
+  categories.forEach((cat) => {
+    const btn = document.createElement("button");
+    btn.className = "scrigno-btn";
+    btn.textContent = cat;
+    btn.addEventListener("click", () => onPick(cat));
+    container.appendChild(btn);
+  });
+}
+
 function handleGameUpdate(
   gameState,
   {
@@ -1158,6 +1211,63 @@ if (mg && mg.type === "SEQUENCE") {
   });
 
   return;
+      } else if (phase === "SCRIGNO_VOTE") {
+  hideScrignoPanels();
+
+  const vote = gameState.scrigno?.vote;
+  const forPlayerId = vote?.forPlayerId;
+  const myId = currentPlayerId;
+
+  // Il player sullo scrigno NON vede la UI di voto
+  if (myId && forPlayerId && myId !== forPlayerId) {
+    if (scrignoVotePanel) scrignoVotePanel.classList.remove("hidden");
+
+    const already = !!vote?.votes?.[myId];
+    if (scrignoVoteHint) scrignoVoteHint.textContent = already ? "Voto registrato. Attendi…" : "";
+
+    const cats = Array.isArray(gameState.categories) ? gameState.categories : [];
+    renderCategoryButtons(scrignoVoteButtons, cats, async (cat) => {
+      try {
+        await voteScrignoCategory(currentGameCode, myId, cat);
+        if (scrignoVoteHint) scrignoVoteHint.textContent = "Voto registrato. Attendi…";
+      } catch (e) {
+        if (scrignoVoteHint) scrignoVoteHint.textContent = e?.message || "Errore voto.";
+      }
+    });
+
+    if (already && scrignoVoteButtons) {
+      [...scrignoVoteButtons.querySelectorAll("button")].forEach((b) => (b.disabled = true));
+    }
+  } else {
+    // player sullo scrigno: niente voto, solo attesa (se vuoi metti un testo in turnStatusText)
+  }
+
+  return;
+
+} else if (phase === "SCRIGNO_TIE_PICK") {
+  hideScrignoPanels();
+
+  const tie = gameState.scrigno?.tie;
+  const myId = currentPlayerId;
+
+  // Solo il player sullo scrigno sceglie tra le più votate
+  if (myId && tie?.forPlayerId === myId) {
+    if (scrignoTiePanel) scrignoTiePanel.classList.remove("hidden");
+
+    const options = Array.isArray(tie.options) ? tie.options : [];
+    renderCategoryButtons(scrignoTieButtons, options, async (cat) => {
+      try {
+        await pickScrignoTieCategory(currentGameCode, myId, cat);
+        if (scrignoTieHint) scrignoTieHint.textContent = "Scelta inviata…";
+      } catch (e) {
+        if (scrignoTieHint) scrignoTieHint.textContent = e?.message || "Errore scelta.";
+      }
+    });
+  } else {
+    // altri: attendono
+  }
+
+  return;  
       } else if (phase === "CHOOSE_DIRECTION") {
         const dice = gameState.currentDice;
         turnStatusText.textContent = `Hai tirato ${dice}. Scegli la direzione.`;
