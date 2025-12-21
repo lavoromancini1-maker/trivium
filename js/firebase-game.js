@@ -1587,6 +1587,14 @@ async function startClosestMinigame(gameRef, game, ownerPlayerId, finalTileId, f
 
   const usedUpdates = { [`usedClosestQuestionIds/${q.id}`]: true };
 
+  const intro = getMinigameIntroCopy("CLOSEST");
+  const toast = buildToastAll(
+    game,
+    { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
+    { kind: "neutral", title: intro.title, subtitle: "Pronto: THE CLOSEST." },
+    1700
+  );
+
   await update(gameRef, {
     ...baseUpdate,
     phase: "MINIGAME",
@@ -1599,13 +1607,7 @@ async function startClosestMinigame(gameRef, game, ownerPlayerId, finalTileId, f
     currentQuestion: null,
     reveal: null,
     minigame,
-    const intro = getMinigameIntroCopy("CLOSEST");
-    toast: buildToastAll(
-    game,
-    { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
-    { kind: "neutral", title: intro.title, subtitle: "Pronto: THE CLOSEST." },
-    1700
-  ),
+    toast,
     ...usedUpdates,
   });
 }
@@ -1635,6 +1637,14 @@ async function startVFFlashMinigame(gameRef, game, ownerPlayerId, finalTileId, f
     statementStartedAt: now, // timestamp inizio affermazione corrente
   };
 
+    const intro = getMinigameIntroCopy("VF_FLASH");
+  const toast = buildToastAll(
+    game,
+    { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
+    { kind: "neutral", title: intro.title, subtitle: "Pronto: VERO o FALSO." },
+    1700
+  );
+
   await update(gameRef, {
     ...baseUpdate,
     phase: "MINIGAME",
@@ -1647,13 +1657,7 @@ async function startVFFlashMinigame(gameRef, game, ownerPlayerId, finalTileId, f
     currentQuestion: null,
     reveal: null,
     minigame,
-    const intro = getMinigameIntroCopy("VF_FLASH");
-    toast: buildToastAll(
-    game,
-    { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
-    { kind: "neutral", title: intro.title, subtitle: "Pronto: VERO o FALSO." },
-    1700
-  ),
+    toast,
     [`usedVFFlashQuestionIds/${pack.id}`]: true,
   });
 }
@@ -1684,6 +1688,14 @@ async function startSequenceMinigame(gameRef, game, ownerPlayerId, finalTileId, 
     expiresAt: now + durationSec * 1000,
   };
 
+   const intro = getMinigameIntroCopy("SEQUENCE");
+  const toast = buildToastAll(
+    game,
+    { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
+    { kind: "neutral", title: intro.title, subtitle: "Pronto: SEQUENCE." },
+    1700
+  );
+
   await update(gameRef, {
     ...baseUpdate,
     phase: "MINIGAME",
@@ -1696,13 +1708,7 @@ async function startSequenceMinigame(gameRef, game, ownerPlayerId, finalTileId, 
     currentQuestion: null,
     reveal: null,
     minigame,
-    const intro = getMinigameIntroCopy("SEQUENCE");
-    toast: buildToastAll(
-    game,
-    { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
-    { kind: "neutral", title: intro.title, subtitle: "Pronto: SEQUENCE." },
-    1700
-  ),
+    toast,
     [`usedSequenceQuestionIds/${q.id}`]: true,
   });
 }
@@ -1727,6 +1733,14 @@ async function startIntruderMinigame(gameRef, game, ownerPlayerId, finalTileId, 
     currentWinnerId: null,        // primo corretto
   };
 
+   const intro = getMinigameIntroCopy("INTRUDER");
+  const toast = buildToastAll(
+    game,
+    { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
+    { kind: "neutral", title: intro.title, subtitle: "Pronto: L'INTRUSO." },
+    1700
+  );
+
   await update(gameRef, {
     ...baseUpdate,
     phase: "MINIGAME",
@@ -1739,13 +1753,7 @@ async function startIntruderMinigame(gameRef, game, ownerPlayerId, finalTileId, 
     currentQuestion: null,
     reveal: null,
     minigame,
-    const intro = getMinigameIntroCopy("INTRUDER");
-     toast: buildToastAll(
-    game,
-    { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
-    { kind: "neutral", title: intro.title, subtitle: "Pronto: L'INTRUSO." },
-    1700
-  ),
+    toast,
     [`usedIntruderQuestionIds/${q.id}`]: true,
   });
 }
