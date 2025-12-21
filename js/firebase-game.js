@@ -1513,6 +1513,14 @@ const updates = {
   ...rfUsedUpdates,
 };
 
+const intro = getMinigameIntroCopy("RAPID_FIRE");
+updates.toast = buildToastAll(
+  game,
+  { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
+  { kind: "neutral", title: intro.title, subtitle: "Vai sul telefono e gioca!" },
+  1700
+);  
+
 await update(gameRef, updates);
 }
 
@@ -1591,6 +1599,12 @@ async function startClosestMinigame(gameRef, game, ownerPlayerId, finalTileId, f
     currentQuestion: null,
     reveal: null,
     minigame,
+    toast: buildToastAll(
+    game,
+    { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
+    { kind: "neutral", title: intro.title, subtitle: "Pronto: THE CLOSEST." },
+    1700
+  ),
     ...usedUpdates,
   });
 }
@@ -1632,6 +1646,12 @@ async function startVFFlashMinigame(gameRef, game, ownerPlayerId, finalTileId, f
     currentQuestion: null,
     reveal: null,
     minigame,
+    toast: buildToastAll(
+    game,
+    { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
+    { kind: "neutral", title: intro.title, subtitle: "Pronto: VERO o FALSO." },
+    1700
+  ),
     [`usedVFFlashQuestionIds/${pack.id}`]: true,
   });
 }
@@ -1674,6 +1694,12 @@ async function startSequenceMinigame(gameRef, game, ownerPlayerId, finalTileId, 
     currentQuestion: null,
     reveal: null,
     minigame,
+    toast: buildToastAll(
+    game,
+    { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
+    { kind: "neutral", title: intro.title, subtitle: "Pronto: SEQUENCE." },
+    1700
+  ),
     [`usedSequenceQuestionIds/${q.id}`]: true,
   });
 }
@@ -1710,6 +1736,12 @@ async function startIntruderMinigame(gameRef, game, ownerPlayerId, finalTileId, 
     currentQuestion: null,
     reveal: null,
     minigame,
+     toast: buildToastAll(
+    game,
+    { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
+    { kind: "neutral", title: intro.title, subtitle: "Pronto: L'INTRUSO." },
+    1700
+  ),
     [`usedIntruderQuestionIds/${q.id}`]: true,
   });
 }
@@ -3480,6 +3512,73 @@ function randomFrom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function buildToastAll(game, hostToast, playersToast, ttlMs = 1600) {
+  const players = game.players || {};
+  const outPlayers = {};
+  for (const pid of Object.keys(players)) {
+    outPlayers[pid] = { ...(playersToast || {}) };
+  }
+  return {
+    hideAt: Date.now() + ttlMs,
+    host: { kind: "neutral", title: "", subtitle: "", ...hostToast },
+    players: outPlayers,
+  };
+}
+
+function getMinigameIntroCopy(type) {
+  switch (type) {
+    case "RAPID_FIRE":
+      return {
+        title: "🎬 MINIGIOCO: RAPID FIRE",
+        subtitle: "3 domande, ritmo altissimo. Rispondi il più veloce possibile!",
+      };
+    case "VF_FLASH":
+      return {
+        title: "⚡ MINIGIOCO: VERO / FALSO LAMPO",
+        subtitle: "3 affermazioni: un solo tentativo per ognuna. Velocità = vantaggio.",
+      };
+    case "CLOSEST":
+      return {
+        title: "🎯 MINIGIOCO: PIÙ VICINO VINCE",
+        subtitle: "Inserisci un numero: vince chi si avvicina di più al valore corretto.",
+      };
+    case "SEQUENCE":
+      return {
+        title: "🧩 MINIGIOCO: ORDINA LA SEQUENZA",
+        subtitle: "Metti gli elementi nell’ordine giusto e conferma prima degli altri.",
+      };
+    case "INTRUDER":
+      return {
+        title: "🕵️ MINIGIOCO: L’INTRUSO",
+        subtitle: "4 opzioni: 1 non c’entra. Seleziona l’intruso!",
+      };
+    default:
+      return { title: "🎮 MINIGIOCO", subtitle: "Preparati!" };
+  }
+}
+
+function getEventIntroCopy(type) {
+  switch (type) {
+    case "DUELLO":
+      return {
+        title: "🥊 EVENTO: DUELLO",
+        subtitle: "Scegli un avversario: 3 domande, chi vince prende il bottino!",
+      };
+    case "BOOM":
+      return {
+        title: "💣 EVENTO: BOOM",
+        subtitle: "Domanda difficile: premio alto… ma se sbagli perdi punti!",
+      };
+    case "RISK":
+      return {
+        title: "🎲 EVENTO: RISCHIA O VINCI",
+        subtitle: "Accetti la sfida? Se dici SÌ puoi vincere tanto… o perdere.",
+      };
+    default:
+      return { title: "🎭 EVENTO", subtitle: "Qualcosa sta per succedere…" };
+  }
+}
+
 // crea domanda di categoria random, livello dato, con risposte mischiate
 function makeRandomEventQuestion(game, level) {
   const usedCategoryQuestionIds = game.usedCategoryQuestionIds || {};
@@ -3528,6 +3627,14 @@ async function startEventTile(gameRef, game, ownerPlayerId, tileId, tile, baseUp
     reveal: null,
   };
 
+ const intro = getEventIntroCopy(type);
+const introToast = buildToastAll(
+  game,
+  { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
+  { kind: "neutral", title: intro.title, subtitle: "Segui le istruzioni sul telefono." },
+  1700
+); 
+
   // BOOM: L3, +40 / -20 (POINTS_CONFIG)
   if (type === "BOOM") {
     const q = makeRandomEventQuestion(game, 3);
@@ -3539,6 +3646,7 @@ async function startEventTile(gameRef, game, ownerPlayerId, tileId, tile, baseUp
     await update(gameRef, {
       ...common,
       phase: "EVENT_QUESTION",
+      toast: introToast,
       currentEvent: {
         type: "BOOM",
         ownerPlayerId,
@@ -3556,6 +3664,7 @@ async function startEventTile(gameRef, game, ownerPlayerId, tileId, tile, baseUp
     await update(gameRef, {
       ...common,
       phase: "EVENT_RISK_DECISION",
+      toast: introToast,
       currentEvent: {
         type: "RISK",
         ownerPlayerId,
@@ -3572,6 +3681,7 @@ async function startEventTile(gameRef, game, ownerPlayerId, tileId, tile, baseUp
     await update(gameRef, {
       ...common,
       phase: "EVENT_DUEL_CHOOSE",
+      toast: introToast,
       currentEvent: {
         type: "DUELLO",
         ownerPlayerId,
