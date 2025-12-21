@@ -390,6 +390,98 @@ function getOverlayTopbarUI(gameState) {
   return { left, right };
 }
 
+function renderScrignoVoteOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+  if (!overlay || !overlayContent) return;
+
+  const vote = gameState.scrigno?.vote || {};
+  const players = gameState.players || {};
+  const forPlayer = players?.[vote.forPlayerId]?.name || "Giocatore";
+
+  const now = Date.now();
+  const expiresAt = vote.expiresAt || null;
+  const remainingSec = expiresAt ? Math.max(0, Math.ceil((expiresAt - now) / 1000)) : null;
+  const timerText = remainingSec !== null ? `${remainingSec}s` : "--";
+
+  const tally = vote.tally || {}; // può non esserci finché non si chiude; ok
+  const votesMap = vote.votes || {};
+  const totalVotes = Object.keys(votesMap).length;
+
+  const cats = Array.isArray(gameState.categories) ? gameState.categories : [];
+  const barsHtml = cats.map((c) => {
+    const n = Number(tally?.[c] || 0);
+    return `
+      <div class="scrigno-row">
+        <div class="scrigno-cat">${c}</div>
+        <div class="scrigno-bar"><div class="scrigno-fill" style="width:${Math.min(100, n * 20)}%"></div></div>
+        <div class="scrigno-n">${n}</div>
+      </div>
+    `;
+  }).join("");
+
+  overlayContent.innerHTML = `
+    <div class="question-card scrigno-card">
+      <div class="question-header">
+        <div class="question-category">SCRIGNO FINALE – VOTAZIONE</div>
+        <div class="question-player">Sta tentando: <strong>${forPlayer}</strong></div>
+      </div>
+
+      <div class="question-text">Scegliete la categoria della finale. Niente pietà.</div>
+
+      <div class="scrigno-vote-wrap">
+        ${barsHtml || `<div class="scrigno-hint">In attesa dei voti…</div>`}
+      </div>
+
+      <div class="question-footer">
+        <div class="question-timer">Tempo voto: <span id="scrigno-vote-timer">${timerText}</span></div>
+        <span>Voti ricevuti: <strong>${totalVotes}</strong></span>
+      </div>
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
+}
+
+function renderScrignoTieOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+  if (!overlay || !overlayContent) return;
+
+  const tie = gameState.scrigno?.tie || {};
+  const players = gameState.players || {};
+  const forPlayer = players?.[tie.forPlayerId]?.name || "Giocatore";
+
+  const now = Date.now();
+  const expiresAt = tie.expiresAt || null;
+  const remainingSec = expiresAt ? Math.max(0, Math.ceil((expiresAt - now) / 1000)) : null;
+  const timerText = remainingSec !== null ? `${remainingSec}s` : "--";
+
+  const options = Array.isArray(tie.options) ? tie.options : [];
+
+  overlayContent.innerHTML = `
+    <div class="question-card scrigno-card">
+      <div class="question-header">
+        <div class="question-category">SCRIGNO FINALE – PAREGGIO</div>
+        <div class="question-player">Sceglie: <strong>${forPlayer}</strong></div>
+      </div>
+
+      <div class="question-text">Pareggio nelle votazioni. Il giocatore sullo scrigno decide ora:</div>
+
+      <div class="scrigno-options">
+        ${options.map(o => `<span class="scrigno-pill">${o}</span>`).join("")}
+      </div>
+
+      <div class="question-footer">
+        <div class="question-timer">Scelta entro: <span>${timerText}</span></div>
+        <span>Decisione finale sul telefono.</span>
+      </div>
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
+}
+
 /**
  * Mostra la domanda corrente in overlay sull'host.
  */
@@ -432,6 +524,14 @@ if (gameState && gameState.phase === "REVEAL" && gameState.reveal?.kind === "RAP
 }
 if (gameState && gameState.phase === "REVEAL" && gameState.reveal?.kind === "VF_FLASH") {
   renderVFFlashRevealOverlay(gameState);
+  return;
+}  
+if (gameState && gameState.phase === "SCRIGNO_VOTE") {
+  renderScrignoVoteOverlay(gameState);
+  return;
+}
+if (gameState && gameState.phase === "SCRIGNO_TIE_PICK") {
+  renderScrignoTieOverlay(gameState);
   return;
 }  
 if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.reveal.question) {
