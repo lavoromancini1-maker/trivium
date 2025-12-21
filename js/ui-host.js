@@ -424,6 +424,15 @@ if (gameState && gameState.phase === "MINIGAME" && gameState.minigame?.type === 
   renderVFFlashOverlay(gameState);
   return;
 }
+if (gameState && gameState.phase === "REVEAL" && gameState.reveal?.kind === "RAPID_FIRE") {
+  renderRapidFireRevealOverlay(gameState);
+  return;
+}
+
+if (gameState && gameState.phase === "REVEAL" && gameState.reveal?.kind === "VF_FLASH") {
+  renderVFFlashRevealOverlay(gameState);
+  return;
+}  
 if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.reveal.question) {
   const r = gameState.reveal;
   const q = r.question;
@@ -893,6 +902,45 @@ overlayContent.innerHTML = `
   overlay.classList.remove("hidden");
 }
 
+function renderRapidFireScoreboardHtml(gameState) {
+  const rf = gameState.rapidFire || {};
+  const players = gameState.players || {};
+
+  const scores = rf.scores || {};
+  const timesMs = rf.timesMs || {};
+
+  const rows = Object.keys(players).map((pid) => ({
+    pid,
+    name: players?.[pid]?.name || pid,
+    score: Number(scores[pid] ?? 0),
+    time: Number(timesMs[pid] ?? 0),
+  }));
+
+  rows.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.time - b.time;
+  });
+
+  return `
+    <div class="rf-scoreboard">
+      <div class="rf-scoreboard-title">CLASSIFICA</div>
+      ${rows
+        .map((r, i) => {
+          const lead = i === 0 ? " rf-row--lead" : "";
+          return `
+            <div class="rf-row${lead}">
+              <div class="rf-pos">${i + 1}</div>
+              <div class="rf-name">${r.name}</div>
+              <div class="rf-score">${r.score}</div>
+              <div class="rf-time">${(r.time / 1000).toFixed(2)}s</div>
+            </div>
+          `;
+        })
+        .join("")}
+      <div class="rf-scoreboard-sub">Tie-break: a parità di corrette vince il tempo minore.</div>
+    </div>
+  `;
+}
 
 export function renderRapidFireOverlay(gameState) {
   const overlay = document.getElementById("overlay");
@@ -959,6 +1007,8 @@ if (
         </div>
         <span>Tutti i giocatori rispondono dai loro dispositivi.</span>
       </div>
+
+      ${renderRapidFireScoreboardHtml(gameState)}
     </div>
   `;
 
@@ -984,6 +1034,66 @@ if (
       }
     }, 250);
   }
+}
+
+function renderRapidFireRevealOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+  if (!overlay || !overlayContent) return;
+
+  const r = gameState.reveal;
+  const q = r?.question || {};
+  const players = gameState.players || {};
+  const correctPlayers = r?.correctPlayers || [];
+
+  const correctLetter = Number.isFinite(q.correctIndex)
+    ? String.fromCharCode(65 + Number(q.correctIndex))
+    : "—";
+
+  const names = correctPlayers.length
+    ? correctPlayers.map((pid) => players?.[pid]?.name || pid).join(", ")
+    : "Nessuno";
+
+  overlay.classList.remove("hidden");
+  overlay.classList.add("winner-mode");
+  overlayContent.innerHTML = `
+    <div class="winner-screen">
+      <div class="winner-title">RAPID FIRE</div>
+      <div class="winner-subtitle">
+        Risposta corretta: <strong>${correctLetter}</strong><br/>
+        Corretti: <strong>${names}</strong>
+      </div>
+      <div class="winner-spark"></div>
+    </div>
+  `;
+}
+
+function renderVFFlashRevealOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+  if (!overlay || !overlayContent) return;
+
+  const r = gameState.reveal;
+  const players = gameState.players || {};
+  const stmt = r?.statement || {};
+  const winnerId = r?.winnerId || null;
+
+  overlay.classList.remove("hidden");
+  overlay.classList.add("winner-mode");
+
+  overlayContent.innerHTML = `
+    <div class="winner-screen">
+      <div class="winner-title">VERO / FALSO</div>
+      <div class="winner-subtitle">
+        ${winnerId
+          ? `FIRST CORRECT: <strong>${players?.[winnerId]?.name || "—"}</strong><br/>`
+          : `<span class="vf-no-winner">Nessuno ha preso il punto</span><br/>`
+        }
+        Risposta corretta: <strong>${stmt.correct ? "VERO" : "FALSO"}</strong>
+      </div>
+      <div class="winner-spark"></div>
+    </div>
+  `;
 }
 
 export function renderPlayers(gameState) {
