@@ -1599,6 +1599,7 @@ async function startClosestMinigame(gameRef, game, ownerPlayerId, finalTileId, f
     currentQuestion: null,
     reveal: null,
     minigame,
+    const intro = getMinigameIntroCopy("CLOSEST");
     toast: buildToastAll(
     game,
     { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
@@ -1646,6 +1647,7 @@ async function startVFFlashMinigame(gameRef, game, ownerPlayerId, finalTileId, f
     currentQuestion: null,
     reveal: null,
     minigame,
+    const intro = getMinigameIntroCopy("VF_FLASH");
     toast: buildToastAll(
     game,
     { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
@@ -1694,6 +1696,7 @@ async function startSequenceMinigame(gameRef, game, ownerPlayerId, finalTileId, 
     currentQuestion: null,
     reveal: null,
     minigame,
+    const intro = getMinigameIntroCopy("SEQUENCE");
     toast: buildToastAll(
     game,
     { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
@@ -1736,6 +1739,7 @@ async function startIntruderMinigame(gameRef, game, ownerPlayerId, finalTileId, 
     currentQuestion: null,
     reveal: null,
     minigame,
+    const intro = getMinigameIntroCopy("INTRUDER");
      toast: buildToastAll(
     game,
     { kind: "neutral", title: intro.title, subtitle: intro.subtitle },
