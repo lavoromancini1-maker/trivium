@@ -1635,13 +1635,13 @@ body.has-cards-dock {
 }
 
 .winner-screen {
-  border-radius: 28px;
-  padding: 46px 42px;
-  text-align: center;
+  animation: scenePopIn 260ms ease-out;
+  transform-origin: center;
+}
 
-  background: linear-gradient(180deg, rgba(18,18,24,0.92), rgba(10,10,14,0.88));
-  border: 1px solid rgba(255,255,255,0.12);
-  box-shadow: 0 30px 120px rgba(0,0,0,0.60);
+@keyframes scenePopIn {
+  from { transform: scale(0.96); opacity: 0; filter: blur(2px); }
+  to   { transform: scale(1); opacity: 1; filter: blur(0); }
 }
 
 .winner-title {
@@ -1662,15 +1662,15 @@ body.has-cards-dock {
 #overlay.winner-danger  .winner-screen { box-shadow: 0 30px 120px rgba(0,0,0,0.60), 0 0 0 4px rgba(231,76,60,0.24); }
 #overlay.winner-neutral .winner-screen { box-shadow: 0 30px 120px rgba(0,0,0,0.60), 0 0 0 4px rgba(80,180,255,0.26); }
 
-.winner-spark {
-  margin: 24px auto 0;
-  width: 320px;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.18);
-  position: relative;
-  overflow: hidden;
+.winner-neutral .winner-spark {
+  animation: sparkPulse 900ms ease-in-out infinite;
 }
+
+@keyframes sparkPulse {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50%      { transform: scale(1.07); opacity: 0.9; }
+}
+
 .winner-spark::after {
   content: "";
   position: absolute;
