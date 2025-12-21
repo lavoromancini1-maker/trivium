@@ -433,6 +433,15 @@ if (gameState && gameState.phase === "REVEAL" && gameState.reveal?.kind === "VF_
   renderVFFlashRevealOverlay(gameState);
   return;
 }  
+if (gameState && gameState.phase === "REVEAL" && gameState.reveal?.kind === "RAPID_FIRE") {
+  renderRapidFireRevealOverlay(gameState);
+  return;
+}
+
+if (gameState && gameState.phase === "REVEAL" && gameState.reveal?.kind === "VF_FLASH") {
+  renderVFFlashRevealOverlay(gameState);
+  return;
+}  
 if (gameState && gameState.phase === "REVEAL" && gameState.reveal && gameState.reveal.question) {
   const r = gameState.reveal;
   const q = r.question;
@@ -695,6 +704,46 @@ function renderVFFlashOverlay(gameState) {
       <div class="question-text">${stmt?.text || ""}</div>
       <div class="question-footer">
         <span>Il primo che risponde correttamente prende il punto.</span>
+      </div>
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
+}
+
+function renderVFFlashRevealOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+  if (!overlay || !overlayContent) return;
+
+  const r = gameState.reveal || {};
+  const stmt = r.statement || {};
+  const players = gameState.players || {};
+  const winnerId = r.winnerId || null;
+
+  const correctText = stmt.correct ? "VERO" : "FALSO";
+  const winnerName = winnerId ? (players?.[winnerId]?.name || "—") : null;
+
+  // se nessuno ha preso punto: stile “rosso”
+  const title = winnerName ? "FIRST CORRECT!" : "NESSUN PUNTO";
+
+  overlayContent.innerHTML = `
+    <div class="question-card">
+      <div class="question-header">
+        <div class="question-category">MINIGIOCO – VERO/FALSO LAMPO</div>
+        <div class="question-player">${title}</div>
+      </div>
+
+      <div class="question-text">${stmt.text || ""}</div>
+
+      <div class="question-footer" style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+        <div style="font-weight:800;">
+          Risposta corretta:
+          <span style="${winnerName ? "" : "color:#ff4d4d;"}">${correctText}</span>
+        </div>
+        <div style="opacity:.95;font-weight:700;">
+          ${winnerName ? `✅ ${winnerName}` : `❌ Nessuno ha risposto correttamente`}
+        </div>
       </div>
     </div>
   `;
@@ -1066,6 +1115,58 @@ function renderRapidFireRevealOverlay(gameState) {
       <div class="winner-spark"></div>
     </div>
   `;
+}
+
+function renderRapidFireRevealOverlay(gameState) {
+  const overlay = document.getElementById("overlay");
+  const overlayContent = document.getElementById("overlay-content");
+  if (!overlay || !overlayContent) return;
+
+  const r = gameState.reveal || {};
+  const q = r.question || {};
+  const players = gameState.players || {};
+  const correctPlayers = Array.isArray(r.correctPlayers) ? r.correctPlayers : [];
+
+  const correctNames = correctPlayers
+    .map((pid) => players?.[pid]?.name || "—")
+    .slice(0, 6)
+    .join(" • ");
+
+  const correctIndex = Number(q.correctIndex ?? -1);
+
+  const answers = Array.isArray(q.answers) ? q.answers : [];
+  const answersHtml = answers
+    .map((a, i) => {
+      const isCorrect = i === correctIndex;
+      return `<li class="answer-item ${isCorrect ? "correct" : ""}">
+        <span class="answer-letter">${String.fromCharCode(65 + i)}</span>
+        <span class="answer-text">${a}</span>
+      </li>`;
+    })
+    .join("");
+
+  overlayContent.innerHTML = `
+    <div class="question-card">
+      <div class="question-header">
+        <div class="question-category">MINIGIOCO – RAPID FIRE</div>
+        <div class="question-player">RISULTATO</div>
+      </div>
+
+      <div class="question-text">${q.text || ""}</div>
+      <ul class="answers-list">${answersHtml}</ul>
+
+      <div class="question-footer" style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+        <div style="font-weight:700;">
+          ${correctPlayers.length ? "✅ Corretti:" : "❌ Nessuno corretto"}
+        </div>
+        <div style="opacity:.9;">
+          ${correctPlayers.length ? correctNames : "Risposta mostrata in verde"}
+        </div>
+      </div>
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
 }
 
 function renderVFFlashRevealOverlay(gameState) {
