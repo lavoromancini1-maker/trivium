@@ -1474,18 +1474,26 @@ const rawQuestions = getRandomRapidFireQuestions(3, usedIds);
   
   const now = Date.now();
 
-const rapidFire = {
-  ownerPlayerId,
-  questions: shuffledQuestions,
-  currentIndex: 0,
-  scores: {},                 // risposte corrette
-  times: {},                  // ⏱ tempo totale per player (ms)
-  answeredThisQuestion: {},
-  durationSec: 10,
-  questionStartedAt: now,     // ⏱ inizio domanda
-  startedAt: now,
-  expiresAt: now + 10 * 1000,
-};
+  const rapidFire = {
+    ownerPlayerId,
+    questions: shuffledQuestions,
+    currentIndex: 0,
+
+    scores: {},
+
+    // per domanda corrente
+    answeredThisQuestion: {},
+    answersThisQuestion: {},
+    answerTimesThisQuestion: {},
+
+    // tie-break totale (ms)
+    timesMs: {},
+
+    durationSec: 10,
+    questionStartedAt: now,
+    startedAt: now,
+    expiresAt: now + 10 * 1000,
+  };
 
 const rfUsedUpdates = {};
 for (const q of rawQuestions) {
@@ -2038,7 +2046,6 @@ export async function answerRapidFireQuestion(gameCode, playerId, answerIndex) {
   if (game.phase !== "RAPID_FIRE") throw new Error("Non è una fase Rapid Fire.");
 
   const rapidFire = game.rapidFire;
-  const answerTime = Date.now() - rapidFire.questionStartedAt;
   if (!rapidFire) throw new Error("Rapid Fire non attivo.");
 
   const players = game.players || {};
@@ -2048,33 +2055,42 @@ export async function answerRapidFireQuestion(gameCode, playerId, answerIndex) {
   const currentQuestion = rapidFire.questions?.[currentIndex];
   if (!currentQuestion) throw new Error("Nessuna domanda Rapid Fire corrente.");
 
-  rapidFire.answeredThisQuestion = rapidFire.answeredThisQuestion || {};
-  rapidFire.scores = rapidFire.scores || {};
+  // strutture per domanda corrente
+  const answeredThis = rapidFire.answeredThisQuestion || {};
+  if (answeredThis[playerId]) return { alreadyAnswered: true };
 
-  if (rapidFire.answeredThisQuestion[playerId]) {
-    return { alreadyAnswered: true };
-  }
+  const now = Date.now();
 
-  const correct = answerIndex === currentQuestion.correctIndex;
+  // tempo impiegato su QUESTA domanda (ms)
+  const startedAt = rapidFire.questionStartedAt || rapidFire.startedAt || now;
+  const answerTimeMs = Math.max(0, now - startedAt);
+
+  const correct = Number(answerIndex) === Number(currentQuestion.correctIndex);
+
+  const prevScore = rapidFire.scores?.[playerId] ?? 0;
+  const prevTotalTime = rapidFire.timesMs?.[playerId] ?? 0;
 
   const updates = {
     [`rapidFire/answeredThisQuestion/${playerId}`]: true,
+
+    // salviamo cosa ha risposto e in quanto tempo (per reveal banner)
+    [`rapidFire/answersThisQuestion/${playerId}`]: Number(answerIndex),
+    [`rapidFire/answerTimesThisQuestion/${playerId}`]: answerTimeMs,
+
+    // tempo totale (tie-break)
+    [`rapidFire/timesMs/${playerId}`]: prevTotalTime + answerTimeMs,
   };
 
   if (correct) {
-    const prevScore = rapidFire.scores?.[playerId] ?? 0;
     updates[`rapidFire/scores/${playerId}`] = prevScore + 1;
   }
 
- updates[`rapidFire/times/${playerId}`] =
-  (rapidFire.times?.[playerId] || 0) + answerTime;  
-
   await update(gameRef, updates);
 
-  // prova ad avanzare se tutti hanno risposto
+  // prova ad avanzare se tutti hanno risposto (ma ora passa dal REVEAL per ritmo show)
   await maybeAdvanceRapidFireIfAllAnswered(gameRef);
 
-  return { correct };
+  return { correct, answerTimeMs };
 }
 
 export async function answerClosestMinigame(gameCode, playerId, value) {
@@ -2321,71 +2337,76 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
         .map(([pid]) => pid);
     }
 
-    if (correct) {
-      // PRIMO corretto: vince il punto per questa affermazione
+      if (correct) {
+      // PRIMO corretto: vince il punto
       mg.currentWinnerId = playerId;
       mg.winners[playerId] = (mg.winners[playerId] || 0) + 1;
-
-      // tempo: sommiamo SOLO quando prendi il punto (primo corretto)
-      const elapsed = Date.now() - (mg.statementStartedAt || Date.now());
-      mg.responseTimes[playerId] = (mg.responseTimes[playerId] || 0) + Math.max(0, elapsed);
 
       // punti immediati: +10 per affermazione corretta
       players[playerId].points = addPointsSafe(players[playerId].points, 10);
 
-      // passa subito alla prossima affermazione (o chiudi)
-      if (idx < 2) {
-        mg.index = idx + 1;
-        mg.answeredThis = {};
-        mg.eliminatedThis = {};
-        mg.currentWinnerId = null;
-        mg.statementStartedAt = Date.now();
-        game.minigame = mg;
-        game.players = players;
-        return game;
-      }
+      // REVEAL show tra una affermazione e l’altra
+      const now = Date.now();
+      const REVEAL_MS = 1600;
 
-      // finito pack: chiudi minigioco + applica regola turni owner
-      const bestIds = computeBestIds();
-      const ownerId = mg.ownerPlayerId;
-      const ownerWon = ownerId && bestIds.includes(ownerId);
+      game.phase = "REVEAL";
+      game.reveal = {
+        kind: "VF_FLASH",
+        statement: { text: stmt.text, correct: !!stmt.correct },
+        winnerId: playerId,
+        shownAt: now,
+        hideAt: now + REVEAL_MS,
+        after:
+          idx < 2
+            ? { type: "VF_FLASH_NEXT", nextIndex: idx + 1 }
+            : { type: "VF_FLASH_END" },
+      };
 
-      if (!ownerWon) {
-        const { nextIndex, nextPlayerId } = getNextTurn(game);
-        game.currentTurnIndex = nextIndex;
-        game.currentPlayerId = nextPlayerId;
-      } else {
-        game.currentTurnIndex = game.currentTurnIndex;
-        game.currentPlayerId = ownerId;
-      }
+      // toast host “first correct”
+      game.toast = {
+        host: {
+          kind: "success",
+          title: "Vero/Falso – FIRST CORRECT!",
+          subtitle: `${players?.[playerId]?.name || "—"} prende il punto`,
+        },
+        hideAt: now + REVEAL_MS,
+      };
 
-      game.lastMinigameType = "VF_FLASH";
-      game.lastVFFlashWinners = mg.winners || {};
-      game.lastVFFlashTimes = mg.responseTimes || {};
-      game.lastVFFlashBestIds = bestIds;
-
-      game.phase = "WAIT_ROLL";
-      game.minigame = null;
       game.players = players;
+      game.minigame = mg;
       return game;
     }
-
     // sbagliato: eliminato per questa affermazione
     mg.eliminatedThis[playerId] = true;
 
     // se tutti hanno tentato e nessuno ha vinto -> passa alla prossima (o chiudi)
-    const allTried = playerIds.length > 0 && playerIds.every((pid) => mg.answeredThis[pid]);
+       const allTried = playerIds.length > 0 && playerIds.every((pid) => mg.answeredThis[pid]);
     if (allTried) {
-      if (idx < 2) {
-        mg.index = idx + 1;
-        mg.answeredThis = {};
-        mg.eliminatedThis = {};
-        mg.currentWinnerId = null;
-        mg.statementStartedAt = Date.now();
+      const now = Date.now();
+      const REVEAL_MS = 1600;
 
-        game.minigame = mg;
-        return game;
-      }
+      game.phase = "REVEAL";
+      game.reveal = {
+        kind: "VF_FLASH",
+        statement: { text: stmt.text, correct: !!stmt.correct },
+        winnerId: null,
+        shownAt: now,
+        hideAt: now + REVEAL_MS,
+        after: idx < 2 ? { type: "VF_FLASH_NEXT", nextIndex: idx + 1 } : { type: "VF_FLASH_END" },
+      };
+
+      game.toast = {
+        host: {
+          kind: "danger",
+          title: "Vero/Falso – Nessun punto",
+          subtitle: `Risposta corretta: ${stmt.correct ? "VERO" : "FALSO"}`,
+        },
+        hideAt: now + REVEAL_MS,
+      };
+
+      game.minigame = mg;
+      return game;
+    }
 
       // finito pack senza vincitore sull’ultima affermazione:
       // decide comunque la classifica finale su winners/tempi (se nessuno ha punti -> owner perde)
@@ -2602,7 +2623,6 @@ if (!ownerWon) {
 }
 
 
-// 👇 QUESTA FUNZIONE DEVE STARE FUORI (scope file)
 async function maybeAdvanceRapidFireIfAllAnswered(gameRef) {
   const snap = await get(gameRef);
   if (!snap.exists()) return;
@@ -2618,26 +2638,60 @@ async function maybeAdvanceRapidFireIfAllAnswered(gameRef) {
   const playerIds = Object.keys(players);
 
   const answered = rapidFire.answeredThisQuestion || {};
-  const allAnswered = playerIds.length > 0 && playerIds.every(pid => answered[pid]);
+  const allAnswered = playerIds.length > 0 && playerIds.every((pid) => answered[pid]);
   if (!allAnswered) return;
 
   const currentIndex = rapidFire.currentIndex ?? 0;
   const totalQuestions = rapidFire.questions?.length ?? 0;
+  const question = rapidFire.questions?.[currentIndex];
 
-  if (currentIndex < totalQuestions - 1) {
-    const now = Date.now();
-await update(gameRef, {
-  "rapidFire/currentIndex": currentIndex + 1,
-  "rapidFire/answeredThisQuestion": {},
-  "rapidFire/questionStartedAt": now,
-  "rapidFire/startedAt": now,
-  "rapidFire/expiresAt": now + (rapidFire.durationSec ?? 10) * 1000,
-});
-    return;
+  const now = Date.now();
+  const REVEAL_MS = 1600;
+
+  // chi ha risposto correttamente (per banner)
+  const answersMap = rapidFire.answersThisQuestion || {};
+  const correctPlayers = [];
+  const correctIndex = question?.correctIndex;
+
+  for (const pid of playerIds) {
+    if (Number(answersMap?.[pid]) === Number(correctIndex)) correctPlayers.push(pid);
   }
 
-  // ultima domanda: forza scadenza così host loop assegna punti
-  await update(gameRef, { "rapidFire/expiresAt": Date.now() });
+  // mettiamo REVEAL tra una domanda e l’altra (ritmo show)
+  const isLast = currentIndex >= totalQuestions - 1;
+
+  await update(gameRef, {
+    phase: "REVEAL",
+    reveal: {
+      kind: "RAPID_FIRE",
+      question: {
+        text: question?.text || "",
+        answers: question?.answers || [],
+        correctIndex: Number(correctIndex),
+      },
+      correctPlayers,
+      shownAt: now,
+      hideAt: now + REVEAL_MS,
+      after: isLast
+        ? { type: "RAPID_FIRE_END" }
+        : { type: "RAPID_FIRE_NEXT", nextIndex: currentIndex + 1 },
+    },
+
+    // toast host “banner”
+    toast: {
+      host: {
+        kind: correctPlayers.length ? "success" : "danger",
+        title: `Rapid Fire – Risposta corretta: ${String.fromCharCode(65 + Number(correctIndex))}`,
+        subtitle: correctPlayers.length
+          ? `Corretti: ${correctPlayers
+              .map((pid) => players?.[pid]?.name || pid)
+              .join(", ")}`
+          : "Nessuno ha risposto correttamente",
+      },
+      // (facoltativo) potresti aggiungere toast.players se vuoi anche sui telefoni
+      hideAt: now + REVEAL_MS,
+    },
+  });
 }
 
 
@@ -2674,22 +2728,55 @@ export async function checkAndHandleRapidFireTimeout(gameCode) {
   const players = game.players || {};
   const playerIds = Object.keys(players);
 
-  // Vediamo se ci sono altre domande
+   // Vediamo se ci sono altre domande
   const currentIndex = rapidFire.currentIndex ?? 0;
   const totalQuestions = rapidFire.questions.length;
 
-  if (currentIndex < totalQuestions - 1) {
-    // Passiamo alla domanda successiva
-    const now2 = Date.now();
-    rapidFire.currentIndex = currentIndex + 1;
-    rapidFire.answeredThisQuestion = {};
-    rapidFire.startedAt = now2;
-    rapidFire.questionStartedAt = now2;
-    rapidFire.expiresAt = now2 + rapidFire.durationSec * 1000;
+  const question = rapidFire.questions?.[currentIndex];
+  const correctIndex = question?.correctIndex;
 
-    await update(gameRef, { rapidFire });
-    return { handled: true, reason: "NEXT_QUESTION" };
+  const now2 = Date.now();
+  const REVEAL_MS = 1600;
+
+  const answersMap = rapidFire.answersThisQuestion || {};
+  const correctPlayers = [];
+  for (const pid of playerIds) {
+    if (Number(answersMap?.[pid]) === Number(correctIndex)) correctPlayers.push(pid);
   }
+
+  const isLast = currentIndex >= totalQuestions - 1;
+
+  await update(gameRef, {
+    phase: "REVEAL",
+    reveal: {
+      kind: "RAPID_FIRE",
+      question: {
+        text: question?.text || "",
+        answers: question?.answers || [],
+        correctIndex: Number(correctIndex),
+      },
+      correctPlayers,
+      shownAt: now2,
+      hideAt: now2 + REVEAL_MS,
+      after: isLast
+        ? { type: "RAPID_FIRE_END" }
+        : { type: "RAPID_FIRE_NEXT", nextIndex: currentIndex + 1 },
+    },
+    toast: {
+      host: {
+        kind: correctPlayers.length ? "success" : "danger",
+        title: `Rapid Fire – Risposta corretta: ${String.fromCharCode(65 + Number(correctIndex))}`,
+        subtitle: correctPlayers.length
+          ? `Corretti: ${correctPlayers
+              .map((pid) => players?.[pid]?.name || pid)
+              .join(", ")}`
+          : "Nessuno ha risposto correttamente",
+      },
+      hideAt: now2 + REVEAL_MS,
+    },
+  });
+
+  return { handled: true, reason: isLast ? "REVEAL_END" : "REVEAL_NEXT" };
 
   const scores = rapidFire.scores || {};
   const times = rapidFire.times || {};
@@ -2994,6 +3081,174 @@ export async function checkAndHandleRevealAdvance(gameCode) {
 
     return { handled: true, reason: "SCRIGNO_FINAL" };
   }
+
+    // ───────────────────────────────
+  // RAPID FIRE: advance post-reveal (ritmo show)
+  // ───────────────────────────────
+  if (after?.type === "RAPID_FIRE_NEXT") {
+    const rf = game.rapidFire;
+    if (!rf) {
+      await update(gameRef, { ...base, phase: "WAIT_ROLL" });
+      return { handled: true, reason: "RAPID_FIRE_NO_DATA" };
+    }
+
+    const nextIndex = Number(after.nextIndex);
+    const now2 = Date.now();
+    const dur = Number(rf.durationSec ?? 10);
+
+    await update(gameRef, {
+      ...base,
+      phase: "RAPID_FIRE",
+      [`rapidFire/currentIndex`]: nextIndex,
+      [`rapidFire/answeredThisQuestion`]: {},
+      [`rapidFire/answersThisQuestion`]: {},
+      [`rapidFire/answerTimesThisQuestion`]: {},
+      [`rapidFire/questionStartedAt`]: now2,
+      [`rapidFire/startedAt`]: now2,
+      [`rapidFire/expiresAt`]: now2 + dur * 1000,
+    });
+
+    return { handled: true, reason: "RAPID_FIRE_NEXT" };
+  }
+
+  if (after?.type === "RAPID_FIRE_END") {
+    const rf = game.rapidFire;
+    const players = game.players || {};
+    const playerIds = Object.keys(players);
+
+    if (!rf) {
+      await update(gameRef, { ...base, phase: "WAIT_ROLL" });
+      return { handled: true, reason: "RAPID_FIRE_END_NO_DATA" };
+    }
+
+    const scores = rf.scores || {};
+    const timesMs = rf.timesMs || {};
+
+    // ranking: score desc, time asc
+    const rows = playerIds.map((pid) => ({
+      pid,
+      score: Number(scores[pid] ?? 0),
+      time: Number(timesMs[pid] ?? 0),
+    }));
+
+    rows.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.time - b.time;
+    });
+
+    const winnerPid = rows[0]?.pid || null;
+    const ownerPid = rf.ownerPlayerId || null;
+
+    // Punti (puoi rifinire dopo): winner +30, secondo +15, ultimo -10
+    const updates = {
+      ...base,
+      rapidFire: null,
+      lastMinigameType: "RAPID_FIRE",
+    };
+
+    const firstScore = rows[0]?.score ?? 0;
+    const firstTime = rows[0]?.time ?? 0;
+
+    const secondRow = rows.find((r) => r.pid !== winnerPid);
+    const lastRow = rows[rows.length - 1];
+
+    for (const r of rows) {
+      const p = players[r.pid];
+      if (!p) continue;
+
+      let delta = 0;
+      if (r.pid === winnerPid) delta = 30;
+      else if (secondRow && r.pid === secondRow.pid) delta = 15;
+      else if (lastRow && r.pid === lastRow.pid) delta = -10;
+
+      players[r.pid].points = addPointsSafe(players[r.pid].points, delta);
+    }
+
+    // regola tua: se owner non vince → passa turno
+    if (winnerPid && ownerPid && winnerPid !== ownerPid) {
+      const { nextIndex, nextPlayerId } = getNextTurn(game);
+      updates.currentTurnIndex = nextIndex;
+      updates.currentPlayerId = nextPlayerId;
+    }
+
+    // toast finale “show”
+    const now2 = Date.now();
+    updates.players = players;
+    updates.toast = {
+      host: {
+        kind: "success",
+        title: `Rapid Fire – Vince ${players?.[winnerPid]?.name || "—"}`,
+        subtitle: `Corrette: ${firstScore} • Tempo: ${(firstTime / 1000).toFixed(2)}s`,
+      },
+      hideAt: now2 + 2200,
+    };
+
+    await update(gameRef, {
+      ...updates,
+      phase: "WAIT_ROLL",
+    });
+
+    // carta bonus al vincitore (coerente con tuo sistema)
+    if (winnerPid) {
+      await maybeDropCardByRef(gameRef, winnerPid, 1.0, "MINIGAME_RAPID_FIRE_WIN");
+    }
+
+    return { handled: true, reason: "RAPID_FIRE_END" };
+  }
+
+  // ───────────────────────────────
+  // VF FLASH: advance post-reveal (ritmo show)
+  // ───────────────────────────────
+  if (after?.type === "VF_FLASH_NEXT") {
+    const mg = game.minigame;
+    if (!mg || mg.type !== "VF_FLASH") {
+      await update(gameRef, { ...base, phase: "WAIT_ROLL", minigame: null });
+      return { handled: true, reason: "VF_FLASH_NEXT_NO_MG" };
+    }
+
+    const nextIndex = Number(after.nextIndex);
+
+    await update(gameRef, {
+      ...base,
+      phase: "MINIGAME",
+      minigame: {
+        ...mg,
+        index: nextIndex,
+        answeredThis: {},
+        eliminatedThis: {},
+        currentWinnerId: null,
+      },
+    });
+
+    return { handled: true, reason: "VF_FLASH_NEXT" };
+  }
+
+  if (after?.type === "VF_FLASH_END") {
+    const mg = game.minigame;
+
+    // chiudi minigioco e assegna carta al best (come già facevi a fine VF)
+    const winMap = mg?.winners || {};
+    const entries = Object.entries(winMap);
+
+    await update(gameRef, {
+      ...base,
+      phase: "WAIT_ROLL",
+      minigame: null,
+      lastMinigameType: "VF_FLASH",
+      lastVFFlashWinners: winMap,
+    });
+
+    if (entries.length) {
+      entries.sort((a, b) => (b[1] || 0) - (a[1] || 0));
+      const bestScore = entries[0][1] || 0;
+      const bestIds = entries.filter(([_, s]) => (s || 0) === bestScore).map(([id]) => id);
+      for (const pid of bestIds) {
+        await maybeDropCardByRef(gameRef, pid, 1.0, "MINIGAME_VF_FLASH_WIN");
+      }
+    }
+
+    return { handled: true, reason: "VF_FLASH_END" };
+  }  
 
   // ───────────────────────────────
   // EVENTI: post-reveal (tua logica invariata)
