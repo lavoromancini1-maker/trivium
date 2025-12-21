@@ -408,6 +408,230 @@ function makeScrignoFinalQuestion(game, forPlayerId, forcedCategory = null) {
   };
 }
 
+// ───────────────────────────────
+// SCRIGNO FINALE – VOTAZIONE CATEGORIA (STEP 7)
+// ───────────────────────────────
+const SCRIGNO_VOTE_DURATION_SEC = 12;      // feel gameshow (puoi cambiare)
+const SCRIGNO_TIE_PICK_DURATION_SEC = 10;
+
+function getScrignoVoters(game, forPlayerId) {
+  const players = game.players || {};
+  return Object.keys(players).filter((pid) => pid !== forPlayerId);
+}
+
+function tallyScrignoVotes(votes = {}) {
+  const tally = {};
+  for (const cat of Object.values(votes)) {
+    if (!cat) continue;
+    tally[cat] = (tally[cat] || 0) + 1;
+  }
+  return tally;
+}
+
+function computeScrignoVoteOutcome(game, votes = {}, forPlayerId) {
+  const voters = getScrignoVoters(game, forPlayerId);
+  const tally = tallyScrignoVotes(votes);
+
+  // stabilizza: mostra anche 0 per le categorie non votate
+  for (const c of CATEGORIES) {
+    if (tally[c] == null) tally[c] = 0;
+  }
+
+  let max = -1;
+  for (const c of Object.keys(tally)) max = Math.max(max, Number(tally[c] || 0));
+  const top = Object.keys(tally).filter((c) => Number(tally[c] || 0) === max);
+
+  return { voters, tally, top, max };
+}
+
+async function startScrignoVotePhase(gameRef, game, forPlayerId) {
+  const now = Date.now();
+  const vote = {
+    forPlayerId,
+    votes: {}, // { [voterId]: category }
+    startedAt: now,
+    expiresAt: now + SCRIGNO_VOTE_DURATION_SEC * 1000,
+  };
+
+  await update(gameRef, {
+    phase: "SCRIGNO_VOTE",
+    currentQuestion: null,
+    reveal: null,
+    scrigno: { ...(game.scrigno || {}), vote },
+    toast: buildToastAll(
+      game,
+      { kind: "neutral", title: "SCRIGNO FINALE", subtitle: "Gli altri giocatori stanno votando la categoria…" },
+      { kind: "neutral", title: "VOTA LA CATEGORIA FINALE", subtitle: "Scegli ora. Pochi secondi!" },
+      1800
+    ),
+  });
+}
+
+async function resolveScrignoVote(gameRef, game) {
+  const scrigno = game.scrigno || {};
+  const vote = scrigno.vote;
+  if (!vote || !vote.forPlayerId) return { handled: false, reason: "NO_VOTE" };
+  if (game.phase !== "SCRIGNO_VOTE") return { handled: false, reason: "NOT_IN_VOTE" };
+
+  const forPlayerId = vote.forPlayerId;
+  const votes = vote.votes || {};
+  const { tally, top } = computeScrignoVoteOutcome(game, votes, forPlayerId);
+
+  // pareggio -> scelta del player sullo scrigno
+  if (top.length > 1) {
+    const now = Date.now();
+    await update(gameRef, {
+      phase: "SCRIGNO_TIE_PICK",
+      scrigno: {
+        ...scrigno,
+        vote: { ...vote, tally, resolvedAt: now },
+        tie: {
+          forPlayerId,
+          options: top,
+          startedAt: now,
+          expiresAt: now + SCRIGNO_TIE_PICK_DURATION_SEC * 1000,
+        },
+      },
+      toast: buildToastAll(
+        game,
+        { kind: "neutral", title: "PAREGGIO!", subtitle: "Il giocatore sullo scrigno sceglie la categoria finale." },
+        { kind: "neutral", title: "PAREGGIO – SCEGLI!", subtitle: "Scegli tra le categorie più votate." },
+        1800
+      ),
+    });
+    return { handled: true, reason: "TIE_PICK" };
+  }
+
+  // vincitore unico
+  const chosen = top[0] || pickRandomCategory();
+
+  const qF = makeScrignoFinalQuestion(game, forPlayerId, chosen);
+  if (!qF) {
+    await update(gameRef, { phase: "WAIT_ROLL" });
+    return { handled: true, reason: "FINAL_FALLBACK" };
+  }
+
+  await update(gameRef, {
+    phase: "QUESTION",
+    currentQuestion: qF, // timer 40s già dentro makeScrignoFinalQuestion
+    scrigno: { ...scrigno, finalCategory: chosen, vote: { ...vote, tally, resolvedAt: Date.now() } },
+    [`usedCategoryQuestionIds/${qF.id}`]: true,
+  });
+
+  return { handled: true, reason: "FINAL_STARTED" };
+}
+
+// Player vota (tutti tranne forPlayerId)
+export async function voteScrignoCategory(gameCode, playerId, category) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+  if (!snap.exists()) throw new Error("Partita non trovata");
+
+  const game = snap.val();
+  if (game.state !== "IN_PROGRESS") throw new Error("La partita non è in corso.");
+  if (game.phase !== "SCRIGNO_VOTE") throw new Error("Non è in corso una votazione scrigno.");
+
+  const vote = game.scrigno?.vote;
+  if (!vote || !vote.forPlayerId) throw new Error("Votazione non valida.");
+  if (playerId === vote.forPlayerId) throw new Error("Il giocatore sullo scrigno non vota.");
+  if (!CATEGORIES.includes(category)) throw new Error("Categoria non valida.");
+
+  if (vote.votes && vote.votes[playerId]) return { ok: true, already: true };
+
+  await update(gameRef, { [`scrigno/vote/votes/${playerId}`]: category });
+
+  // ritmo show: se tutti hanno votato -> chiudi subito
+  const afterSnap = await get(gameRef);
+  const after = afterSnap.val();
+  const v = after?.scrigno?.vote;
+  if (after?.phase === "SCRIGNO_VOTE" && v?.forPlayerId) {
+    const voters = getScrignoVoters(after, v.forPlayerId);
+    const votesMap = v.votes || {};
+    const allVoted = voters.length > 0 && voters.every((pid) => !!votesMap[pid]);
+    if (allVoted) await resolveScrignoVote(gameRef, after);
+  }
+
+  return { ok: true };
+}
+
+// Timeout / forzatura chiusura votazione (può chiamarla qualunque client)
+export async function finalizeScrignoVote(gameCode) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+  if (!snap.exists()) return { handled: false, reason: "NO_GAME" };
+
+  const game = snap.val();
+  if (game.state !== "IN_PROGRESS") return { handled: false, reason: "NOT_IN_PROGRESS" };
+  if (game.phase !== "SCRIGNO_VOTE") return { handled: false, reason: "NOT_IN_VOTE" };
+
+  const vote = game.scrigno?.vote;
+  if (!vote || !vote.expiresAt) return { handled: false, reason: "NO_VOTE_DATA" };
+
+  const now = Date.now();
+  const voters = getScrignoVoters(game, vote.forPlayerId);
+  const votesMap = vote.votes || {};
+  const allVoted = voters.length > 0 && voters.every((pid) => !!votesMap[pid]);
+
+  if (!allVoted && now < vote.expiresAt) return { handled: false, reason: "NOT_EXPIRED" };
+
+  return await resolveScrignoVote(gameRef, game);
+}
+
+// Scelta categoria in caso di pareggio (solo player sullo scrigno)
+export async function pickScrignoTieCategory(gameCode, playerId, category) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+  if (!snap.exists()) throw new Error("Partita non trovata");
+
+  const game = snap.val();
+  if (game.state !== "IN_PROGRESS") throw new Error("La partita non è in corso.");
+  if (game.phase !== "SCRIGNO_TIE_PICK") throw new Error("Non è in corso la scelta del pareggio.");
+
+  const tie = game.scrigno?.tie;
+  if (!tie || tie.forPlayerId !== playerId) throw new Error("Non sei autorizzato a scegliere.");
+
+  const options = Array.isArray(tie.options) ? tie.options : [];
+  if (!options.includes(category)) throw new Error("Categoria non valida.");
+
+  const qF = makeScrignoFinalQuestion(game, playerId, category);
+  if (!qF) {
+    await update(gameRef, { phase: "WAIT_ROLL", scrigno: { ...(game.scrigno || {}), tie: null } });
+    return { ok: true, fallback: true };
+  }
+
+  await update(gameRef, {
+    phase: "QUESTION",
+    currentQuestion: qF,
+    scrigno: { ...(game.scrigno || {}), finalCategory: category, tie: null },
+    [`usedCategoryQuestionIds/${qF.id}`]: true,
+  });
+
+  return { ok: true };
+}
+
+// Timeout pareggio: se non sceglie -> random tra le opzioni
+export async function checkAndHandleScrignoTieTimeout(gameCode) {
+  const gameRef = ref(db, `${GAMES_PATH}/${gameCode}`);
+  const snap = await get(gameRef);
+  if (!snap.exists()) return { handled: false };
+
+  const game = snap.val();
+  if (game.state !== "IN_PROGRESS") return { handled: false };
+  if (game.phase !== "SCRIGNO_TIE_PICK") return { handled: false };
+
+  const tie = game.scrigno?.tie;
+  if (!tie || !tie.expiresAt) return { handled: false };
+
+  const now = Date.now();
+  if (now < tie.expiresAt) return { handled: false };
+
+  const options = Array.isArray(tie.options) ? tie.options : [];
+  const fallback = options.length ? options[Math.floor(Math.random() * options.length)] : pickRandomCategory();
+
+  await pickScrignoTieCategory(gameCode, tie.forPlayerId, fallback);
+  return { handled: true };
+}
+
 /**
  * Avvia la partita: genera ordine casuale dei giocatori, inizializza
  * livelli, chiavi, carte, punteggio. Aggiorna lo stato in "IN_PROGRESS".
@@ -1390,23 +1614,16 @@ if (finalTile.type === "scrigno") {
     return;
   }
 
-  // Primo accesso → domanda finale
-  const qFinal = makeScrignoFinalQuestion(game, playerId, scrigno?.finalCategory || null);
-  if (!qFinal) {
-    await update(gameRef, { ...scrignoBase, phase: "WAIT_ROLL" });
-    return;
-  }
+// Primo accesso (con 6 chiavi) → VOTAZIONE (non parte subito la finale)
+attempts[playerId] = a;
 
-  attempts[playerId] = a;
+await update(gameRef, {
+  ...scrignoBase,
+  scrigno: { ...scrigno, attempts },
+});
 
-  await update(gameRef, {
-    ...scrignoBase,
-    phase: "QUESTION",
-    currentQuestion: qFinal,
-    scrigno: { ...scrigno, attempts },
-    [`usedCategoryQuestionIds/${qFinal.id}`]: true,
-  });
-  return;
+await startScrignoVotePhase(gameRef, game, playerId);
+return;
 }
 
 
@@ -3085,22 +3302,11 @@ export async function checkAndHandleRevealAdvance(gameCode) {
     return { handled: true, reason: "SCRIGNO_NEXT_CHALLENGE" };
   }
 
-  if (after?.type === "SCRIGNO_START_FINAL") {
-    const qF = makeScrignoFinalQuestion(game, r.forPlayerId, game.scrigno?.finalCategory || null);
-    if (!qF) {
-      await update(gameRef, { ...base, phase: "WAIT_ROLL" });
-      return { handled: true, reason: "SCRIGNO_FINAL_FALLBACK" };
-    }
-
-    await update(gameRef, {
-      ...base,
-      phase: "QUESTION",
-      currentQuestion: qF,
-      [`usedCategoryQuestionIds/${qF.id}`]: true,
-    });
-
-    return { handled: true, reason: "SCRIGNO_FINAL" };
-  }
+if (after?.type === "SCRIGNO_START_FINAL") {
+  // Dopo aver superato la challenge, si rifa la votazione come da regola STEP 7
+  await startScrignoVotePhase(gameRef, game, r.forPlayerId);
+  return { handled: true, reason: "SCRIGNO_VOTE_START" };
+}
 
     // ───────────────────────────────
   // RAPID FIRE: advance post-reveal (ritmo show)
