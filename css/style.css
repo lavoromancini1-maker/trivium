@@ -1831,3 +1831,105 @@ body.has-cards-dock {
   letter-spacing: .3px;
   text-transform: uppercase;
 }
+
+/* ─────────────────────────────
+   GAMESHOW – SCRIGNO VOTE/TIE COUNTDOWN + PROGRESS (HOST)
+   ───────────────────────────── */
+.scrigno-countdown-big{
+  margin-top: 10px;
+  padding: 14px 14px 12px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  text-align: center;
+}
+.scrigno-countdown-label{
+  font-weight: 900;
+  letter-spacing: .35em;
+  opacity: .85;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+.scrigno-countdown-time{
+  margin-top: 6px;
+  font-size: 58px;
+  font-weight: 1000;
+  letter-spacing: .03em;
+  line-height: 1;
+  text-shadow: 0 10px 30px rgba(0,0,0,.55);
+}
+.scrigno-progress{
+  margin-top: 10px;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.14);
+}
+.scrigno-progress-fill{
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  background: rgba(255,255,255,.75);
+  animation: scrignoProgressShrink var(--dur, 12000ms) linear forwards;
+}
+@keyframes scrignoProgressShrink{
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+/* ─────────────────────────────
+   GAMESHOW – SCRIGNO FINAL STINGER (HOST)
+   ───────────────────────────── */
+#overlay.scrigno-stinger-on .scrigno-stinger-layer{
+  opacity: 1;
+  pointer-events: none;
+}
+.scrigno-stinger-layer{
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.scrigno-stinger-flash{
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,.0);
+  animation: scrignoFlash 900ms ease-out forwards;
+}
+@keyframes scrignoFlash{
+  0%   { background: rgba(255,255,255,.0); }
+  15%  { background: rgba(255,255,255,.55); }
+  35%  { background: rgba(255,255,255,.08); }
+  100% { background: rgba(255,255,255,.0); }
+}
+.scrigno-stinger-center{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  padding: 18px 22px;
+  border-radius: 22px;
+  background: rgba(0,0,0,.55);
+  border: 1px solid rgba(255,255,255,.14);
+  backdrop-filter: blur(12px);
+  animation: scrignoPop 900ms ease-out forwards;
+}
+@keyframes scrignoPop{
+  0%   { transform: translate(-50%, -50%) scale(.92); opacity: 0; }
+  22%  { transform: translate(-50%, -50%) scale(1.02); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: .92; }
+}
+.scrigno-stinger-title{
+  font-size: 42px;
+  font-weight: 1000;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  text-shadow: 0 12px 36px rgba(0,0,0,.65);
+}
+.scrigno-stinger-sub{
+  margin-top: 6px;
+  opacity: .85;
+  font-weight: 700;
+}
