@@ -2408,6 +2408,11 @@ export async function answerVFFlashMinigame(gameCode, playerId, choiceBool) {
       return game;
     }
 
+    // se non tutti hanno tentato (o qualcuno ha sbagliato), continuiamo il minigioco
+    game.minigame = mg;
+    return game;
+  });
+
   // Drop carta ai vincitori (bestIds) — post transaction
   if (tx.committed) {
     const after = tx.snapshot.val();
