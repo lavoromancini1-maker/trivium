@@ -1129,34 +1129,6 @@ function renderRapidFireRevealOverlay(gameState) {
   overlay.classList.remove("hidden");
 }
 
-function renderVFFlashRevealOverlay(gameState) {
-  const overlay = document.getElementById("overlay");
-  const overlayContent = document.getElementById("overlay-content");
-  if (!overlay || !overlayContent) return;
-
-  const r = gameState.reveal;
-  const players = gameState.players || {};
-  const stmt = r?.statement || {};
-  const winnerId = r?.winnerId || null;
-
-  overlay.classList.remove("hidden");
-  overlay.classList.add("winner-mode");
-
-  overlayContent.innerHTML = `
-    <div class="winner-screen">
-      <div class="winner-title">VERO / FALSO</div>
-      <div class="winner-subtitle">
-        ${winnerId
-          ? `FIRST CORRECT: <strong>${players?.[winnerId]?.name || "—"}</strong><br/>`
-          : `<span class="vf-no-winner">Nessuno ha preso il punto</span><br/>`
-        }
-        Risposta corretta: <strong>${stmt.correct ? "VERO" : "FALSO"}</strong>
-      </div>
-      <div class="winner-spark"></div>
-    </div>
-  `;
-}
-
 export function renderPlayers(gameState) {
   const leftCol = document.getElementById("players-left");
   const rightCol = document.getElementById("players-right");
