@@ -403,6 +403,8 @@ export function renderQuestionOverlay(gameState) {
   if (!overlay || !overlayContent) return;
 
 overlay.classList.remove("correct-answer", "wrong-answer");
+overlay.classList.remove("winner-mode", "winner-success", "winner-danger", "winner-neutral");
+
   
 if (gameState && (gameState.phase === "RAPID_FIRE" || gameState.phase === "RAPID_FIRE_QUESTION")) {
   renderRapidFireOverlay(gameState);
@@ -428,16 +430,6 @@ if (gameState && gameState.phase === "REVEAL" && gameState.reveal?.kind === "RAP
   renderRapidFireRevealOverlay(gameState);
   return;
 }
-
-if (gameState && gameState.phase === "REVEAL" && gameState.reveal?.kind === "VF_FLASH") {
-  renderVFFlashRevealOverlay(gameState);
-  return;
-}  
-if (gameState && gameState.phase === "REVEAL" && gameState.reveal?.kind === "RAPID_FIRE") {
-  renderRapidFireRevealOverlay(gameState);
-  return;
-}
-
 if (gameState && gameState.phase === "REVEAL" && gameState.reveal?.kind === "VF_FLASH") {
   renderVFFlashRevealOverlay(gameState);
   return;
@@ -1083,38 +1075,6 @@ if (
       }
     }, 250);
   }
-}
-
-function renderRapidFireRevealOverlay(gameState) {
-  const overlay = document.getElementById("overlay");
-  const overlayContent = document.getElementById("overlay-content");
-  if (!overlay || !overlayContent) return;
-
-  const r = gameState.reveal;
-  const q = r?.question || {};
-  const players = gameState.players || {};
-  const correctPlayers = r?.correctPlayers || [];
-
-  const correctLetter = Number.isFinite(q.correctIndex)
-    ? String.fromCharCode(65 + Number(q.correctIndex))
-    : "—";
-
-  const names = correctPlayers.length
-    ? correctPlayers.map((pid) => players?.[pid]?.name || pid).join(", ")
-    : "Nessuno";
-
-  overlay.classList.remove("hidden");
-  overlay.classList.add("winner-mode");
-  overlayContent.innerHTML = `
-    <div class="winner-screen">
-      <div class="winner-title">RAPID FIRE</div>
-      <div class="winner-subtitle">
-        Risposta corretta: <strong>${correctLetter}</strong><br/>
-        Corretti: <strong>${names}</strong>
-      </div>
-      <div class="winner-spark"></div>
-    </div>
-  `;
 }
 
 function renderRapidFireRevealOverlay(gameState) {
