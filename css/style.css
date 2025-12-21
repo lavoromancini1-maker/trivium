@@ -1729,3 +1729,105 @@ body.has-cards-dock {
   font-weight: 900;
   color: #ffb3b3;
 }
+
+/* ─────────────────────────────
+   SCRIGNO – VOTE UI (PLAYER)
+   ───────────────────────────── */
+.scrigno-panel{
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(0,0,0,.55);
+  border: 1px solid rgba(255,255,255,.10);
+  backdrop-filter: blur(10px);
+  margin-top: 12px;
+}
+.scrigno-title{
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: .4px;
+}
+.scrigno-sub{
+  margin-top: 6px;
+  opacity: .85;
+  font-size: 13px;
+}
+.scrigno-grid{
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.scrigno-btn{
+  padding: 12px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.08);
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+.scrigno-btn:active{ transform: scale(.98); }
+.scrigno-btn:disabled{
+  opacity: .45;
+  filter: grayscale(1);
+}
+.scrigno-hint{
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: .85;
+}
+
+/* ─────────────────────────────
+   SCRIGNO – HOST OVERLAY
+   ───────────────────────────── */
+.scrigno-card .scrigno-vote-wrap{
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+.scrigno-row{
+  display: grid;
+  grid-template-columns: 180px 1fr 36px;
+  gap: 10px;
+  align-items: center;
+}
+.scrigno-cat{
+  font-weight: 900;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  opacity: .92;
+}
+.scrigno-bar{
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.10);
+}
+.scrigno-fill{
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(255,255,255,.60);
+  width: 0%;
+  transition: width 220ms ease;
+}
+.scrigno-n{
+  font-weight: 900;
+  text-align: right;
+}
+.scrigno-options{
+  margin-top: 14px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.scrigno-pill{
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.14);
+  font-weight: 900;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
