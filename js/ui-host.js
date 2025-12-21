@@ -2,6 +2,7 @@
 import { BOARD } from "./board.js";
 
 let overlayTimerInterval = null;
+let lastScrignoFinalStingerQuestionId = null;
 
 function formatQuestionCategoryLabel(q) {
   if (!q) return "";
@@ -427,7 +428,16 @@ function renderScrignoVoteOverlay(gameState) {
         <div class="question-player">Sta tentando: <strong>${forPlayer}</strong></div>
       </div>
 
-      <div class="question-text">Scegliete la categoria della finale. Niente pietà.</div>
+      <div class="scrigno-countdown-big">
+  <div class="scrigno-countdown-label">VOTAZIONE</div>
+  <div class="scrigno-countdown-time">${timerText}</div>
+  <div class="scrigno-progress" style="--dur:${(vote.expiresAt ? (vote.expiresAt - (vote.startedAt || Date.now())) : 12000)}ms; --remaining:${remainingSec ?? 0};">
+    <div class="scrigno-progress-fill"></div>
+  </div>
+</div>
+
+<div class="question-text">Scegliete la categoria della finale. Niente pietà.</div>
+
 
       <div class="scrigno-vote-wrap">
         ${barsHtml || `<div class="scrigno-hint">In attesa dei voti…</div>`}
@@ -466,7 +476,16 @@ function renderScrignoTieOverlay(gameState) {
         <div class="question-player">Sceglie: <strong>${forPlayer}</strong></div>
       </div>
 
-      <div class="question-text">Pareggio nelle votazioni. Il giocatore sullo scrigno decide ora:</div>
+      <div class="scrigno-countdown-big scrigno-countdown-big--tie">
+  <div class="scrigno-countdown-label">PAREGGIO</div>
+  <div class="scrigno-countdown-time">${timerText}</div>
+  <div class="scrigno-progress" style="--dur:${(tie.expiresAt ? (tie.expiresAt - (tie.startedAt || Date.now())) : 10000)}ms;">
+    <div class="scrigno-progress-fill"></div>
+  </div>
+</div>
+
+<div class="question-text">Pareggio nelle votazioni. Il giocatore sullo scrigno decide ora:</div>
+
 
       <div class="scrigno-options">
         ${options.map(o => `<span class="scrigno-pill">${o}</span>`).join("")}
@@ -692,6 +711,35 @@ if (gameState && gameState.phase && gameState.phase.startsWith("EVENT")) {
   }
 
   const q = gameState.currentQuestion;
+  // ───────────────────────────────
+// GAMESHOW STINGER: quando parte la FINALE SCRIGNO
+// ───────────────────────────────
+if (q && q.scrignoMode === "FINAL" && q.id && q.id !== lastScrignoFinalStingerQuestionId) {
+  lastScrignoFinalStingerQuestionId = q.id;
+
+  // flash/stinger breve, non blocca la domanda
+  overlay.classList.add("scrigno-stinger-on");
+  // crea un layer sopra (se non esiste)
+  let st = overlay.querySelector(".scrigno-stinger-layer");
+  if (!st) {
+    st = document.createElement("div");
+    st.className = "scrigno-stinger-layer";
+    st.innerHTML = `
+      <div class="scrigno-stinger-flash"></div>
+      <div class="scrigno-stinger-center">
+        <div class="scrigno-stinger-title">SCRIGNO FINALE</div>
+        <div class="scrigno-stinger-sub">Tutto o niente.</div>
+      </div>
+    `;
+    overlay.appendChild(st);
+  }
+
+  // spegni dopo 900ms
+  window.clearTimeout(window.__scrignoStingerTO);
+  window.__scrignoStingerTO = window.setTimeout(() => {
+    overlay.classList.remove("scrigno-stinger-on");
+  }, 900);
+}
   const players = gameState.players || {};
   const player = players[q.forPlayerId];
 
